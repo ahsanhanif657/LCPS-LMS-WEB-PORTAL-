@@ -1,0 +1,4 @@
+import {database} from '../lib/database';
+const objects=new Map<string,any>();
+const bucket={async put(id:string,bytes:any,options:any={}){const body=typeof bytes==='string'?new TextEncoder().encode(bytes):bytes;objects.set(id,{body,customMetadata:options.customMetadata||{},size:body.length});},async get(id:string){const o=objects.get(id);return o?{...o,text:async()=>new TextDecoder().decode(o.body)}:null;},async head(id:string){return objects.get(id)||null;},async list({prefix}:any){return {objects:[...objects.entries()].filter(([id])=>id.startsWith(prefix)).map(([key,o])=>({key,...o}))};},async delete(id:string){objects.delete(id);}};
+export const env:any={STORAGE_MODE:'blob',BUCKET:bucket,fileStorage(provider:string){return ['blob','legacy'].includes(provider)?bucket:undefined;},DB:database};

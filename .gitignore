@@ -1,0 +1,9 @@
+node_modules/
+.next/
+.local-files/
+.env*
+!.env.example
+*.db*
+*.tsbuildinfo
+.vercel/
+tests/.generated.mjs

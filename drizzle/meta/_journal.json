@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1791695892584,
+      "tag": "0000_rainy_triathlon",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1792047657361,
+      "tag": "0001_far_freak",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792049030801,
+      "tag": "0002_academic_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792483699439,
+      "tag": "0003_timetable_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792483699440,
+      "tag": "0004_department_academics",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+import {build} from 'esbuild';
+import {spawnSync} from 'node:child_process';
+import {resolve} from 'node:path';
+import {existsSync,mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+const dir=mkdtempSync(resolve(tmpdir(),'lcps-test-'));
+process.env.TURSO_DATABASE_URL='file:'+resolve(dir,'test.db');
+process.env.FILE_STORAGE_MODE='blob';
+process.env.BLOB_READ_WRITE_TOKEN='test-only-blob-token';
+process.env.ADMIN_SETUP_KEY='test-only-setup-key-not-for-production';
+process.env.NODE_ENV='test';
+try{
+ await build({entryPoints:['tests/integration.ts'],bundle:true,platform:'node',format:'esm',outfile:'tests/.generated.mjs',packages:'external',plugins:[{name:'test-runtime',setup(b){b.onResolve({filter:/^(?:@\/lib\/platform|.*\/platform)$/},()=>({path:resolve('tests/runtime.ts')}));b.onResolve({filter:/^next\/headers$/},()=>({path:resolve('tests/headers.ts')}));b.onResolve({filter:/^next\/server$/},()=>({path:resolve('tests/next-server.ts')}));}}]});
+ const result=spawnSync(process.execPath,['tests/.generated.mjs'],{stdio:'inherit'});
+ if(result.error)throw result.error;
+ if(result.status!==0)throw new Error(`Integration tests exited with status ${result.status??'unknown'}.`);
+ await build({entryPoints:['tests/local-storage.ts'],bundle:true,platform:'node',format:'esm',outfile:'tests/.generated-local-storage.mjs',packages:'external',plugins:[{name:'workspace-alias',setup(b){b.onResolve({filter:/^@\//},args=>{const base=resolve(args.path.slice(2));for(const suffix of ['.ts','.tsx','.mjs','.js'])if(existsSync(base+suffix))return {path:base+suffix};if(existsSync(base))return {path:base};throw new Error(`Cannot resolve workspace alias: ${args.path}`);});}}]});
+ const storage=spawnSync(process.execPath,['tests/.generated-local-storage.mjs'],{stdio:'inherit'});
+ if(storage.error)throw storage.error;
+ if(storage.status!==0)throw new Error(`Local storage test exited with status ${storage.status??'unknown'}.`);
+ await build({entryPoints:['tests/storage-config.ts'],bundle:true,platform:'node',format:'esm',outfile:'tests/.generated-storage-config.mjs',packages:'external',plugins:[{name:'workspace-alias',setup(b){b.onResolve({filter:/^@\//},args=>{const base=resolve(args.path.slice(2));for(const suffix of ['.ts','.tsx','.mjs','.js'])if(existsSync(base+suffix))return {path:base+suffix};if(existsSync(base))return {path:base};throw new Error(`Cannot resolve workspace alias: ${args.path}`);});}}]});
+ const storageConfig=spawnSync(process.execPath,['tests/.generated-storage-config.mjs'],{stdio:'inherit'});
+ if(storageConfig.error)throw storageConfig.error;
+ if(storageConfig.status!==0)throw new Error(`Storage configuration test exited with status ${storageConfig.status??'unknown'}.`);
+ await build({entryPoints:['tests/export.ts'],bundle:true,platform:'node',format:'esm',outfile:'tests/.generated-export.mjs',packages:'external'});
+ const exports=spawnSync(process.execPath,['tests/.generated-export.mjs'],{stdio:'inherit'});
+ if(exports.error)throw exports.error;
+ if(exports.status!==0)throw new Error(`Export test exited with status ${exports.status??'unknown'}.`);
+ await build({entryPoints:['tests/postgres-query.ts'],bundle:true,platform:'node',format:'esm',outfile:'tests/.generated-postgres-query.mjs',packages:'external'});
+ const postgresQuery=spawnSync(process.execPath,['tests/.generated-postgres-query.mjs'],{stdio:'inherit'});
+ if(postgresQuery.error)throw postgresQuery.error;
+ if(postgresQuery.status!==0)throw new Error(`PostgreSQL query test exited with status ${postgresQuery.status??'unknown'}.`);
+}finally{rmSync('tests/.generated.mjs',{force:true});rmSync('tests/.generated-local-storage.mjs',{force:true});rmSync('tests/.generated-storage-config.mjs',{force:true});rmSync('tests/.generated-export.mjs',{force:true});rmSync('tests/.generated-postgres-query.mjs',{force:true});rmSync(dir,{recursive:true,force:true});}
