@@ -1,3 +1,4 @@
+import {roles} from '@/lib/lms/types';
 import {NextRequest,NextResponse} from 'next/server';
 import {cookies} from 'next/headers';
 import {ensureDatabase} from '@/lib/database';
@@ -27,7 +28,7 @@ export async function POST(req:NextRequest){try{
  const user=await stmt('SELECT users.*,credentials.hash FROM users JOIN credentials ON credentials.userId=users.id WHERE lower(username)=lower(?) AND active=1 AND demo=0',[username]).first<Row>();
  const dummy='pbkdf2$100000$'+'0'.repeat(64)+'$'+'0'.repeat(64);
  const valid=await verifyPassword(body.password,user?.hash||dummy);
- if(!user||!valid)throw new AppError('Invalid username or password.',401);
+ if(!user||!roles.includes(user.role)||!valid)throw new AppError('Invalid username or password.',401);
  const value=token(),old=jar.get('lcps_session')?.value;
  await db().batch([stmt('DELETE FROM loginSessions WHERE expires<?',[Date.now()]),stmt('DELETE FROM loginLimits WHERE expires<? OR key=?',[Date.now(),key]),...(old?[stmt('DELETE FROM loginSessions WHERE tokenHash=?',[await digest(old)])]:[]),stmt('INSERT INTO loginSessions(tokenHash,userId,expires) VALUES(?,?,?)',[await digest(value),user.id,Date.now()+28800000])]);
  jar.set('lcps_session',value,{...cookieOptions(),maxAge:28800});return NextResponse.json({ok:true});

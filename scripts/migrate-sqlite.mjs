@@ -40,7 +40,8 @@ if(!url){
   for(const [table,column,definition] of extraColumns)if(!await hasColumn(table,column))missingColumns.push([table,column,definition]);
   const hasUsers=await hasObject('table','users');
   const userCount=hasUsers?Number((await query('SELECT COUNT(*) AS count FROM users')).rows[0].count):0;
-  const needsUpdate=pending.length>0||missingColumns.length>0||
+  const retireStaff=hasUsers&&(await query("SELECT 1 FROM users WHERE role='STAFF' LIMIT 1")).rows.length>0;
+  const needsUpdate=retireStaff||pending.length>0||missingColumns.length>0||
    !await hasObject('table','privateFileObjects')||!await hasObject('table','blobMetadata');
   if(needsUpdate&&userCount&&url.startsWith('file:')){
    const rawPath=decodeURIComponent(url.slice(5).split('?')[0]);
@@ -48,10 +49,11 @@ if(!url){
    const stamp=new Date().toISOString().replace(/[:.]/g,'-');
    await query('VACUUM INTO ?',[`${sourcePath}.before-schema-update-${stamp}.bak`]);
    console.log('Created a private SQLite snapshot before schema updates.');
-  }else if(needsUpdate&&userCount&&!url.startsWith('file:')){
-   throw new Error('The remote Turso schema needs changes. Create and verify a Turso snapshot before migrating it.');
+  }else if(needsUpdate&&userCount&&!url.startsWith('file:')&&!process.argv.includes('--remote-backup-confirmed')){
+   throw new Error('The remote Turso schema needs changes. Create and verify a Turso snapshot, then re-run npm run db:migrate -- --remote-backup-confirmed.');
   }
   for(const statement of pending)await query(statement);
+  if(retireStaff)await client.batch([{sql:"DELETE FROM loginSessions WHERE userId IN (SELECT id FROM users WHERE role='STAFF')",args:[]},{sql:"UPDATE users SET role='RETIRED',active=0,permissions='{}' WHERE role='STAFF'",args:[]}],'write');
   for(const [table,column,definition] of missingColumns)
    await query(`ALTER TABLE "${table}" ADD COLUMN "${column}" ${definition}`);
   await query('UPDATE files SET storageKey=id WHERE storageKey IS NULL');

@@ -1,3 +1,4 @@
+import {permitted} from '@/security/privileges';
 import {sameOrigin} from '@/security/requests';
 import {rateLimit} from '@/security/rate-limit';
 import {NextRequest,NextResponse} from 'next/server';
@@ -14,27 +15,31 @@ export async function POST(req:NextRequest){try{
  const purpose=rawPurpose==='avatar'?'avatar':rawPurpose==='timetable'?'timetable':rawPurpose==='result-sheet'?'result-sheet':rawPurpose==='assessment-policy'?'assessment-policy':'academic';
  const c=await context(false);await rateLimit('upload:'+c.user.id,30,60000);
  if(purpose==='timetable'){
-  if(!['ADMIN','HOD'].includes(c.user.role))throw new AppError('Only administrators and HODs can upload timetables.',403);
+  if(!permitted(c.user,'timetable',c.rolePrivileges))throw new AppError('Timetable upload access is disabled.',403);
+
   if(typeof batchId!=='string'||!batchId)throw new AppError('Select the batch, semester and session for this timetable.');
   const batch=await stmt('SELECT departmentId FROM batches WHERE id=?',[batchId]).first<{departmentId:string}>();
   if(!batch)throw new AppError('Select a valid batch.',400);
-  if(c.user.role==='HOD'&&batch.departmentId!==c.user.departmentId)throw new AppError('You can only upload timetables for your department.',403);
+  if(!['ADMIN','PRINCIPAL'].includes(c.user.role)&&batch.departmentId!==c.user.departmentId)throw new AppError('You can only upload timetables for your department.',403);
  }
  if(purpose==='result-sheet'){
-  if(!['ADMIN','HOD','TEACHER'].includes(c.user.role))throw new AppError('Only administrators, HODs and teachers can upload result sheets.',403);
+  if(!permitted(c.user,'results',c.rolePrivileges))throw new AppError('Results upload access is disabled.',403);
+
   if(typeof offeringId!=='string'||!offeringId)throw new AppError('Select a subject and class for this result sheet.');
   const offering=await stmt('SELECT o.teacherId,b.departmentId FROM offerings o JOIN batches b ON b.id=o.batchId WHERE o.id=?',[offeringId]).first<{teacherId:string;departmentId:string}>();
   if(!offering)throw new AppError('Select a valid subject and class.',400);
-  if(c.user.role==='HOD'&&offering.departmentId!==c.user.departmentId)throw new AppError('You can only publish results for your department.',403);
-  if(c.user.role==='TEACHER'&&offering.teacherId!==c.user.id)throw new AppError('You can only publish results for your own subjects.',403);
+  if(c.user.role==='HOD'&&offering.departmentId!==c.user.departmentId)throw new AppError('You can only publish results for your own department.',403);
+  if(!['ADMIN','PRINCIPAL','HOD'].includes(c.user.role)&&offering.teacherId!==c.user.id&&!(permitted(c.user,'results_department',c.rolePrivileges)&&offering.departmentId===c.user.departmentId))throw new AppError('You can only publish results for your own subjects.',403);
  }
  if(purpose==='assessment-policy'){
-  if(!['ADMIN','HOD'].includes(c.user.role))throw new AppError('Only administrators and HODs can upload assessment policies.',403);
+  if(!permitted(c.user,'results',c.rolePrivileges))throw new AppError('Assessment policy access is disabled.',403);
+  if(!['ADMIN','HOD'].includes(c.user.role)&&!permitted(c.user,'results_department',c.rolePrivileges))throw new AppError('Only administrators and HODs can upload assessment policies.',403);
   if(typeof departmentId!=='string'||!departmentId)throw new AppError('Select a department for this policy.');
   const department=await stmt('SELECT id FROM departments WHERE id=?',[departmentId]).first();
   if(!department)throw new AppError('Select a valid department.',400);
-  if(c.user.role==='HOD'&&departmentId!==c.user.departmentId)throw new AppError('You can only manage your department policy.',403);
+  if(c.user.role!=='ADMIN'&&departmentId!==c.user.departmentId)throw new AppError('You can only manage your department policy.',403);
  }
+ if(purpose==='academic'&&!['assignments','quizzes','materials','submit_assignments','task_submit'].some(k=>permitted(c.user,k,c.rolePrivileges)))throw new AppError('Academic upload access is disabled.',403);
  const storage=env.BUCKET,provider=env.STORAGE_MODE;if(!storage||provider==='unavailable')throw new AppError('File storage is not configured. Set FILE_STORAGE_MODE=blob and configure a private Blob store for production. FILE_STORAGE_MODE=local is only supported outside Vercel.',503);
  if(!(file instanceof File)||file.size===0||file.size>maxUploadBytes)throw new AppError('Choose a file smaller than 4 MB.');
  const bytes=new Uint8Array(await file.arrayBuffer());

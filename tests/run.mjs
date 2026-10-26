@@ -22,6 +22,8 @@ try{
  const storageConfig=spawnSync(process.execPath,['tests/.generated-storage-config.mjs'],{stdio:'inherit'});
  if(storageConfig.error)throw storageConfig.error;
  if(storageConfig.status!==0)throw new Error(`Storage configuration test exited with status ${storageConfig.status??'unknown'}.`);
+ await build({entryPoints:['tests/ui-render.tsx'],bundle:true,platform:'node',format:'esm',outfile:'tests/.generated-ui.mjs',packages:'external'});
+ const ui=spawnSync(process.execPath,['tests/.generated-ui.mjs'],{stdio:'inherit'});if(ui.error)throw ui.error;if(ui.status!==0)throw new Error('UI render checks failed');
  await build({entryPoints:['tests/export.ts'],bundle:true,platform:'node',format:'esm',outfile:'tests/.generated-export.mjs',packages:'external'});
  const exports=spawnSync(process.execPath,['tests/.generated-export.mjs'],{stdio:'inherit'});
  if(exports.error)throw exports.error;
@@ -30,4 +32,4 @@ try{
  const postgresQuery=spawnSync(process.execPath,['tests/.generated-postgres-query.mjs'],{stdio:'inherit'});
  if(postgresQuery.error)throw postgresQuery.error;
  if(postgresQuery.status!==0)throw new Error(`PostgreSQL query test exited with status ${postgresQuery.status??'unknown'}.`);
-}finally{rmSync('tests/.generated.mjs',{force:true});rmSync('tests/.generated-local-storage.mjs',{force:true});rmSync('tests/.generated-storage-config.mjs',{force:true});rmSync('tests/.generated-export.mjs',{force:true});rmSync('tests/.generated-postgres-query.mjs',{force:true});rmSync(dir,{recursive:true,force:true});}
+}finally{rmSync('tests/.generated-ui.mjs',{force:true});rmSync('tests/.generated.mjs',{force:true});rmSync('tests/.generated-local-storage.mjs',{force:true});rmSync('tests/.generated-storage-config.mjs',{force:true});rmSync('tests/.generated-export.mjs',{force:true});rmSync('tests/.generated-postgres-query.mjs',{force:true});rmSync(dir,{recursive:true,force:true});}

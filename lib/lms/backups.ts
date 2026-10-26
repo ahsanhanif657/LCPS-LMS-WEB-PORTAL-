@@ -1,13 +1,14 @@
+import {permitted} from '@/security/privileges';
 import {env} from '@/lib/platform';
 import {getTableColumns} from 'drizzle-orm';
 import * as schema from '@/db/schema';
 import {tables,Row} from './types';
 import {Context,AppError,db,stmt,auditStmt,insert} from './service';
 import {digest,verifyPassword} from './password';
-const snapshotTables=[...tables.filter(t=>!['timetableFiles','resultFiles','assessmentPolicies'].includes(t)),'files','timetableFiles','resultFiles','assessmentPolicies','credentials','settings'];
+const snapshotTables=[...tables.filter(t=>!['timetableFiles','resultFiles','assessmentPolicies','facultyTasks'].includes(t)),'files','facultyTasks','timetableFiles','resultFiles','assessmentPolicies','credentials','settings'];
 const prefix='private-backups/managed/';
 const columns=(table:string)=>Object.values(getTableColumns((schema as any)[table])).map((v:any)=>v.name as string);
-const checkAdmin=(c:Context)=>{if(c.user.role!=='ADMIN')throw new AppError('Administrator access required.',403);if(!env.BUCKET)throw new AppError('Backup storage is unavailable.',503);};
+const checkAdmin=(c:Context)=>{if(!permitted(c.user,'manage_backups',c.rolePrivileges))throw new AppError('Administrator access required.',403);if(!env.BUCKET)throw new AppError('Backup storage is unavailable.',503);};
 export async function listBackups(c:Context){checkAdmin(c);const listed=await env.BUCKET!.list({prefix,limit:100,include:['customMetadata']});return listed.objects.map(o=>({id:o.key.slice(prefix.length),createdAt:o.customMetadata?.createdAt,reason:o.customMetadata?.reason,size:o.size})).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));}
 export async function createBackup(c:Context,reason='Manual backup'){
  checkAdmin(c);
@@ -35,6 +36,8 @@ export async function restoreBackup(c:Context,id:string,password:string,confirma
  let parsed;try{parsed=JSON.parse(body);}catch{throw new AppError('Backup is not valid JSON.');}
  if(parsed.version!==1||!parsed.data)throw new AppError('Unsupported backup format.');
  const data=parsed.data as Record<string,Row[]>;
+ if(!Array.isArray(data.facultyTasks))data.facultyTasks=[];
+ if(Array.isArray(data.users))for(const u of data.users){u.responsibilities??='[]';u.qualifications??=null;if(u.role==='STAFF'){u.role='RETIRED';u.active=0;u.permissions='{}';}}
  if(!Array.isArray(data.timetableFiles))data.timetableFiles=[];
  // Older v1 snapshots predate quiz attachments.
  if(Array.isArray(data.quizzes))for(const quiz of data.quizzes)if(!('fileId' in quiz))quiz.fileId=null;

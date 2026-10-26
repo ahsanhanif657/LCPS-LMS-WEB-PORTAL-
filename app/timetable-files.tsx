@@ -1,11 +1,12 @@
 'use client';
+import {permitted} from '@/security/privileges';
 import {useEffect,useState} from 'react';
 import {Download,Upload} from 'lucide-react';
 import {Data,Row} from '@/lib/lms/types';
 import {timetableAccept} from '@/lib/lms/file-types';
 
-export function TimetableFiles({data,user,onUploaded}:{data:Data;user:Row;onUploaded:()=>Promise<void>}){
- const allowed=['ADMIN','HOD'].includes(user.role);
+export function TimetableFiles({data,user,onUploaded,onDelete}:{data:Data;user:Row;onUploaded:()=>Promise<void>;onDelete:(file:Row)=>void}){
+ const allowed=permitted(user,'timetable');
  const batches=data.batches||[];
  const [batchId,setBatchId]=useState(()=>batches.find(b=>b.active!==0)?.id||'');
  const [busy,setBusy]=useState(false),[error,setError]=useState('');
@@ -32,7 +33,7 @@ export function TimetableFiles({data,user,onUploaded}:{data:Data;user:Row;onUplo
    const batch=batches.find(b=>b.id===file.batchId);
    const image=String(file.mime).startsWith('image/');
    return <article className="panel timetable-file" key={file.id}>
-    <div className="row between"><div><h2>{batch?batchLabel(batch):'Timetable'}</h2><p>{image?'Image timetable':'PDF timetable'}</p></div><a className="btn" href={`/api/files/${file.fileId}`}><Download size={16}/>Download timetable</a></div>
+    <div className="row between"><div><h2>{batch?batchLabel(batch):'Timetable'}</h2><p>{image?'Image timetable':'PDF timetable'}</p></div><div className="row gap"><a className="btn" href={`/api/files/${file.fileId}`}><Download size={16}/>Download timetable</a>{allowed&&<button type="button" className="btn destructive" onClick={()=>onDelete({...file,name:batch?batchLabel(batch):'Timetable'})}>Delete timetable</button>}</div></div>
     {image?<img src={`/api/files/${file.fileId}?view=1`} alt={`${batch?batchLabel(batch):'Class'} timetable`}/>:<iframe src={`/api/files/${file.fileId}?view=1`} title={`${batch?batchLabel(batch):'Class'} timetable`} loading="lazy"/>}
    </article>;
   })}

@@ -73,12 +73,14 @@ async function createLocalSnapshotIfNeeded(hasChanges:boolean){
 
 async function runLegacyMigrations(){
  const pending=await pendingLegacyMigrations();
+ const retireStaff=await hasObject('table','users')&&(await sqlClient().execute("SELECT 1 FROM users WHERE role='STAFF' LIMIT 1")).rows.length>0;
  const needsFileColumns=!(await hasColumn('files','storageProvider'))||
   !(await hasColumn('files','storageKey'))||
   !(await hasColumn('files','checksum'))||
   !(await hasColumn('quizzes','fileId'));
- await createLocalSnapshotIfNeeded(pending.length>0||needsFileColumns);
+ await createLocalSnapshotIfNeeded(pending.length>0||needsFileColumns||retireStaff);
  for(const statement of pending)await sqlClient().execute(statement);
+ if(retireStaff){await sqlClient().batch([{sql:"DELETE FROM loginSessions WHERE userId IN (SELECT id FROM users WHERE role='STAFF')",args:[]},{sql:"UPDATE users SET role='RETIRED',active=0,permissions='{}' WHERE role='STAFF'",args:[]}],'write');}
 }
 
 async function ensureColumn(table:string,column:string,definition:string){

@@ -1,14 +1,18 @@
+import {departmentAccess,permitted} from '@/security/privileges';
 import {Row,tables} from './types';
 import {stmt} from './service';
 // Restrict high-volume academic records in SQL before loading them into memory.
 export function dataQueries(user:Row){
+ const dept=departmentAccess(user);
  const broad=['ADMIN','PRINCIPAL'].includes(user.role);
- const offeringSql=user.role==='TEACHER'?'SELECT id FROM offerings WHERE teacherId=?':user.role==='HOD'?'SELECT o.id FROM offerings o JOIN batches b ON b.id=o.batchId WHERE b.departmentId=?':user.role==='STUDENT'?'SELECT id FROM offerings WHERE batchId=? AND active=1 UNION SELECT offeringId FROM enrollments WHERE studentId=? AND active=1':'SELECT id FROM offerings WHERE 0';
- const values=user.role==='TEACHER'?[user.id]:user.role==='HOD'?[user.departmentId]:user.role==='STUDENT'?[user.batchId,user.id]:[];
+ const offeringSql=dept?'SELECT o.id FROM offerings o JOIN batches b ON b.id=o.batchId WHERE b.departmentId=?':user.role==='TEACHER'?'SELECT id FROM offerings WHERE teacherId=?':user.role==='HOD'?'SELECT o.id FROM offerings o JOIN batches b ON b.id=o.batchId WHERE b.departmentId=?':user.role==='STUDENT'?'SELECT id FROM offerings WHERE batchId=? AND active=1 UNION SELECT offeringId FROM enrollments WHERE studentId=? AND active=1':'SELECT id FROM offerings WHERE 0';
+ const values=dept?[user.departmentId]:user.role==='TEACHER'?[user.id]:user.role==='HOD'?[user.departmentId]:user.role==='STUDENT'?[user.batchId,user.id]:[];
  return tables.map(table=>{
   if(table==='audit')return stmt(user.role==='ADMIN'?'SELECT * FROM (SELECT * FROM audit ORDER BY createdAt DESC LIMIT 150) ORDER BY createdAt':'SELECT * FROM audit WHERE 0');
   if(broad)return stmt(`SELECT * FROM "${table}"`);
+  if(table==='facultyTasks')return stmt('SELECT * FROM facultyTasks WHERE userId=? OR (departmentId=? AND ?=1)',[user.id,user.departmentId,permitted(user,'task_assign')?1:0]);
   if(table==='timetableFiles'){
+   if(dept)return stmt('SELECT * FROM timetableFiles WHERE batchId IN (SELECT id FROM batches WHERE departmentId=?)',[user.departmentId]);
    if(user.role==='STUDENT')return stmt('SELECT * FROM timetableFiles WHERE batchId=?',[user.batchId]);
    if(user.role==='TEACHER')return stmt('SELECT * FROM timetableFiles WHERE batchId IN (SELECT batchId FROM offerings WHERE teacherId=?)',[user.id]);
    if(user.role==='HOD')return stmt('SELECT * FROM timetableFiles WHERE batchId IN (SELECT id FROM batches WHERE departmentId=?)',[user.departmentId]);

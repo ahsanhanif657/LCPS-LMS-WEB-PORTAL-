@@ -86,3 +86,28 @@ export function downloadReport(title:string,filename:string,headers:string[],row
  link.href=url;link.download=name;link.click();
  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+
+export function reportOptions(title:string,filename:string,headers:string[],rows:string[][],_legacyFormat?:ExportFormat){
+ const dialog=document.createElement('dialog');dialog.className='export-dialog';
+ const h=document.createElement('h2');h.textContent=title;dialog.append(h);
+ const error=document.createElement('p');error.setAttribute('role','alert');
+ const actions=document.createElement('div');actions.className='export-actions';dialog.append(actions);
+ const add=(label:string,action:()=>void)=>{const b=document.createElement('button');b.className='btn';b.textContent=label;b.onclick=()=>{try{action();}catch(e){error.textContent=(e as Error).message;}};actions.append(b);};
+ add('View online',()=>showReport(title,headers,rows));
+ add('Download PDF',()=>downloadReport(title,filename,headers,rows,'pdf'));
+ add('Download JPG',()=>downloadJpg(title,filename,headers,rows));
+ add('Download Word',()=>downloadReport(title,filename,headers,rows,'word'));
+ add('Download ZIP / CSV',()=>downloadReport(title,filename,headers,rows,'zip'));
+ const note=document.createElement('p');note.textContent='PDF: choose Save as PDF in the print window. Long JPG reports download as numbered pages.';dialog.append(note,error);
+ add('Close',()=>dialog.close());dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);dialog.showModal();
+}
+export function downloadJpg(title:string,filename:string,headers:string[],rows:string[][]){
+ const width=Math.max(1200,headers.length*180),cell=(width-64)/Math.max(1,headers.length),line=21;
+ const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');if(!ctx)throw new Error('Image export is unavailable.');
+ canvas.width=width;ctx.font='15px Arial';
+ const wrap=(text:string)=>{const result:string[]=[];for(const paragraph of text.split('\n')){let current='';for(const char of paragraph){if(ctx.measureText(current+char).width>cell-20){result.push(current);current=char;}else current+=char;}result.push(current);}return result;};
+ const prepared=rows.map(row=>headers.map((_,i)=>wrap(String(row[i]??'')))),head=headers.map(wrap),headHeight=Math.max(...head.map(c=>c.length),1)*line+20;
+ const pages:{cells:string[][];height:number}[][]=[[{cells:head,height:headHeight}]];let used=120+headHeight;
+ for(const cells of prepared){const length=Math.max(...cells.map(c=>c.length),1);for(let offset=0;offset<length;offset+=200){const chunk=cells.map(c=>c.slice(offset,offset+200)),height=Math.max(...chunk.map(c=>c.length),1)*line+20;if(used+height>6000){pages.push([{cells:head,height:headHeight}]);used=120+headHeight;}pages.at(-1)!.push({cells:chunk,height});used+=height;}}
+ pages.forEach((page,index)=>{canvas.height=120+page.reduce((n,r)=>n+r.height,0);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,canvas.height);ctx.fillStyle='#18304a';ctx.font='bold 22px Arial';ctx.fillText(title,32,40,width-64);ctx.font='14px Arial';ctx.fillText(`LCPS report · Page ${index+1} of ${pages.length}`,32,70);let y=100;for(const row of page){row.cells.forEach((lines,i)=>{ctx.strokeStyle='#cbd5e1';ctx.strokeRect(32+i*cell,y,cell,row.height);ctx.fillStyle='#18304a';ctx.font='15px Arial';lines.forEach((text,j)=>ctx.fillText(text,42+i*cell,y+24+j*line));});y+=row.height;}const link=document.createElement('a');link.href=canvas.toDataURL('image/jpeg',0.92);link.download=`${filename}-${index+1}.jpg`;link.click();});
+}

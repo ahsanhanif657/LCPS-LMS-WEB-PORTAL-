@@ -4,7 +4,7 @@ import {PasswordInput} from '../security';
 export default function Setup(){
  const [state,setState]=useState<any>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  useEffect(()=>{fetch('/api/setup').then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error);setState(j);}).catch(e=>setError(e.message));},[]);
- return <main className="login-page"><form className="login-card" onSubmit={async e=>{
+ return <main className="login-page auth-page"><section className="auth-card"><aside className="auth-promo campus-promo"><div className="campus-caption"><h2>Learning starts here.</h2></div></aside><div className="auth-form-side"><form className="login-card auth-form" onSubmit={async e=>{
   e.preventDefault();const data=Object.fromEntries(new FormData(e.currentTarget));setBusy(true);setError('');
   try{const r=await fetch('/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}),j=await r.json();if(!r.ok)throw new Error(j.error);window.location.href='/';}
   catch(e){setError((e as Error).message);}finally{setBusy(false);}
@@ -22,5 +22,5 @@ export default function Setup(){
    <button className="btn primary" disabled={busy||!state?.setupKeyConfigured}>{busy?'Creating administrator…':'Create administrator'}</button>
   </>}
   {error&&<p role="alert" className="form-error">{error}</p>}
- </form></main>;
+ </form></div></section></main>;
 }
