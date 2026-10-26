@@ -7,27 +7,26 @@ export function PasswordInput(props:InputHTMLAttributes<HTMLInputElement>){
  return <span className="password-input-wrap"><input {...props} type={visible?'text':'password'}/><button type="button" className="password-toggle" aria-label={visible?'Hide password':'Show password'} aria-pressed={visible} onClick={()=>setVisible(value=>!value)}>{visible?<EyeOff size={17}/>:<Eye size={17}/>}</button></span>;
 }
 export function LoginForm({error,onLogin}:{error:string;onLogin:()=>Promise<void>}){
- const [username,setUsername]=useState(''),[password,setPassword]=useState(''),[err,setErr]=useState(''),[busy,setBusy]=useState(false),[mode,setMode]=useState<'login'|'signup'>('login');
+ const [username,setUsername]=useState(''),[password,setPassword]=useState(''),[remember,setRemember]=useState(true),[err,setErr]=useState(''),[busy,setBusy]=useState(false),[mode,setMode]=useState<'login'|'signup'>('login');
  const switchMode=(next:'login'|'signup')=>{setMode(next);setErr('');};
- return <main className="login-page auth-page"><section className={'auth-card '+(mode==='signup'?'is-signup':'')} aria-label="LCPS account access">
+ return <main className="login-page auth-page"><a className="glass-college-logo" href="/" aria-label="LCPS home"><img src="/lcps-logo.png" alt="Lahore College of Pharmaceutical Sciences"/></a><section className={'auth-card '+(mode==='signup'?'is-signup':'')} aria-label="LCPS account access">
   <div className="auth-form-side">
    {mode==='login'?<form className="auth-form" onSubmit={async e=>{e.preventDefault();setBusy(true);setErr('');try{await authRequest({action:'login',username,password});await onLogin();}catch(e){setErr((e as Error).message);}finally{setBusy(false);}}}>
-    <a className="auth-logo" href="/" aria-label="LCPS home"><img src="/lcps-logo.png" alt="LCPS — Lahore College of Pharmaceutical Sciences"/></a>
     <div className="auth-kicker"><span/> ACADEMIC PORTAL</div>
-    <h1>Welcome back</h1><p className="auth-description">Sign in with your college account to continue your learning journey.</p>
+    <h1>Login</h1><p className="auth-description">Welcome back please login to your account</p>
     <label className="field"><span>Username</span><input required autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} placeholder="Enter your username"/></label>
     <label className="field"><span>Password</span><PasswordInput required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter your password"/></label>
+    <label className="glass-remember"><input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/> Remember me</label>
     {(err||error)&&<p role="alert" className="form-error">{err||error}</p>}
-    <button className="btn primary full auth-submit" disabled={busy}>{busy?'Signing in…':'Sign in'}{!busy&&<ArrowRight size={17}/>}</button>
-    <p className="auth-footnote">Need an account or password reset? Contact your college administrator.</p>
+    <button className="btn primary full auth-submit" disabled={busy}>{busy?'Signing in…':'Login'}{!busy&&<ArrowRight size={17}/>}</button>
+    <p className="auth-footnote">Don’t have an account? <button type="button" className="auth-signup-link" onClick={()=>switchMode('signup')}>Signup</button></p>
     <a className="auth-setup" href="/setup">First-time administrator setup</a>
    </form>:<div className="auth-form auth-signup">
-    <a className="auth-logo" href="/" aria-label="LCPS home"><img src="/lcps-logo.png" alt="LCPS — Lahore College of Pharmaceutical Sciences"/></a>
     <div className="auth-kicker"><span/> JOIN THE LCPS COMMUNITY</div>
     <h1>Get your account</h1><p className="auth-description">Your college account is set up by the people responsible for your department.</p>
     <div className="account-path"><span className="account-icon"><BookOpen size={19}/></span><div><strong>Student account</strong><p>Contact your department’s Head of Department to request an account.</p></div></div>
     <div className="account-path"><span className="account-icon"><Building2 size={19}/></span><div><strong>Teacher or staff account</strong><p>Ask your department HOD or college administrator to create your account.</p></div></div>
-    <div className="account-security"><ShieldCheck size={17}/><span>Accounts are created by authorized college staff to keep the learning portal secure.</span></div>
+    <button className="btn" onClick={()=>switchMode('login')}>Back to login</button><div className="account-security"><ShieldCheck size={17}/><span>Accounts are created by authorized college staff to keep the learning portal secure.</span></div>
    </div>}
   </div>
   <aside className="auth-promo campus-promo" aria-label="LCPS campus"><div className="campus-caption"><span>LAHORE COLLEGE OF PHARMACEUTICAL SCIENCES</span><h2>Learning starts here.</h2><p>Your classes, coursework and academic progress. Connected.</p></div></aside>
