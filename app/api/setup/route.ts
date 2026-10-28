@@ -20,6 +20,6 @@ export async function POST(req:NextRequest){try{
  if(name.length<2||name.length>100||!/^[-\w.]{3,60}$/.test(username))throw new AppError('Enter a valid name and a 3–60 character username.');
  let hash;try{hash=await hashPassword(b.password);}catch(e){throw new AppError((e as Error).message);}
  const id='lcps-administrator';
- await db().batch([insert('settings',{key:'college_auth_v2',value:'1'}),insert('users',{id,name,username,role:'ADMIN',active:1,demo:0,permissions:'{}',createdAt:new Date().toISOString()}),insert('credentials',{userId:id,hash}),insert('settings',{key:'owner',value:id}),insert('settings',{key:'college',value:'Lahore College of Pharmaceutical Sciences'})]);
+ await db().batch([insert('settings',{key:'college_auth_v2',value:'1'}),insert('users',{id,name,username,role:'ADMIN',passwordChangeRequired:1,active:1,demo:0,permissions:'{}',createdAt:new Date().toISOString()}),insert('credentials',{userId:id,hash}),insert('settings',{key:'owner',value:id}),insert('settings',{key:'college',value:'Lahore College of Pharmaceutical Sciences'})]);
  return NextResponse.json({ok:true});
  }catch(e){return fail(e);}}

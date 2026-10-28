@@ -14,7 +14,14 @@ const profile=renderToStaticMarkup(<TeacherProfile teacher={{name:'Teacher',qual
 const scoped=scopedData(student,data),outlines=renderToStaticMarkup(<CourseOutlines data={scoped} user={student}/>);assert(outlines.includes('Select subject'));assert(!outlines.includes('Add course outline'));
 const sessions=renderToStaticMarkup(<SessionSubjects data={data} renderSubject={()=>'SHOULD-NOT-RENDER'}/>);assert(!sessions.includes('SHOULD-NOT-RENDER'));
 const result=renderToStaticMarkup(<ResultsWorkflow data={data} user={hod} label={(_,id)=>id} run={async()=>{}}/>);assert(result.includes('1. Academic session'));assert(!result.includes('Marks for '));
-const schedule=renderToStaticMarkup(<TimetableSchedule data={scoped} user={student}/>);assert(schedule.includes('<table>'));assert(schedule.includes('<th>Teacher</th>'));assert(!schedule.includes('timetable-card'));
-const login=renderToStaticMarkup(<LoginForm error="" onLogin={async()=>{}}/>);assert(login.includes('campus-promo'));assert(login.includes('/lcps-logo.png'));assert(login.includes('Welcome back'));
+const schedule=renderToStaticMarkup(<TimetableSchedule data={scoped} user={student}/>);assert(schedule.includes('<table class="weekly-schedule">'));assert(schedule.includes('weekly-class'));assert(schedule.includes(scoped.users.find(u=>u.id===scoped.offerings[0]?.teacherId)?.name||'Teacher'));assert(!schedule.includes('timetable-card'));
+const login=renderToStaticMarkup(<LoginForm error="" onLogin={async()=>{}}/>);assert(login.includes('auth-card'));assert(login.includes('/lcps-logo.png'));assert(login.includes('Welcome back'));
 const notices=renderToStaticMarkup(<LoginNotices visible items={[{id:'n',title:'Faculty notice',detail:'Review your marks',page:'announcements'}]} acknowledge={async()=>{}} navigate={()=>{}}/>);assert(notices.includes('notice-list'));assert(notices.includes('Announcement'));assert(notices.includes('role="dialog"'));
 console.log('PASS 8 component rendering checks: attendance, profile privacy, outlines, session gates, results gate, timetable, login and notices');
+
+const {CoursePolicy,CommunityBanner,RecordWorkspace}=await import('../app/portal-additions');
+const policyView=renderToStaticMarkup(<CoursePolicy data={scoped} user={student} offeringId="off-mobile" run={async()=>{}}/>);assert(policyView.includes('30%'));assert(policyView.includes('60%'));assert(policyView.includes('Participation / Presentation'));assert(!policyView.includes('Edit assessment policy'));
+const hodPolicy=renderToStaticMarkup(<CoursePolicy data={data} user={hod} offeringId="off-mobile" run={async()=>{}}/>);assert(hodPolicy.includes('Edit assessment policy'));
+const banner=renderToStaticMarkup(<CommunityBanner data={scoped}/>);for(const domain of ['facebook.com','instagram.com','tiktok.com','whatsapp.com'])assert(banner.includes(domain));assert(banner.includes('Management announcements'));assert(banner.includes('social-brand'));
+const personal=renderToStaticMarkup(<RecordWorkspace data={scoped} user={student} run={async()=>{}} personal/>);assert(personal.includes('Personal diary'));assert(personal.includes('To-do list'));
+console.log('PASS policy permissions, reference weights, social links and personal workspace rendering');

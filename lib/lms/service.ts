@@ -1,3 +1,4 @@
+import {extensionAction} from './extensions';
 import {facultyAction} from './faculty-tasks';
 import {loginReminders} from './reminders';
 import {dataQueries} from './queries';
@@ -19,7 +20,7 @@ export const stmt=(sql:string,values:any[]=[])=>db().prepare(sql).bind(...values
 export function insert(table:string,row:Row,ignore=false){const keys=Object.keys(row);return stmt(`INSERT INTO "${table}" (${keys.map(k=>'"'+k+'"').join(',')}) VALUES (${keys.map(()=>'?').join(',')})${ignore?' ON CONFLICT DO NOTHING':''}`,keys.map(k=>row[k]??null));}
 export const auditStmt=(u:Row,action:string,entity:string,id:string,detail='')=>insert('audit',{id:uid(),actorId:u.id,action,entity,recordId:id,detail,createdAt:new Date().toISOString()});
 export async function getRolePrivileges():Promise<RolePrivilegesConfig>{const row=await stmt("SELECT value FROM settings WHERE key='role_privileges'").first<{value:string}>();if(row?.value){try{const parsed=JSON.parse(row.value);if(parsed&&Array.isArray(parsed.privileges)&&parsed.rolePermissions)return normalizeRolePrivileges(parsed);}catch(e){console.error('Failed to parse role_privileges',e);}}return getDefaultRolePrivileges();}
-export async function context(loadData=true){
+export async function context(loadData=true,allowPasswordChange=false){
  await ensureDatabase();
  if(!await stmt("SELECT value FROM settings WHERE key='college_auth_v2'").first())throw new AppError('First administrator setup is required. Open /setup to finish.',428);
  const auth={userId:'college-session',email:''};
@@ -27,6 +28,7 @@ export async function context(loadData=true){
  const found=session?await stmt('SELECT userId,remindersSeen FROM loginSessions WHERE tokenHash=? AND expires>?',[await digest(session),Date.now()]).first<Row>():null;
  const actual=found?await stmt('SELECT * FROM users WHERE id=? AND active=1 AND demo=0',[found.userId]).first<Row>():null;
  if(!actual||!roles.includes(actual.role))throw new AppError('Please sign in with your college username and password.',401);
+ if(actual.passwordChangeRequired&&!allowPasswordChange)throw new AppError('Change your password before using the portal.',403);
  const rolePrivileges=await getRolePrivileges();actual.accessConfig=rolePrivileges;
  const isOwner=actual.role==='ADMIN';
  const data:Data={};const loaded=loadData?await db().batch(dataQueries(actual)):[];tables.forEach((t,i)=>{data[t]=loadData?loaded[i].results as Row[]:[];});
@@ -84,7 +86,7 @@ function validate(c:Context,t:string,r:Row,previous?:Row){const u=c.user,d=c.dat
  if(['assignments','results'].includes(t)){r.maxMarks=number(r.maxMarks,1,1000,'Maximum marks');if(t==='results')r.marks=number(r.marks,0,r.maxMarks,'Marks');}
  if(t==='assignments')date(r.dueDate,'Due date');
  if(t==='quizzes'){date(r.opensAt,'Opening time');date(r.closesAt,'Closing time');assert(Date.parse(r.closesAt)>Date.parse(r.opensAt),'Closing time must follow opening time.',400);r.duration=1;r.questions='[]';}
- if(t==='announcements'){assert(manager(u)||u.role==='TEACHER');if(u.role==='TEACHER')assert(off&&off.teacherId===u.id);if(u.role==='HOD')assert(r.departmentId===u.departmentId||off||batch?.departmentId===u.departmentId,'Select your department, class, or subject audience.',400);if(r.targetRole)assert(roles.includes(r.targetRole),'Invalid target role.',400);if(previous)assert(broad(u)||previous.authorId===u.id);}
+ if(t==='announcements'){assert(manager(u)||u.role==='TEACHER'||['TREASURER','EXAMINATION_CONTROLLER','REGISTRAR'].includes(u.role));if(u.role==='TEACHER')assert(off&&off.teacherId===u.id);if(u.role==='HOD')assert(r.departmentId===u.departmentId||off||batch?.departmentId===u.departmentId,'Select your department, class, or subject audience.',400);if(r.targetRole)assert(roles.includes(r.targetRole),'Invalid target role.',400);if(previous)assert(broad(u)||previous.authorId===u.id);}
  if(t==='materials'){if(r.kind==='Course outline')assert(permitted(u,'view_courseOutlines'),'Course outline access is disabled.');assert(['Link','Video','Document','Course outline'].includes(r.kind),'Select a material type.',400);assert(r.url||r.fileId,'Provide a link or upload a document.',400);if(r.url){let url;try{url=new URL(r.url);}catch{throw new AppError('Enter a valid URL.');}assert(url.protocol==='https:','Use an HTTPS resource URL.',400);}}
  if(t==='tasks')assert(false,'Office tasks have been retired.');
  for(const k of ['active','published','allowLate','release'])if(k in r)r[k]=r[k]?1:0;
@@ -102,7 +104,7 @@ export async function save(c:Context,t:string,input:Row){assert(t!=='tasks','Off
   assert(/^[a-zA-Z0-9_.-]{3,60}$/.test(r.username),'Username must be 3–60 letters, numbers, dots, underscores or hyphens.',400);
   r.username=r.username.toLowerCase();
   if('permissions' in input){assert(permitted(c.user,'manage_access',c.rolePrivileges));let grants;try{grants=typeof input.permissions==='string'?JSON.parse(input.permissions):input.permissions;}catch{throw new AppError('Invalid privileges.');}assert(grants&&typeof grants==='object'&&!Array.isArray(grants),'Invalid privileges.',400);for(const [k,v] of Object.entries(grants))assert(isValidPrivilege(k,c.rolePrivileges)&&typeof v==='boolean','Invalid privilege.',400);r.permissions=JSON.stringify(grants);}
-  if(!previous||input.password){assert(!previous||permitted(c.user,'reset_passwords',c.rolePrivileges),'Only an administrator can reset passwords.');assert(previous?.id!==c.user.id,'Use Change password for your own account.',400);let hash;try{hash=await hashPassword(input.password);}catch(e){throw new AppError((e as Error).message);}extra.push(stmt('INSERT INTO credentials(userId,hash) VALUES(?,?) ON CONFLICT(userId) DO UPDATE SET hash=excluded.hash',[r.id,hash]));}
+  if(!previous||input.password){r.passwordChangeRequired=1;assert(!previous||permitted(c.user,'reset_passwords',c.rolePrivileges),'Only an administrator can reset passwords.');assert(previous?.id!==c.user.id,'Use Change password for your own account.',400);let hash;try{hash=await hashPassword(input.password);}catch(e){throw new AppError((e as Error).message);}extra.push(stmt('INSERT INTO credentials(userId,hash) VALUES(?,?) ON CONFLICT(userId) DO UPDATE SET hash=excluded.hash',[r.id,hash]));}
   if(previous)extra.push(stmt('DELETE FROM loginSessions WHERE userId=?',[r.id]));
   if(!previous&&r.role==='STUDENT'&&r.batchId)for(const course of d.offerings.filter(o=>o.batchId===r.batchId&&o.active!==0))extra.push(insert('enrollments',{id:uid(),studentId:r.id,offeringId:course.id,active:1},true));
  }
@@ -172,6 +174,7 @@ export async function remove(c:Context,t:string,id:string){const u=c.user;assert
  await db().batch(writes);
 }
 export async function action(c:Context,body:Row){const u=c.user,d=c.data;
+ if(['personalSave','personalDelete','coursePolicySave','managementSave','managementDelete','deleteResultSheet'].includes(body.action))return extensionAction(c,body);
  if(['createFacultyTask','submitFacultyTask','cancelFacultyTask','setResponsibilities','ackLoginReminder'].includes(body.action))return facultyAction(c,body);
  if(body.action==='save')return save(c,body.entity,body.record||{});
  if(body.action==='remove')return remove(c,body.entity,body.id);
@@ -353,7 +356,7 @@ export async function action(c:Context,body:Row){const u=c.user,d=c.data;
   const updatedRolePermissions={...current.rolePermissions};
   const rolesToAssign=Array.isArray(initialRoles)?initialRoles:['ADMIN'];
   if(!rolesToAssign.includes('ADMIN'))rolesToAssign.push('ADMIN');
-  for(const role of ['ADMIN','PRINCIPAL','HOD','TEACHER','STUDENT']){
+  for(const role of roles){
    const perms=new Set(updatedRolePermissions[role]||[]);
    if(rolesToAssign.includes(role))perms.add(cleanKey);
    updatedRolePermissions[role]=Array.from(perms);

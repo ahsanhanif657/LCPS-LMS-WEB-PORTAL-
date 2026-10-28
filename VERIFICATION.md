@@ -1,12 +1,13 @@
-# Verification — 26 October 2026
+# Verification — LCPS management update
 
-- npm run check passed: strict TypeScript checks; 83 database/API integration checks; 8 React rendering checks; storage, export and PostgreSQL query translation checks.
-- npm run build passed using Next.js 16.4.2 webpack production build.
-- New integration coverage verifies persisted qualifications, public-profile privacy, outline visibility across roles, unauthorized subject writes, view revocation, and backup restore of new fields.
-- Component rendering verifies attendance counts, teacher profile escaping, course outline read-only student UI, session selection gates, HOD results gate, timetable table structure, campus login markup and accessible notice-dialog markup.
-- Browser installation failed in this environment, so full browser interaction and screenshot verification were not completed. Rendering checks do not substitute for visual verification.
-- Tests use temporary fixture databases. No live accounts, real academic records or remote storage were modified.
-- Runtime database remains SQLite/Turso. PostgreSQL migration SQL is included for the existing optional scaffold; PostgreSQL runtime was not exercised.
-- PDF export relies on browser print-to-PDF. Original uploaded documents are not converted to JPG/PDF; generated tabular reports support those options.
+Validated against the source from LCPS_LMS_Vercel_Ready(10).zip on 28 October 2026.
 
-- Update helper tested against a temporary existing project: all 25 changed source files matched; environment/database markers unchanged; source backup outside target. Windows CMD itself was not executed in this Linux environment.
+- Production `npm run build` (webpack): successful compilation, TypeScript check and route generation.
+- `npm test`: 89 integration checks passed, including existing academic workflows and new feature cases.
+- New tests cover owner-only diary/to-do reads and writes (including admin denial), policy editing/read scope and total validation, bounded management modules and individual permission denial, targeted management announcements, first-login API gating, reset re-gating, same-password rejection, result-sheet deletion with marks preserved, and new-table backup recovery.
+- Component rendering checks passed for existing screens plus policy percentages/edit controls, social links and the personal workspace.
+- Local file storage, production storage configuration, exports and PostgreSQL query translation tests passed.
+- Updated the two stale rendering assertions to match the weekly timetable and login markup already present in the supplied ZIP.
+- Update-helper smoke check: manifest copied successfully; environment/database/upload sentinels remained intact; source backup was created outside the target project.
+
+Limits: No production database, GitHub push or Vercel deployment was used. Tests used disposable local SQLite and mock object storage. PostgreSQL migration SQL is included but was not executed against a live PostgreSQL server. Interactive browser/mobile visual testing was not completed; component rendering and build checks are not a substitute for checking real devices. Existing pre-update accounts remain usable without a blanket password reset; newly created/reset accounts must change passwords before portal access.

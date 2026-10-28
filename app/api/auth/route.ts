@@ -16,10 +16,11 @@ export async function POST(req:NextRequest){try{
  if(body.action==='logout'){const value=jar.get('lcps_session')?.value;if(value)await stmt('DELETE FROM loginSessions WHERE tokenHash=?',[await digest(value)]).run();clear();return NextResponse.json({ok:true});}
  await rateLimit('auth-ip:'+await clientKey(),100);
  if(body.action==='change'){
-  const c=await context(false);await rateLimit('password-change:'+c.user.id,10);const cred=await stmt('SELECT hash FROM credentials WHERE userId=?',[c.user.id]).first<Row>();
+  const c=await context(false,true);await rateLimit('password-change:'+c.user.id,10);const cred=await stmt('SELECT hash FROM credentials WHERE userId=?',[c.user.id]).first<Row>();
   if(!cred||!await verifyPassword(body.currentPassword,cred.hash))throw new AppError('Current password is incorrect.');
+  if(body.currentPassword===body.newPassword)throw new AppError('Choose a different new password.');
   let hash;try{hash=await hashPassword(body.newPassword);}catch(e){throw new AppError((e as Error).message);}
-  await db().batch([stmt('UPDATE credentials SET hash=? WHERE userId=?',[hash,c.user.id]),stmt('DELETE FROM loginSessions WHERE userId=?',[c.user.id]),stmt('DELETE FROM loginLimits WHERE key=?',['password-change:'+c.user.id]),auditStmt(c.user,'password-change','users',c.user.id)]);
+  await db().batch([stmt('UPDATE users SET passwordChangeRequired=0 WHERE id=?',[c.user.id]),stmt('UPDATE credentials SET hash=? WHERE userId=?',[hash,c.user.id]),stmt('DELETE FROM loginSessions WHERE userId=?',[c.user.id]),stmt('DELETE FROM loginLimits WHERE key=?',['password-change:'+c.user.id]),auditStmt(c.user,'password-change','users',c.user.id)]);
   clear();return NextResponse.json({ok:true});
  }
  if(body.action!=='login')throw new AppError('Unknown authentication action.');

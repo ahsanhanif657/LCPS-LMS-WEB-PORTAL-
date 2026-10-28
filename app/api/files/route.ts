@@ -29,11 +29,11 @@ export async function POST(req:NextRequest){try{
   const offering=await stmt('SELECT o.teacherId,b.departmentId FROM offerings o JOIN batches b ON b.id=o.batchId WHERE o.id=?',[offeringId]).first<{teacherId:string;departmentId:string}>();
   if(!offering)throw new AppError('Select a valid subject and class.',400);
   if(c.user.role==='HOD'&&offering.departmentId!==c.user.departmentId)throw new AppError('You can only publish results for your own department.',403);
-  if(!['ADMIN','PRINCIPAL','HOD'].includes(c.user.role)&&offering.teacherId!==c.user.id&&!(permitted(c.user,'results_department',c.rolePrivileges)&&offering.departmentId===c.user.departmentId))throw new AppError('You can only publish results for your own subjects.',403);
+  if(!permitted(c.user,'exams',c.rolePrivileges)&&!['ADMIN','PRINCIPAL','HOD'].includes(c.user.role)&&offering.teacherId!==c.user.id&&!(permitted(c.user,'results_department',c.rolePrivileges)&&offering.departmentId===c.user.departmentId))throw new AppError('You can only publish results for your own subjects.',403);
  }
  if(purpose==='assessment-policy'){
   if(!permitted(c.user,'results',c.rolePrivileges))throw new AppError('Assessment policy access is disabled.',403);
-  if(!['ADMIN','HOD'].includes(c.user.role)&&!permitted(c.user,'results_department',c.rolePrivileges))throw new AppError('Only administrators and HODs can upload assessment policies.',403);
+  if(!['ADMIN','HOD'].includes(c.user.role))throw new AppError('Only administrators and HODs can upload assessment policies.',403);
   if(typeof departmentId!=='string'||!departmentId)throw new AppError('Select a department for this policy.');
   const department=await stmt('SELECT id FROM departments WHERE id=?',[departmentId]).first();
   if(!department)throw new AppError('Select a valid department.',400);

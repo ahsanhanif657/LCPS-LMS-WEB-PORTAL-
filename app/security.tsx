@@ -4,7 +4,7 @@ import {ArrowRight,BookOpen,Building2,Eye,EyeOff,ShieldCheck,Sparkles} from 'luc
 export async function authRequest(body:Record<string,string>){const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json() as {error?:string};if(!r.ok)throw new Error(j.error||'Request failed.');}
 export function PasswordInput(props:InputHTMLAttributes<HTMLInputElement>){
  const [visible,setVisible]=useState(false);
- return <span className="password-input-wrap"><input {...props} type={visible?'text':'password'}/><button type="button" className="password-toggle" aria-label={visible?'Hide password':'Show password'} aria-pressed={visible} onClick={()=>setVisible(value=>!value)}>{visible?<EyeOff size={17}/>:<Eye size={17}/>}</button></span>;
+ return <span className="password-input-wrap"><input {...props} type={visible?'text':'password'}/><button type="button" className="password-toggle" aria-label={visible?'Hide password':'Show password'} aria-pressed={visible} onClick={()=>setVisible(value=>!value)}>{visible?'Hide':'Show'}</button></span>;
 }
 export function LoginForm({error,onLogin}:{error:string;onLogin:()=>Promise<void>}){
  const [username,setUsername]=useState(''),[password,setPassword]=useState(''),[remember,setRemember]=useState(true),[err,setErr]=useState(''),[busy,setBusy]=useState(false),[mode,setMode]=useState<'login'|'signup'>('login');
@@ -18,15 +18,15 @@ export function LoginForm({error,onLogin}:{error:string;onLogin:()=>Promise<void
     <label className="field"><span>Password</span><PasswordInput required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter your password"/></label>
     <label className="glass-remember"><input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/> Remember me</label>
     {(err||error)&&<p role="alert" className="form-error">{err||error}</p>}
-    <button className="btn primary full auth-submit" disabled={busy}>{busy?'Signing in…':'Login'}{!busy&&<ArrowRight size={17}/>}</button>
+    <button className="btn primary full auth-submit" disabled={busy}>{busy?'Signing in…':'Login'}</button>
     <p className="auth-footnote">Don’t have an account? <button type="button" className="auth-signup-link" onClick={()=>switchMode('signup')}>Signup</button></p>
     <a className="auth-setup" href="/setup">First-time administrator setup</a>
    </form>:<div className="auth-form auth-signup">
     <div className="auth-kicker"><span/> JOIN THE LCPS COMMUNITY</div>
     <h1>Get your account</h1><p className="auth-description">Your college account is set up by the people responsible for your department.</p>
-    <div className="account-path"><span className="account-icon"><BookOpen size={19}/></span><div><strong>Student account</strong><p>Contact your department’s Head of Department to request an account.</p></div></div>
-    <div className="account-path"><span className="account-icon"><Building2 size={19}/></span><div><strong>Teacher or staff account</strong><p>Ask your department HOD or college administrator to create your account.</p></div></div>
-    <button className="btn" onClick={()=>switchMode('login')}>Back to login</button><div className="account-security"><ShieldCheck size={17}/><span>Accounts are created by authorized college staff to keep the learning portal secure.</span></div>
+    <div className="account-path"><span className="account-icon"></span><div><strong>Student account</strong><p>Contact your department’s Head of Department to request an account.</p></div></div>
+    <div className="account-path"><span className="account-icon"></span><div><strong>Teacher or staff account</strong><p>Ask your department HOD or college administrator to create your account.</p></div></div>
+    <button className="btn" onClick={()=>switchMode('login')}>Back to login</button><div className="account-security"><span>Accounts are created by authorized college staff to keep the learning portal secure.</span></div>
    </div>}
   </div>
   <aside className="auth-promo campus-promo" aria-label="LCPS campus"><div className="campus-caption"><span>LAHORE COLLEGE OF PHARMACEUTICAL SCIENCES</span><h2>Learning starts here.</h2><p>Your classes, coursework and academic progress. Connected.</p></div></aside>

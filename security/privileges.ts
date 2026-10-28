@@ -13,6 +13,7 @@ export interface RolePrivilegesConfig {
 }
 
 const actionPrivileges: PrivilegeDefinition[] = [
+ ...['finance','exams','events','transport'].map(key=>({key,label:'Manage '+key,builtIn:true})),
 {key:"task_assign",label:"Assign teacher tasks",builtIn:true},{key:"task_submit",label:"Submit assigned tasks",builtIn:true},{key:"view_teacherTasks",label:"View teacher tasks",builtIn:true},{key:"delegate_responsibilities",label:"Assign departmental responsibilities",builtIn:true},{key:"timetable_department",label:"Timetable: department scope",builtIn:true},{key:"academic_department",label:"Academic setup: department scope",builtIn:true},{key:"results_department",label:"Results: department scope",builtIn:true},{key:"student_enrollment",label:"Manage student enrollment",builtIn:true},{key:"college_setup",label:"Manage college departments, programs and sessions",builtIn:true},{key:"manage_access",label:"Manage all roles and individual permissions",builtIn:true},{key:"system_settings",label:"Manage system settings",builtIn:true},{key:"manage_backups",label:"Create and restore database backups",builtIn:true},{key:"reset_passwords",label:"Reset user passwords",builtIn:true},{key:"senior_accounts",label:"Manage senior accounts including administrators",builtIn:true},
 
  {key:'users',label:'Create / edit authorized users',description:'Manage user accounts and credentials',builtIn:true},
@@ -32,13 +33,13 @@ const actionRolePermissions: Record<string, string[]> = {
  PRINCIPAL: ['academic','announcements','reports','college_setup'],
  HOD: ['task_assign','view_teacherTasks','delegate_responsibilities','student_enrollment','users','academic','timetable','attendance','assignments','quizzes','results','materials','announcements','reports'],
  TEACHER: ['view_teacherTasks','task_submit','attendance','assignments','quizzes','results','materials','announcements'],
- STUDENT: []
+ TREASURER:['finance','announcements'], EXAMINATION_CONTROLLER:['exams','results','announcements'], REGISTRAR:['events','transport','announcements'], STUDENT: []
 };
 
 // Module visibility is independent of write access. Existing installations keep their views.
 const modules = ['courseOutlines','subjects','academic','users','attendance','assignments','quizzes','results','materials','timetable','announcements'];
 const views: Record<string,string[]> = {
- ADMIN:modules, PRINCIPAL:['courseOutlines','academic','attendance','results','timetable','announcements'],
+ TREASURER:['announcements','courseOutlines'], EXAMINATION_CONTROLLER:['announcements','courseOutlines','results','subjects'], REGISTRAR:['announcements','courseOutlines'], ADMIN:modules, PRINCIPAL:['courseOutlines','academic','attendance','results','timetable','announcements'],
  STUDENT:['courseOutlines','subjects','attendance','assignments','quizzes','results','materials','timetable','announcements'],
  HOD:modules, TEACHER:['courseOutlines','subjects','attendance','assignments','quizzes','results','materials','timetable','announcements'],
 };
@@ -56,12 +57,13 @@ export function normalizeRolePrivileges(config:RolePrivilegesConfig):RolePrivile
  config={...config,privileges:config.privileges.filter(p=>!['tasks','view_tasks'].includes(p.key))};
  const known=new Set(config.privileges.map(p=>p.key));
  const missing=defaultPrivileges.filter(p=>!known.has(p.key));
- return {privileges:[...defaultPrivileges,...config.privileges.filter(p=>!defaultPrivileges.some(d=>d.key===p.key))],rolePermissions:Object.fromEntries(Object.keys(defaultRolePermissions).map(role=>[role,[...(config.rolePermissions[role]||[]).filter(k=>!['tasks','view_tasks'].includes(k)),...missing.filter(p=>defaultRolePermissions[role].includes(p.key)).map(p=>p.key)]]))};
+ return {privileges:[...defaultPrivileges,...config.privileges.filter(p=>!defaultPrivileges.some(d=>d.key===p.key))],rolePermissions:Object.fromEntries(Object.keys(defaultRolePermissions).map(role=>[role,[...(config.rolePermissions[role]||defaultRolePermissions[role]||[]).filter(k=>!['tasks','view_tasks'].includes(k)),...missing.filter(p=>defaultRolePermissions[role].includes(p.key)).map(p=>p.key)]]))};
 }
 // These are existing role boundaries, not permissions that grant cross-department access.
-export function supportsPrivilege(role:string,key:string):boolean {return ['ADMIN','PRINCIPAL','HOD','TEACHER','STUDENT'].includes(role)&&!['tasks','view_tasks'].includes(key);}
+export function supportsPrivilege(role:string,key:string):boolean {return ['ADMIN','PRINCIPAL','HOD','TEACHER','STUDENT','TREASURER','EXAMINATION_CONTROLLER','REGISTRAR'].includes(role)&&!['tasks','view_tasks'].includes(key);}
 export function pageAllowed(u:Row,page:string,config?:RolePrivilegesConfig):boolean {
- if(['dashboard','profile','password'].includes(page))return true;
+ if(['dashboard','profile','password','personal'].includes(page))return true;
+ if(page==='management')return ['finance','exams','events','transport'].some(k=>permitted(u,k,config));
  if(page==='settings')return permitted(u,'system_settings',config)||permitted(u,'manage_backups',config);
  if(page==='rolePrivileges')return permitted(u,'manage_access',config);
  if(page==='responsibilities')return permitted(u,'delegate_responsibilities',config);
@@ -121,7 +123,7 @@ export const entityPrivilege = (t: string) =>
 export const responsibilityTemplates:Record<string,{label:string;permissions:string[]}>= {
  timetable_incharge:{label:'Timetable Incharge',permissions:['view_timetable','timetable','timetable_department','view_subjects']},
  program_coordinator:{label:'Program Coordinator',permissions:['view_academic','academic','academic_department','student_enrollment','view_users','view_subjects']},
- examination_controller:{label:'Examination Controller',permissions:['view_results','results','results_department','reports','view_subjects']}
+ examination_controller:{label:'Dept. Examination Controller',permissions:['view_results','results','results_department','reports','view_subjects']}
 };
 export function responsibilityKeys(u:Row):string[]{try{const v=JSON.parse(u.responsibilities||'[]');return Array.isArray(v)?v.filter(k=>typeof k==='string'&&k in responsibilityTemplates):[];}catch{return [];}}
 export function responsibilityPermissions(u:Row):string[]{return u.role==='TEACHER'?responsibilityKeys(u).flatMap(k=>responsibilityTemplates[k].permissions):[];}

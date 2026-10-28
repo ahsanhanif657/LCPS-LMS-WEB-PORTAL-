@@ -8,9 +8,9 @@ const tables=[
  'departments','sessions','programs','batches','users','settings','subjects','offerings','enrollments',
  'hodScopes','timetable','attendance','assignments','submissions','quizzes','attempts','results',
  'announcements','materials','progress','tasks','audit','credentials','loginLimits','loginSessions',
- 'previews','files','timetableFiles','resultFiles','assessmentPolicies','blobMetadata','privateFileObjects'
+ 'previews','files','timetableFiles','resultFiles','assessmentPolicies','blobMetadata','privateFileObjects','facultyTasks','personalEntries','coursePolicies','managementRecords'
 ];
-const primaryKeys={
+const primaryKeys={facultyTasks:'id',personalEntries:'id',coursePolicies:'id',managementRecords:'id',
  departments:'id',sessions:'id',programs:'id',batches:'id',users:'id',settings:'key',subjects:'id',
  offerings:'id',enrollments:'id',hodScopes:'id',timetable:'id',attendance:'id',assignments:'id',
  submissions:'id',quizzes:'id',attempts:'id',results:'id',announcements:'id',materials:'id',

@@ -3,7 +3,7 @@ import {Data,Row} from '@/lib/lms/types';
 export const broad=(u:Row)=>['ADMIN','PRINCIPAL'].includes(u.role);
 export const manager=(u:Row)=>['ADMIN','PRINCIPAL','HOD'].includes(u.role)||permitted(u,'academic')||permitted(u,'timetable')||permitted(u,'users');
 export function offeringAllowed(u:Row,o:Row,d:Data):boolean {
- if(broad(u))return true;
+ if(broad(u)||permitted(u,'exams')||['TREASURER','REGISTRAR'].includes(u.role))return true;
  const b=d.batches.find(b=>b.id===o.batchId);
  if(departmentAccess(u))return b?.departmentId===u.departmentId;
  if(u.role==='TEACHER')return o.teacherId===u.id;
@@ -13,7 +13,7 @@ export function offeringAllowed(u:Row,o:Row,d:Data):boolean {
 export function teachingAllowed(u:Row,o:Row):boolean {return broad(u)||(['TEACHER','HOD'].includes(u.role)&&o.teacherId===u.id);}
 // Results are the only teaching workflow delegated to the whole HOD department.
 export function resultsAllowed(u:Row,o:Row,d:Data):boolean {
- if(u.role==='ADMIN')return true;
+ if(u.role==='ADMIN'||permitted(u,'exams'))return true;
  if(u.role==='HOD'||permitted(u,'results_department'))return d.batches.some(b=>b.id===o.batchId&&b.departmentId===u.departmentId);
  return broad(u)||o.teacherId===u.id;
 }
@@ -27,14 +27,14 @@ export function accountManageAllowed(u:Row,target:Row):boolean {
  return permitted(u,'users')&&['STUDENT','TEACHER'].includes(target.role)&&target.departmentId===u.departmentId;
 }
 export function scopedData(u:Row,d:Data,config?:RolePrivilegesConfig):Data {
- const out:Data={};const os=d.offerings.filter(o=>offeringAllowed(u,o,d));const ids=new Set(os.map(o=>o.id));
+ const out:Data={};out.personalEntries=(d.personalEntries||[]).filter(r=>r.userId===u.id);out.managementRecords=(d.managementRecords||[]).filter(r=>permitted(u,r.kind,config));const os=d.offerings.filter(o=>offeringAllowed(u,o,d));const ids=new Set(os.map(o=>o.id));
  const enrollments=d.enrollments.filter(e=>ids.has(e.offeringId)&&(u.role!=='STUDENT'||e.studentId===u.id));
  const studentIds=new Set(enrollments.map(e=>e.studentId));
  const fullUsers=d.users.filter(v=>broad(u)||permitted(u,'manage_access',config)||v.id===u.id||(departmentAccess(u)&&v.departmentId===u.departmentId)||(u.role==='TEACHER'&&studentIds.has(v.id)));
- out.users=d.users.filter(v=>fullUsers.some(x=>x.id===v.id)||os.some(o=>o.teacherId===v.id)).map(v=>fullUsers.some(x=>x.id===v.id)?v:{id:v.id,name:v.name,role:v.role,departmentId:v.departmentId,batchId:v.batchId,identifier:v.identifier,avatar:v.avatar,active:v.active,qualifications:v.qualifications,designation:v.designation,employmentType:v.employmentType});
- out.offerings=os;out.enrollments=enrollments;
- out.departments=d.departments.filter(x=>broad(u)||x.id===u.departmentId);
- out.programs=d.programs.filter(x=>broad(u)||x.departmentId===u.departmentId);
+ out.users=d.users.filter(v=>fullUsers.some(x=>x.id===v.id)||(permitted(u,'exams',config)&&v.role==='STUDENT')||os.some(o=>o.teacherId===v.id)||['TREASURER','EXAMINATION_CONTROLLER','REGISTRAR'].includes(v.role)).map(v=>fullUsers.some(x=>x.id===v.id)?v:{id:v.id,name:v.name,role:v.role,departmentId:v.departmentId,batchId:v.batchId,identifier:v.identifier,avatar:v.avatar,active:v.active,qualifications:v.qualifications,designation:v.designation,employmentType:v.employmentType});
+ out.coursePolicies=(d.coursePolicies||[]).filter(r=>ids.has(r.offeringId)&&permitted(u,'view_courseOutlines',config));out.offerings=os;out.enrollments=enrollments;
+ out.departments=d.departments.filter(x=>broad(u)||permitted(u,'exams')||['TREASURER','REGISTRAR'].includes(u.role)||x.id===u.departmentId);
+ out.programs=d.programs.filter(x=>broad(u)||permitted(u,'exams')||['TREASURER','REGISTRAR'].includes(u.role)||x.departmentId===u.departmentId);
  out.sessions=d.sessions;
  out.batches=d.batches.filter(b=>broad(u)||(departmentAccess(u)&&b.departmentId===u.departmentId)||b.id===u.batchId||os.some(o=>o.batchId===b.id));
  out.subjects=d.subjects.filter(s=>broad(u)||(departmentAccess(u)&&s.departmentId===u.departmentId)||os.some(o=>o.subjectId===s.id));

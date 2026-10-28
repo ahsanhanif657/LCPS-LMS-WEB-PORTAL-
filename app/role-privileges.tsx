@@ -2,7 +2,7 @@
 import {useEffect,useState} from 'react';
 import {RolePrivilegesConfig,defaultPrivileges,permitted,privileges,supportsPrivilege} from '@/security/privileges';
 import {Row} from '@/lib/lms/types';
-const roles=['ADMIN','PRINCIPAL','HOD','TEACHER','STUDENT'];
+import {roles} from '@/lib/lms/types';
 const builtIn=new Set(defaultPrivileges.map(p=>p.key));
 
 export function UserPermissionFields({user,config,onChange,search='',disabled=false}:{user:Row;config:RolePrivilegesConfig;onChange:(value:Record<string,boolean>)=>void;search?:string;disabled?:boolean}){
