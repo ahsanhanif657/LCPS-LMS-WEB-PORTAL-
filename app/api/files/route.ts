@@ -26,10 +26,10 @@ export async function POST(req:NextRequest){try{
   if(!permitted(c.user,'results',c.rolePrivileges))throw new AppError('Results upload access is disabled.',403);
 
   if(typeof offeringId!=='string'||!offeringId)throw new AppError('Select a subject and class for this result sheet.');
-  const offering=await stmt('SELECT o.teacherId,b.departmentId FROM offerings o JOIN batches b ON b.id=o.batchId WHERE o.id=?',[offeringId]).first<{teacherId:string;departmentId:string}>();
+  const offering=await stmt('SELECT o.teacherId,o.coTeacherId,b.departmentId FROM offerings o JOIN batches b ON b.id=o.batchId WHERE o.id=?',[offeringId]).first<{teacherId:string;coTeacherId?:string;departmentId:string}>();
   if(!offering)throw new AppError('Select a valid subject and class.',400);
   if(c.user.role==='HOD'&&offering.departmentId!==c.user.departmentId)throw new AppError('You can only publish results for your own department.',403);
-  if(!permitted(c.user,'exams',c.rolePrivileges)&&!['ADMIN','PRINCIPAL','HOD'].includes(c.user.role)&&offering.teacherId!==c.user.id&&!(permitted(c.user,'results_department',c.rolePrivileges)&&offering.departmentId===c.user.departmentId))throw new AppError('You can only publish results for your own subjects.',403);
+  if(!permitted(c.user,'exams',c.rolePrivileges)&&!['ADMIN','PRINCIPAL','HOD'].includes(c.user.role)&&offering.teacherId!==c.user.id&&offering.coTeacherId!==c.user.id&&!(permitted(c.user,'results_department',c.rolePrivileges)&&offering.departmentId===c.user.departmentId))throw new AppError('You can only publish results for your own subjects.',403);
  }
  if(purpose==='assessment-policy'){
   if(!permitted(c.user,'results',c.rolePrivileges))throw new AppError('Assessment policy access is disabled.',403);

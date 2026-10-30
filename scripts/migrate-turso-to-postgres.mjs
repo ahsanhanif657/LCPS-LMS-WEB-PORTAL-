@@ -6,13 +6,13 @@ const apply=process.argv.includes('--apply');
 const snapshotConfirmed=process.argv.includes('--confirm-source-snapshot');
 const tables=[
  'departments','sessions','programs','batches','users','settings','subjects','offerings','enrollments',
- 'hodScopes','timetable','attendance','assignments','submissions','quizzes','attempts','results',
+ 'hodScopes','timetable','scheduleEvents','attendance','assignments','submissions','quizzes','attempts','results',
  'announcements','materials','progress','tasks','audit','credentials','loginLimits','loginSessions',
  'previews','files','timetableFiles','resultFiles','assessmentPolicies','blobMetadata','privateFileObjects','facultyTasks','personalEntries','coursePolicies','managementRecords'
 ];
 const primaryKeys={facultyTasks:'id',personalEntries:'id',coursePolicies:'id',managementRecords:'id',
  departments:'id',sessions:'id',programs:'id',batches:'id',users:'id',settings:'key',subjects:'id',
- offerings:'id',enrollments:'id',hodScopes:'id',timetable:'id',attendance:'id',assignments:'id',
+ offerings:'id',enrollments:'id',hodScopes:'id',timetable:'id',scheduleEvents:'id',attendance:'id',assignments:'id',
  submissions:'id',quizzes:'id',attempts:'id',results:'id',announcements:'id',materials:'id',
  progress:'id',tasks:'id',audit:'id',credentials:'userId',loginLimits:'key',loginSessions:'tokenHash',
  previews:'authId',files:'id',timetableFiles:'id',resultFiles:'id',assessmentPolicies:'id',blobMetadata:'key',privateFileObjects:'key'
@@ -63,7 +63,7 @@ async function targetRowsByKey(table,key,keys,columns){
 
 try{
  const targetMigration=await target`SELECT name FROM schema_migrations ORDER BY name DESC LIMIT 1`;
- if(targetMigration[0]?.name!=='0004_department_academics.sql')fail('Target database has not completed the PostgreSQL schema migrations.');
+ if((!targetMigration[0]?.name||targetMigration[0].name<'0010_portal_enhancements.sql'))fail('Target database has not completed the PostgreSQL schema migrations.');
  const layout=[];
  for(const table of tables){
   if(!await sourceTableExists(table)){

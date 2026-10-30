@@ -15,7 +15,7 @@ const scoped=scopedData(student,data),outlines=renderToStaticMarkup(<CourseOutli
 const sessions=renderToStaticMarkup(<SessionSubjects data={data} renderSubject={()=>'SHOULD-NOT-RENDER'}/>);assert(!sessions.includes('SHOULD-NOT-RENDER'));
 const result=renderToStaticMarkup(<ResultsWorkflow data={data} user={hod} label={(_,id)=>id} run={async()=>{}}/>);assert(result.includes('1. Academic session'));assert(!result.includes('Marks for '));
 const schedule=renderToStaticMarkup(<TimetableSchedule data={scoped} user={student}/>);assert(schedule.includes('<table class="weekly-schedule">'));assert(schedule.includes('weekly-class'));assert(schedule.includes(scoped.users.find(u=>u.id===scoped.offerings[0]?.teacherId)?.name||'Teacher'));assert(!schedule.includes('timetable-card'));
-const login=renderToStaticMarkup(<LoginForm error="" onLogin={async()=>{}}/>);assert(login.includes('auth-card'));assert(login.includes('/lcps-logo.png'));assert(login.includes('Welcome back'));
+const login=renderToStaticMarkup(<LoginForm error="" onLogin={async()=>{}}/>);assert(login.includes('auth-card'));assert(login.includes('/api/branding/logo'));assert(login.includes('Welcome back'));
 const notices=renderToStaticMarkup(<LoginNotices visible items={[{id:'n',title:'Faculty notice',detail:'Review your marks',page:'announcements'}]} acknowledge={async()=>{}} navigate={()=>{}}/>);assert(notices.includes('notice-list'));assert(notices.includes('Announcement'));assert(notices.includes('role="dialog"'));
 console.log('PASS 8 component rendering checks: attendance, profile privacy, outlines, session gates, results gate, timetable, login and notices');
 
@@ -30,7 +30,7 @@ const directory=renderToStaticMarkup(<UserDirectory data={data} user={hod} rows=
 const {TimetableManager}=await import('../app/timetable-manager');const incharge={...data.users.find(u=>u.id==='teacher')!,responsibilities:'["timetable_incharge"]'};
 const timetableManager=renderToStaticMarkup(<TimetableManager data={data} user={incharge} refresh={async()=>{}} onEdit={()=>{}} onDelete={()=>{}}/>);assert(timetableManager.includes('Academic session'));assert(timetableManager.includes('Choose a session and class'));assert(!timetableManager.includes('Edit class'));
 const {ResourceSubjects}=await import('../app/resource-subjects');const resourcePicker=renderToStaticMarkup(<ResourceSubjects data={scoped} title="Assignments" onSelect={()=>{}}/>);assert(resourcePicker.includes('Select a subject'));assert(!resourcePicker.includes('Submit assignment'));
-assert(outlines.includes('Assessment policy reference'));assert(outlines.includes('60%'));assert(!login.includes('Remember me'));
+assert(outlines.includes('Assessment policy reference'));assert(outlines.includes('60%'));assert(login.includes('Remember my username'));
 assert(renderToStaticMarkup(<UserPhoto user={{name:'Test User',avatar:'photo-test'}}/>).includes('/api/files/photo-test'));
 console.log('PASS session/subject gates, incharge timetable gate, policy visibility and profile images');
 

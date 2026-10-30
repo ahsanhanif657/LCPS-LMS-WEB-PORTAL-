@@ -28,5 +28,5 @@ try{
  console.log('Previous source files saved OUTSIDE your project: '+backup);
  console.log('Open your EXISTING project in VS Code, then run:');
  console.log('npm.cmd run build\nnpm.cmd run start');
- console.log('No database migration is required for this interface update. Read START_UPDATE_HERE.md.');
+ console.log('This update adds database fields and a timetable activities table. Back up your database and follow START_UPDATE_HERE.md before starting the updated portal.');
 }catch(error){console.error('Update stopped: '+error.message);process.exitCode=1;}

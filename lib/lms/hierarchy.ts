@@ -9,8 +9,8 @@ export function offeringStudents(data:Data,offeringId:string){
 }
 export function sessionData(data:Data,batches:Row[],teacherId?:string):Data{
  const ids=new Set(batches.map(b=>b.id));
- const offerings=data.offerings.filter(o=>ids.has(o.batchId)&&(!teacherId||o.teacherId===teacherId));
+ const offerings=data.offerings.filter(o=>ids.has(o.batchId)&&(!teacherId||(o.teacherId===teacherId||!!o.coTeacherId&&o.coTeacherId===teacherId)));
  const offeringIds=new Set(offerings.map(o=>o.id));
  const visibleBatches=teacherId?batches.filter(b=>offerings.some(o=>o.batchId===b.id)):batches;
- return {...data,batches:visibleBatches,offerings,timetable:data.timetable.filter(t=>offeringIds.has(t.offeringId)),timetableFiles:data.timetableFiles.filter(f=>visibleBatches.some(b=>b.id===f.batchId))};
+ return {...data,batches:visibleBatches,offerings,scheduleEvents:(data.scheduleEvents||[]).filter(e=>visibleBatches.some(b=>b.id===e.batchId)),timetable:data.timetable.filter(t=>offeringIds.has(t.offeringId)),timetableFiles:data.timetableFiles.filter(f=>visibleBatches.some(b=>b.id===f.batchId))};
 }

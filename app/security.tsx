@@ -1,5 +1,5 @@
 'use client';
-import {useState,type InputHTMLAttributes} from 'react';
+import {useState,useEffect,type InputHTMLAttributes} from 'react';
 import {ArrowRight,BookOpen,Building2,Eye,EyeOff,ShieldCheck,Sparkles} from 'lucide-react';
 export async function authRequest(body:Record<string,string>){const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json() as {error?:string};if(!r.ok)throw new Error(j.error||'Request failed.');}
 export function PasswordInput(props:InputHTMLAttributes<HTMLInputElement>){
@@ -8,15 +8,16 @@ export function PasswordInput(props:InputHTMLAttributes<HTMLInputElement>){
 }
 export function LoginForm({error,onLogin}:{error:string;onLogin:()=>Promise<void>}){
  const [username,setUsername]=useState(''),[password,setPassword]=useState(''),[err,setErr]=useState(''),[busy,setBusy]=useState(false),[mode,setMode]=useState<'login'|'signup'>('login');
+ const [remember,setRemember]=useState(false);useEffect(()=>{try{const saved=localStorage.getItem('lcps-remember-username');if(saved){setUsername(saved);setRemember(true);}}catch{}},[]);
  const switchMode=(next:'login'|'signup')=>{setMode(next);setErr('');};
- return <main className="login-page auth-page"><a className="glass-college-logo" href="/" aria-label="LCPS home"><img src="/lcps-logo.png" alt="Lahore College of Pharmaceutical Sciences"/></a><section className={'auth-card '+(mode==='signup'?'is-signup':'')} aria-label="LCPS account access">
+ return <main className="login-page auth-page"><a className="glass-college-logo" href="/" aria-label="LCPS home"><img src="/api/branding/logo" alt="Lahore College of Pharmaceutical Sciences"/></a><section className={'auth-card '+(mode==='signup'?'is-signup':'')} aria-label="LCPS account access">
   <div className="auth-form-side">
-   {mode==='login'?<form className="auth-form" onSubmit={async e=>{e.preventDefault();setBusy(true);setErr('');try{await authRequest({action:'login',username,password});await onLogin();}catch(e){setErr((e as Error).message);}finally{setBusy(false);}}}>
+   {mode==='login'?<form className="auth-form" onSubmit={async e=>{e.preventDefault();setBusy(true);setErr('');try{await authRequest({action:'login',username,password});try{if(remember)localStorage.setItem('lcps-remember-username',username);else localStorage.removeItem('lcps-remember-username');}catch{}await onLogin();}catch(e){setErr((e as Error).message);}finally{setBusy(false);}}}>
     <div className="auth-kicker"><span/> ACADEMIC PORTAL</div>
     <h1>Welcome back</h1><p className="auth-description">Sign in to your college account.</p>
     <label className="field"><span>Username</span><input required autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} placeholder="Enter your username"/></label>
     <label className="field"><span>Password</span><PasswordInput aria-label="Password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter your password"/></label>
-    <p className="auth-footnote">Sign in with your college credentials. This portal does not save your password.</p>
+    <label className="remember-option"><input type="checkbox" checked={remember} onChange={e=>{setRemember(e.target.checked);if(!e.target.checked)try{localStorage.removeItem('lcps-remember-username');}catch{}}}/>Remember my username</label><p className="auth-footnote">Use your browser’s saved password if available, then click Sign in.</p>
     {(err||error)&&<p role="alert" className="form-error">{err||error}</p>}
     <button className="btn primary full auth-submit" disabled={busy}>{busy?'Signing in…':'Sign in'}</button>
     <p className="auth-footnote">Don’t have an account? <button type="button" className="auth-signup-link" onClick={()=>switchMode('signup')}>Account help</button></p>
@@ -30,6 +31,6 @@ export function LoginForm({error,onLogin}:{error:string;onLogin:()=>Promise<void
    </div>}
   </div>
   <aside className="auth-promo campus-promo" aria-label="LCPS campus"><div className="campus-caption"><span>LAHORE COLLEGE OF PHARMACEUTICAL SCIENCES</span><h2>Learning starts here.</h2><p>Your classes, coursework and academic progress. Connected.</p></div></aside>
- </section></main>;
+ </section><small className="powered-login">Powered by A &amp; U</small></main>;
 }
 export function PasswordForm({onChanged}:{onChanged:()=>void}){const [currentPassword,setCurrent]=useState(''),[newPassword,setNew]=useState(''),[confirm,setConfirm]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);return <form className="panel settings-form" onSubmit={async e=>{e.preventDefault();setError('');if(newPassword!==confirm){setError('New passwords do not match.');return;}setBusy(true);try{await authRequest({action:'change',currentPassword,newPassword});onChanged();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}}>{[['Current password',currentPassword,setCurrent],['New password',newPassword,setNew],['Confirm new password',confirm,setConfirm]].map(([label,value,set],i)=><label className="field" key={String(label)}><span>{String(label)}</span><PasswordInput aria-label={String(label)} autoComplete={i?'new-password':'current-password'} minLength={i?10:undefined} maxLength={128} required value={String(value)} onChange={e=>(set as (v:string)=>void)(e.target.value)}/></label>)}{error&&<p role="alert" className="form-error">{error}</p>}<button className="btn primary" disabled={busy}>{busy?'Saving…':'Change password'}</button></form>;}

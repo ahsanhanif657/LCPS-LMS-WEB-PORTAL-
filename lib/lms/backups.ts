@@ -36,7 +36,7 @@ export async function restoreBackup(c:Context,id:string,password:string,confirma
  let parsed;try{parsed=JSON.parse(body);}catch{throw new AppError('Backup is not valid JSON.');}
  if(parsed.version!==1||!parsed.data)throw new AppError('Unsupported backup format.');
  const data=parsed.data as Record<string,Row[]>;
- for(const t of ['personalEntries','coursePolicies','managementRecords'])if(!Array.isArray(data[t]))data[t]=[];
+ for(const t of ['personalEntries','coursePolicies','managementRecords','scheduleEvents'])if(!Array.isArray(data[t]))data[t]=[];
  if(Array.isArray(data.users))for(const u of data.users){u.passwordChangeRequired??=0;u.passwordPolicyVersion??=0;}
  if(Array.isArray(data.attendance))for(const a of data.attendance)a.remarks??=null;
  if(!Array.isArray(data.facultyTasks))data.facultyTasks=[];
@@ -46,6 +46,7 @@ export async function restoreBackup(c:Context,id:string,password:string,confirma
  if(Array.isArray(data.quizzes))for(const quiz of data.quizzes)if(!('fileId' in quiz))quiz.fileId=null;
  // Older snapshots do not identify the storage provider for each file.
  if(Array.isArray(data.files))for(const file of data.files){file.storageProvider||='legacy';file.storageKey||=file.id;file.checksum??=null;}
+ for(const [t,fields] of Object.entries({"offerings": ["coTeacherId"], "users": ["bio", "profileLinks", "profileNote"], "assignments": ["updatedBy"], "quizzes": ["updatedBy"], "materials": ["updatedBy"], "results": ["updatedBy"], "timetable": ["updatedBy"], "submissions": ["gradedBy"]}))for(const row of data[t]||[])for(const field of fields)row[field]??=null;
  for(const t of snapshotTables){const keys=columns(t);if(!Array.isArray(data[t])||new TextEncoder().encode(JSON.stringify(data[t])).length>1500000||data[t].some(r=>!r||Object.keys(r).length!==keys.length||Object.keys(r).some(k=>!keys.includes(k))))throw new AppError('Backup schema does not match this portal.');}
  if(!data.users.some(u=>u.id===c.user.id&&u.active&&u.role==='ADMIN'&&!u.demo))throw new AppError('This backup does not preserve your active administrator account.');
  if(data.users.some(u=>u.demo))throw new AppError('Demo datasets cannot be restored through the college portal.');

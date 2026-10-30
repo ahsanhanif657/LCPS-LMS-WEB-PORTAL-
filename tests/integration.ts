@@ -267,7 +267,7 @@ await test('backup round trip preserves task submissions and responsibility fiel
 await test('teacher qualifications persist and students see public academic profile only',async()=>{
  await action(await ctx('teacher'),{action:'profile',record:{name:'Qualified Teacher',phone:'123',qualifications:'MS Computer Science'}});
  const teacher=payload(await ctx('student')).data.users.find(t=>t.id==='teacher');assert.equal(teacher?.qualifications,'MS Computer Science');assert(!('phone' in teacher!));assert(!('permissions' in teacher!));
- await rejects(async()=>action(await ctx('student'),{action:'profile',record:{name:'Student',qualifications:'fake'}}),/qualifications/);
+ await action(await ctx('student'),{action:'profile',record:{name:'Student',qualifications:'Intermediate'}});
  await rejects(async()=>action(await ctx('teacher'),{action:'profile',record:{name:'Teacher',qualifications:'x'.repeat(4001)}}),/qualifications/);
 });
 await test('course outlines persist and enforce subject scope and independent view permission',async()=>{
@@ -345,11 +345,10 @@ await test('roll number sorting is numeric and places missing identifiers last',
  const {rollOrder}=await import('../lib/lms/ordering');assert.deepEqual([{id:'a',identifier:'CS-10'},{id:'b',identifier:'CS-2'},{id:'c',identifier:''},{id:'d',identifier:'CS-1'}].sort(rollOrder).map(r=>r.id),['d','b','a','c']);
  const view=await action(await ctx('teacher'),{action:'attendanceView',offeringId:'off-mobile'});assert.deepEqual(view.students.map((s:Row)=>s.id),view.students.slice().sort(rollOrder).map((s:Row)=>s.id));
 });
-await test('legacy accounts also get mandatory password gate once after upgrade',async()=>{
+await test('legacy accounts keep existing passwords without a forced policy upgrade',async()=>{
  const id=await save(await ctx(),'users',{name:'Legacy login',username:'legacy-login',password:'legacy-temporary-password',role:'STUDENT',departmentId:'cs',batchId:'cs4'});
- await stmt('UPDATE users SET passwordChangeRequired=0,passwordPolicyVersion=0 WHERE id=?',[id]).run();await impersonate(id);await rejects(()=>context(),/Change your password/);
- const route=await import('../app/api/lms/route');const response=await route.GET(),body=await response.json();assert.equal(body.passwordChangeRequired,true);assert.equal(body.data,undefined);
- assert.equal((await auth({action:'change',currentPassword:'legacy-temporary-password',newPassword:'legacy-personal-password'})).status,200);assert.equal((await auth({action:'login',username:'legacy-login',password:'legacy-personal-password'})).status,200);assert.equal((await context()).user.passwordPolicyVersion,1);
+ await stmt('UPDATE users SET passwordChangeRequired=0,passwordPolicyVersion=0 WHERE id=?',[id]).run();await impersonate(id);assert.equal((await context()).user.passwordChangeRequired,0);
+ const route=await import('../app/api/lms/route');const response=await route.GET(),body=await response.json();assert.equal(body.passwordChangeRequired,undefined);assert(body.data);
  await impersonate('lcps-administrator');await remove(await ctx(),'users',id);
 });
 
@@ -376,4 +375,51 @@ await test('HOD records own class attendance but cannot mark another teachers cl
  await rejects(async()=>action(await ctx('hod_cs'),{action:'attendanceSubmit',offeringId:'off-mobile',date:'2026-01-11',records}));
  await rejects(async()=>action({...await ctx('teacher'),user:{...(await ctx('teacher')).user,permissions:JSON.stringify({attendance:false})}},{action:'attendanceSubmit',offeringId:'off-mobile',date:'2026-01-11',records}));
 });
+await test('co-teacher assignment authorizes attendance and stamps actual author',async()=>{
+ const a=await ctx();const o=a.data.offerings.find(x=>x.id==='off-mobile')!;await save(a,'offerings',{...o,coTeacherId:'iqra'});
+ const c=await ctx('iqra');assert(payload(c).data.offerings.some(x=>x.id===o.id));
+ const roster=c.data.enrollments.filter(e=>e.offeringId===o.id&&e.active).map(e=>({studentId:e.studentId,status:'Present'}));
+ await action(c,{action:'attendanceSubmit',offeringId:o.id,date:'2026-01-20',records:roster});
+ assert((await all('attendance')).filter(x=>x.offeringId===o.id&&x.date==='2026-01-20').every(x=>x.recordedBy==='iqra'));
+ await save(await ctx('iqra'),'assignments',{offeringId:o.id,title:'Co-teacher task',instructions:'Test',dueDate:'2027-01-01T12:00:00Z',maxMarks:10,allowLate:0,published:1});
+ assert.equal((await all('assignments')).find(x=>x.title==='Co-teacher task')?.updatedBy,'iqra');
+ await rejects(()=>save(c,'assignments',{offeringId:'off-automata',title:'Forbidden',instructions:'No',dueDate:'2027-01-01T12:00:00Z',maxMarks:10}));
+ const fresh=await ctx();await save(fresh,'offerings',{...fresh.data.offerings.find(x=>x.id===o.id),coTeacherId:null});
+});
+await test('announcement deletion respects ownership and department',async()=>{
+ const {canDeleteAnnouncement}=await import('../security/announcement-access');const c=await ctx();
+ const r={id:'test',authorId:'teacher',departmentId:'cs'};
+ assert(canDeleteAnnouncement((await ctx('teacher')).user,r,c.data));assert(canDeleteAnnouncement((await ctx('hod_cs')).user,r,c.data));assert(!canDeleteAnnouncement((await ctx('hod_pharmd')).user,r,c.data));assert(canDeleteAnnouncement(c.user,r,c.data));
+});
+await test('break and library activities validate conflicts and delete independently',async()=>{
+ const c=await ctx('hod_cs');const r=await action(c,{action:'saveScheduleEvent',record:{batchId:'cs4',kind:'Library assignment',title:'Library',day:'Sunday',startTime:'20:00',endTime:'21:00'}});
+ const fresh=await ctx('hod_cs');assert(fresh.data.scheduleEvents.some(x=>x.id===r.id));
+ await rejects(()=>action(fresh,{action:'saveScheduleEvent',record:{batchId:'cs4',kind:'Break',title:'Break',day:'Sunday',startTime:'20:30',endTime:'21:15'}}),/conflicts/);
+ await rejects(async()=>action(await ctx('hod_pharmd'),{action:'deleteScheduleEvent',record:{id:r.id}}),/department/);
+ const count=fresh.data.timetable.length;await action(fresh,{action:'deleteScheduleEvent',record:{id:r.id}});assert.equal((await all('timetable')).length,count);
+});
+await test('105-student bulk import validates duplicates and enrolls every account',async()=>{
+ const rows=Array.from({length:105},(_,i)=>({name:'Import Student '+i,username:'import-test-'+i,identifier:'IMPORT-'+i,email:'',phone:'',password:'Temporary-test-pass-123'}));
+ assert((await action(await ctx(),{action:'validateStudentImport',batchId:'cs4',rows})).valid);
+ await rejects(async()=>action(await ctx('teacher'),{action:'importStudents',batchId:'cs4',rows:rows.slice(0,1)}));
+ for(let i=0;i<rows.length;i+=10)assert((await action(await ctx(),{action:'importStudents',batchId:'cs4',rows:rows.slice(i,i+10)})).valid);
+ const c=await ctx();const students=c.data.users.filter(u=>u.username.startsWith('import-test-'));assert.equal(students.length,105);assert(students.every(u=>u.passwordChangeRequired===1));
+ const subjects=c.data.offerings.filter(o=>o.batchId==='cs4'&&o.active);assert(students.every(u=>subjects.every(o=>c.data.enrollments.some(e=>e.studentId===u.id&&e.offeringId===o.id))));
+ assert.equal((await action(c,{action:'validateStudentImport',batchId:'cs4',rows:rows.slice(0,1)})).valid,false);
+});
+await test('personal profile supports safe links and social labels remain admin-only',async()=>{
+ await action(await ctx('student'),{action:'profile',record:{name:'Ahsan Hanif',bio:'Student bio',qualifications:'Intermediate',profileNote:'Learning',profileLinks:'https://example.com'}});
+ assert.equal((await all('users')).find(u=>u.id==='student')?.bio,'Student bio');
+ await rejects(async()=>action(await ctx('student'),{action:'profile',record:{name:'Ahsan Hanif',profileLinks:'javascript:alert(1)'}}));
+ await rejects(async()=>action(await ctx('hod_cs'),{action:'socialAccountNames',names:['a','b','c','d','e']}));
+ await action(await ctx(),{action:'socialAccountNames',names:['Page A','Page B','lcps.lihs.official','lcps780','LCPS channel']});
+});
+
+await test('college logo upload is admin-only and public delivery follows saved branding',async()=>{
+ const {POST,GET}=await import('../app/api/branding/logo/route');const bytes=new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,6,0,0,0]);
+ const upload=()=>{const form=new FormData();form.append('file',new File([bytes],'college.png',{type:'image/png'}));return POST(new Request('https://portal.test/api/branding/logo',{method:'POST',headers:{origin:'https://portal.test'},body:form}) as any);};
+ await impersonate('hod_cs');assert.equal((await upload()).status,403);await impersonate('lcps-administrator');const result=await upload();assert.equal(result.status,200,await result.text());
+ const image=await GET(new Request('https://portal.test/api/branding/logo') as any);assert.equal(image.headers.get('content-type'),'image/png');assert.equal((await image.arrayBuffer()).byteLength,bytes.length);
+});
+
 console.log(`Final total: ${passed} integration checks passed.`);

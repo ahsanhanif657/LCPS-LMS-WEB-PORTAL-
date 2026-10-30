@@ -5,9 +5,10 @@ import {stmt} from './service';
 export function dataQueries(user:Row){
  const dept=departmentAccess(user);
  const broad=['ADMIN','PRINCIPAL'].includes(user.role)||permitted(user,'exams');
- const offeringSql=dept?'SELECT o.id FROM offerings o JOIN batches b ON b.id=o.batchId WHERE b.departmentId=?':user.role==='TEACHER'?'SELECT id FROM offerings WHERE teacherId=?':user.role==='HOD'?'SELECT o.id FROM offerings o JOIN batches b ON b.id=o.batchId WHERE b.departmentId=?':user.role==='STUDENT'?'SELECT id FROM offerings WHERE batchId=? AND active=1 UNION SELECT offeringId FROM enrollments WHERE studentId=? AND active=1':'SELECT id FROM offerings WHERE 0';
- const values=dept?[user.departmentId]:user.role==='TEACHER'?[user.id]:user.role==='HOD'?[user.departmentId]:user.role==='STUDENT'?[user.batchId,user.id]:[];
+ const offeringSql=dept?'SELECT o.id FROM offerings o JOIN batches b ON b.id=o.batchId WHERE b.departmentId=?':user.role==='TEACHER'?'SELECT id FROM offerings WHERE (teacherId=? OR coTeacherId=?)':user.role==='HOD'?'SELECT o.id FROM offerings o JOIN batches b ON b.id=o.batchId WHERE b.departmentId=?':user.role==='STUDENT'?'SELECT id FROM offerings WHERE batchId=? AND active=1 UNION SELECT offeringId FROM enrollments WHERE studentId=? AND active=1':'SELECT id FROM offerings WHERE 0';
+ const values=dept?[user.departmentId]:user.role==='TEACHER'?[user.id,user.id]:user.role==='HOD'?[user.departmentId]:user.role==='STUDENT'?[user.batchId,user.id]:[];
  return tables.map(table=>{
+  if(table==='offerings')return stmt('SELECT o.*,(SELECT count(*) FROM enrollments e WHERE e.offeringId=o.id AND e.active=1) AS enrollmentCount FROM offerings o');
   if(table==='personalEntries')return stmt('SELECT * FROM personalEntries WHERE userId=?',[user.id]);
   if(table==='managementRecords')return stmt('SELECT * FROM managementRecords WHERE kind IN (?,?,?,?)',['finance','exams','events','transport'].map(k=>permitted(user,k)?k:''));
   if(table==='coursePolicies')return stmt('SELECT * FROM coursePolicies');
@@ -18,7 +19,7 @@ export function dataQueries(user:Row){
   if(table==='timetableFiles'){
    if(dept)return stmt('SELECT * FROM timetableFiles WHERE batchId IN (SELECT id FROM batches WHERE departmentId=?)',[user.departmentId]);
    if(user.role==='STUDENT')return stmt('SELECT * FROM timetableFiles WHERE batchId=?',[user.batchId]);
-   if(user.role==='TEACHER')return stmt('SELECT * FROM timetableFiles WHERE batchId IN (SELECT batchId FROM offerings WHERE teacherId=?)',[user.id]);
+   if(user.role==='TEACHER')return stmt('SELECT * FROM timetableFiles WHERE batchId IN (SELECT batchId FROM offerings WHERE (teacherId=? OR coTeacherId=?))',[user.id,user.id]);
    if(user.role==='HOD')return stmt('SELECT * FROM timetableFiles WHERE batchId IN (SELECT id FROM batches WHERE departmentId=?)',[user.departmentId]);
    return stmt('SELECT * FROM timetableFiles WHERE 0');
   }

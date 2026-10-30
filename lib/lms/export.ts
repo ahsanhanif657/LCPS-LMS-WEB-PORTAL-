@@ -7,7 +7,7 @@ function escapeHtml(value:string){
 export function reportHtml(title:string,headers:string[],rows:string[][]){
  const head=headers.map(value=>`<th>${escapeHtml(value)}</th>`).join('');
  const body=rows.map(row=>`<tr>${headers.map((_,index)=>`<td>${escapeHtml(row[index]??'')}</td>`).join('')}</tr>`).join('');
- return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title><style>body{font:14px Arial,sans-serif;color:#23352f;margin:32px}h1{font-size:22px}p{color:#66736c}table{border-collapse:collapse;width:100%;margin-top:20px}th,td{border:1px solid #d8dfda;padding:8px;text-align:left;vertical-align:top}th{background:#eef3ed}tr{break-inside:avoid}@media print{body{margin:16mm}h1{font-size:18pt}table{font-size:9pt}}</style></head><body><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(new Date().toLocaleString())}. This is a fixed report, not a fillable form.</p><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></body></html>`;
+ return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title><style>body{font:14px Arial,sans-serif;color:#23352f;margin:32px}h1{font-size:22px}p{color:#66736c}table{border-collapse:collapse;width:100%;margin-top:20px}th,td{border:1px solid #d8dfda;padding:8px;text-align:left;vertical-align:top}th{background:#eef3ed}tr{break-inside:avoid}@media print{body{margin:16mm}h1{font-size:18pt}table{font-size:9pt}}</style></head><body><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(new Date().toLocaleString())}. This is a fixed report, not a fillable form.</p><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table><footer style="font-size:11px;color:#52677a;margin-top:20px">Powered by A &amp; U</footer></body></html>`;
 }
 
 export function reportCsv(headers:string[],rows:string[][]){
@@ -15,7 +15,7 @@ export function reportCsv(headers:string[],rows:string[][]){
   const safe=/^[=+@\-\t\r]/.test(value)?"'"+value:value;
   return '"'+safe.replace(/"/g,'""')+'"';
  };
- return '\ufeff'+[headers.map(quote).join(','),...rows.map(row=>headers.map((_,index)=>quote(row[index]??'')).join(','))].join('\r\n');
+ return '\ufeff'+[headers.map(quote).join(','),...rows.map(row=>headers.map((_,index)=>quote(row[index]??'')).join(',')),headers.map((_,index)=>quote(index===0?'Powered by A & U':'')).join(',')].join('\r\n');
 }
 
 function crc32(data:Uint8Array){
@@ -109,5 +109,5 @@ export function downloadJpg(title:string,filename:string,headers:string[],rows:s
  const prepared=rows.map(row=>headers.map((_,i)=>wrap(String(row[i]??'')))),head=headers.map(wrap),headHeight=Math.max(...head.map(c=>c.length),1)*line+20;
  const pages:{cells:string[][];height:number}[][]=[[{cells:head,height:headHeight}]];let used=120+headHeight;
  for(const cells of prepared){const length=Math.max(...cells.map(c=>c.length),1);for(let offset=0;offset<length;offset+=200){const chunk=cells.map(c=>c.slice(offset,offset+200)),height=Math.max(...chunk.map(c=>c.length),1)*line+20;if(used+height>6000){pages.push([{cells:head,height:headHeight}]);used=120+headHeight;}pages.at(-1)!.push({cells:chunk,height});used+=height;}}
- pages.forEach((page,index)=>{canvas.height=120+page.reduce((n,r)=>n+r.height,0);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,canvas.height);ctx.fillStyle='#18304a';ctx.font='bold 22px Arial';ctx.fillText(title,32,40,width-64);ctx.font='14px Arial';ctx.fillText(`LCPS report · Page ${index+1} of ${pages.length}`,32,70);let y=100;for(const row of page){row.cells.forEach((lines,i)=>{ctx.strokeStyle='#cbd5e1';ctx.strokeRect(32+i*cell,y,cell,row.height);ctx.fillStyle='#18304a';ctx.font='15px Arial';lines.forEach((text,j)=>ctx.fillText(text,42+i*cell,y+24+j*line));});y+=row.height;}const link=document.createElement('a');link.href=canvas.toDataURL('image/jpeg',0.92);link.download=`${filename}-${index+1}.jpg`;link.click();});
+ pages.forEach((page,index)=>{canvas.height=120+page.reduce((n,r)=>n+r.height,0);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,canvas.height);ctx.fillStyle='#18304a';ctx.font='bold 22px Arial';ctx.fillText(title,32,40,width-64);ctx.font='14px Arial';ctx.fillText(`LCPS report · Page ${index+1} of ${pages.length} · Powered by A & U`,32,70);let y=100;for(const row of page){row.cells.forEach((lines,i)=>{ctx.strokeStyle='#cbd5e1';ctx.strokeRect(32+i*cell,y,cell,row.height);ctx.fillStyle='#18304a';ctx.font='15px Arial';lines.forEach((text,j)=>ctx.fillText(text,42+i*cell,y+24+j*line));});y+=row.height;}const link=document.createElement('a');link.href=canvas.toDataURL('image/jpeg',0.92);link.download=`${filename}-${index+1}.jpg`;link.click();});
 }

@@ -1,0 +1,12 @@
+ALTER TABLE "offerings" ADD COLUMN "coTeacherId" TEXT;
+ALTER TABLE "users" ADD COLUMN "bio" TEXT;
+ALTER TABLE "users" ADD COLUMN "profileLinks" TEXT;
+ALTER TABLE "users" ADD COLUMN "profileNote" TEXT;
+ALTER TABLE "assignments" ADD COLUMN "updatedBy" TEXT;
+ALTER TABLE "quizzes" ADD COLUMN "updatedBy" TEXT;
+ALTER TABLE "materials" ADD COLUMN "updatedBy" TEXT;
+ALTER TABLE "results" ADD COLUMN "updatedBy" TEXT;
+ALTER TABLE "timetable" ADD COLUMN "updatedBy" TEXT;
+ALTER TABLE "submissions" ADD COLUMN "gradedBy" TEXT;
+CREATE TABLE "scheduleEvents" ("id" TEXT PRIMARY KEY NOT NULL,"batchId" TEXT NOT NULL REFERENCES batches(id) ON DELETE CASCADE,"kind" TEXT NOT NULL,"title" TEXT NOT NULL,"day" TEXT NOT NULL,"startTime" TEXT NOT NULL,"endTime" TEXT NOT NULL,"room" TEXT,"updatedBy" TEXT NOT NULL);
+CREATE INDEX "offering_co_teacher_lookup" ON offerings(coTeacherId);
