@@ -1,50 +1,36 @@
-# LCPS LMS — role actions and responsive interface update
+# LCPS LMS — Professional Blue Update
 
-Base: your uploaded `LCPS_LMS_Vercel_Ready(20261029-215850).zip`.
-This release changes role-action discoverability, essential buttons/icons and mobile layout. The existing dashboard design, architecture, academic data model and password policy are retained. It does not reintroduce the previous department/program dashboard update that you chose to undo.
+Base: LCPS_LMS_Vercel_Ready(20261030-045127).zip. All 14 requested changes are included. Your blue-theme instruction takes precedence over the earlier green suggestion.
 
-## Apply to your existing project
+## Apply
+1. Stop your running server (Ctrl+C).
+2. Extract this ZIP OUTSIDE the existing project folder.
+3. Double-click APPLY_UPDATE.cmd and paste the existing project path:
+   C:\Users\Jerry096\Documents\MY PROJECTS\LCPS_LMS_Vercel_Ready
+4. The helper creates a source backup in the sibling LCPS_LMS_source_backups folder, then copies the changed files.
+5. In your EXISTING project terminal run `npm.cmd run build`.
+6. After successful build run `npm.cmd run start`; open http://localhost:3000.
+7. Check locally, then commit/push through your usual deployment workflow.
 
-1. Stop the running server with Ctrl+C.
-2. Extract this ZIP into a separate folder OUTSIDE your existing project.
-3. Double-click `APPLY_UPDATE.cmd`. Paste the existing project folder path (the folder containing package.json).
-4. The helper backs up replaced source files to the sibling `LCPS_LMS_source_backups` folder before copying the changed files. It leaves your environment configuration, databases, uploads, Git history and installed dependencies alone.
-5. In the EXISTING project terminal, run:
+No database migration or new dependencies are required. Existing accounts, passwords, permissions, environment configuration, database and uploads are preserved.
 
-```powershell
-npm.cmd run build
-```
+## All 14 changes
+1. White/light-grey background with clearly selected controls; final accent is blue as requested in point 8.
+2. Consistent dashboard cards, soft shadows, rounded corners and relevant icons.
+3. Highlighted sidebar selection and improved alignment/spacing.
+4. Readable fonts, prominent headings and balanced spacing.
+5. Clear table headers, alternating rows and coloured Present/Absent/Late badges.
+6. Consistent Save/Edit/Delete/Back styles, subtle hover and keyboard focus; reduced-motion support.
+7. Mobile cards, comfortable controls, compact header and contained scrolling for large tables.
+8. Azure/cerulean accents, pale-blue highlights and navy navigation matching LCPS branding.
+9. Attendance/resource subject cards share dashboard artwork, typography and sizing, replacing oversized plain book tiles.
+10. Attendance names/roll numbers are larger and dark; results text and marks input borders are readable too.
+11. Timetable days are bold and centred; time slots appear clearly in the top row. Mobile timetable has sticky day labels.
+12. Online timetable and PDF/Word/JPG/ZIP exports preserve day-by-time boxes with subject, teacher and room. Each class has a separate grid.
+13. Supplied LCPS logo used on login and sidebar. Campus-photo login composition retained with blue accents and readable glass form.
+14. Only sidebar navigation icons removed; labels larger and bold. Menu, close, bell, edit/delete and subject icons retained.
 
-After the build succeeds:
+## Download timetable
+Download timetable → Download PDF opens the browser print window: choose Save as PDF. Landscape A4 is requested. Word is an HTML-compatible .doc; JPG is a boxed grid; ZIP contains timetable.html. Very long schedules can span multiple pages. Exports use the selected class/subject scope and existing report permission.
 
-```powershell
-npm.cmd run start
-```
-
-Open http://localhost:3000. Development alternative: `npm.cmd run dev -- --webpack`.
-No database migration or dependency change is required for this release when applied to the uploaded baseline. No account passwords are reset by this update. If dependencies have not been installed on a new machine, use Node 24 and run `npm.cmd ci` first.
-
-## What changed
-
-- Teacher Attendance opens with an obvious **Mark attendance** tab and an assigned-class selector, alongside **View attendance records**. Marking is available for active classes assigned to that teacher.
-- HOD Attendance includes **Mark attendance** for their own teaching classes and **Department records** for session/subject review. Existing department and teaching boundaries remain enforced.
-- If marking permission is explicitly denied, the page explains why. Administrators can inspect Roles & permissions → Record / correct attendance and View attendance, plus the individual user's overrides. This patch does not silently erase your configured access restrictions. A teacher also needs an active Teaching assignment and enrolled students.
-- Fixed duplicated attendance table headings, date-view loading, and the attendance save error that previously prevented retry. Added a clear Edit attendance action on review.
-- Mobile attendance uses one student card per row with visible status and late-remarks fields. Desktop keeps the register table.
-- Restored sidebar module icons, active navigation chevrons, the announcement bell, back/next pagination arrows, edit/close icons and mobile drawer close control. Profile initials are visible on mobile even without a profile photo.
-- Improved labels including Sign in, Roles & permissions, Faculty tasks, Create account, Export records, Add scheduled class and Save attendance.
-- Fixed add/edit dialogs in HTTP LAN previews where browser randomUUID is unavailable. Server-generated persistent IDs are unchanged.
-- Responsive cards, readable mobile type, usable touch targets, wrapped long text, contained horizontal table scrolling, mobile dialogs and navigation. The third dashboard subject card is no longer hidden on phones.
-
-## Check on your installation
-
-1. Teacher: Attendance → subject/class → mark Present/Absent/Late → enter late remarks → Review attendance → Save attendance.
-2. HOD: mark own assigned class, then switch to Department records and select a session/subject.
-3. Student: view subject attendance and resources; no marking or grading controls should appear.
-4. Admin: create/edit an account, inspect roles/permissions and enter result marks.
-5. Timetable incharge: session → class → Add scheduled class / Edit class.
-6. Phone: open and close the sidebar, tap the bell/profile/signout, fill the attendance cards, open a dialog and scroll wide report tables within their panel.
-
-If you need to undo this source update, retain the timestamped source backup and its restore-manifest.json. Restoring code does not undo database edits made while using the app.
-
-See VERIFICATION.md for test coverage and its limits.
+Teacher marking still requires an active assigned class and attendance permission. This visual update does not change role privileges or reset passwords.

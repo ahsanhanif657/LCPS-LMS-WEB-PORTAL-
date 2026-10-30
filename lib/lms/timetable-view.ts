@@ -1,0 +1,5 @@
+import {Data} from './types';
+const DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+/** Shared ordered model keeps the screen and exported timetable aligned. */
+export function timetableGrids(data:Data){const name=(table:string,id:string)=>data[table]?.find(r=>r.id===id)?.name||'Not specified';return data.batches.map(batch=>{const offers=data.offerings.filter(o=>o.batchId===batch.id),records=data.timetable.filter(t=>offers.some(o=>o.id===t.offeringId)),slots=[...new Set(records.map(t=>`${t.startTime}|${t.endTime}`))].sort();return {id:batch.id,title:`${name('programs',batch.programId)} · ${batch.name} · Semester ${batch.semester}`,slots,days:DAYS.filter(day=>records.some(t=>t.day===day)).map(day=>({day,cells:slots.map(slot=>records.filter(t=>t.day===day&&`${t.startTime}|${t.endTime}`===slot).map(record=>{const o=offers.find(o=>o.id===record.offeringId);return {record,subject:name('subjects',o?.subjectId),teacher:name('users',o?.teacherId),room:record.room||'Room not assigned'};}))}))};});}
+export type TimetableGrid=ReturnType<typeof timetableGrids>[number];
