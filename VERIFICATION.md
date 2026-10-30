@@ -1,13 +1,11 @@
-# Verification — LCPS management update
+# Verification — responsive role fixes
 
-Validated against the source from LCPS_LMS_Vercel_Ready(10).zip on 28 October 2026.
+- Production build: Next.js webpack build, TypeScript checks and route generation.
+- Automated suite: 96 integration checks, plus component-rendering, local/cloud storage configuration, export and PostgreSQL SQL-translation checks.
+- New tests verify marking availability against teacher assignment, HOD own-class boundaries, inactive offerings and explicit access denial. They also verify the six-column attendance register, direct marking entry and browser form IDs without randomUUID.
+- Browser coverage: full React portal with controlled fixture API responses, 8 roles × 3 widths (360, 768 and 1366 px). 258 page/width checks pass with no document horizontal overflow or mismatched table-column counts. Core role enforcement is tested separately against temporary SQLite by the integration suite.
+- Browser interactions: teacher late remarks, failed-save retry, attendance date loading, logout, HOD own-class/department tabs, denied-access messaging, student assignment dialog/read-only attendance, admin account dialog/result-input borders, and delegated timetable editor.
+- Screenshots were inspected internally for login, teacher dashboard/attendance and student dialogs. No real college data was used.
+- Update helper is smoke-tested against the uploaded baseline: changed files match, the previous source is backed up outside the project, and environment/database/upload sentinel files are preserved.
 
-- Production `npm run build` (webpack): successful compilation, TypeScript check and route generation.
-- `npm test`: 89 integration checks passed, including existing academic workflows and new feature cases.
-- New tests cover owner-only diary/to-do reads and writes (including admin denial), policy editing/read scope and total validation, bounded management modules and individual permission denial, targeted management announcements, first-login API gating, reset re-gating, same-password rejection, result-sheet deletion with marks preserved, and new-table backup recovery.
-- Component rendering checks passed for existing screens plus policy percentages/edit controls, social links and the personal workspace.
-- Local file storage, production storage configuration, exports and PostgreSQL query translation tests passed.
-- Updated the two stale rendering assertions to match the weekly timetable and login markup already present in the supplied ZIP.
-- Update-helper smoke check: manifest copied successfully; environment/database/upload sentinels remained intact; source backup was created outside the target project.
-
-Limits: No production database, GitHub push or Vercel deployment was used. Tests used disposable local SQLite and mock object storage. PostgreSQL migration SQL is included but was not executed against a live PostgreSQL server. Interactive browser/mobile visual testing was not completed; component rendering and build checks are not a substitute for checking real devices. Existing pre-update accounts remain usable without a blanket password reset; newly created/reset accounts must change passwords before portal access.
+Limitations: Browser API responses use fixtures, not your live Turso database. Integration storage tests use isolated SQLite and mocks. Real device Safari/Android keyboards and the college's individual permission settings should be checked on the target installation. No deployment, Git push, live account edit or live database migration was performed.

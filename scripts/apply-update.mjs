@@ -27,6 +27,6 @@ try{
  console.log(`Updated ${files.length} source files. Existing environment, database, uploads and accounts were not replaced.`);
  console.log('Previous source files saved OUTSIDE your project: '+backup);
  console.log('Open your EXISTING project in VS Code, then run:');
- console.log('npm run db:migrate\nnpm run build\nnpm run start');
- console.log('Read START_UPDATE_HERE.md before updating a remote Turso deployment.');
+ console.log('npm.cmd run build\nnpm.cmd run start');
+ console.log('No database migration is required for this interface update. Read START_UPDATE_HERE.md.');
 }catch(error){console.error('Update stopped: '+error.message);process.exitCode=1;}

@@ -1,3 +1,4 @@
+import {rollOrder} from './ordering';
 import {extensionAction} from './extensions';
 import {facultyAction} from './faculty-tasks';
 import {loginReminders} from './reminders';
@@ -28,6 +29,7 @@ export async function context(loadData=true,allowPasswordChange=false){
  const found=session?await stmt('SELECT userId,remindersSeen FROM loginSessions WHERE tokenHash=? AND expires>?',[await digest(session),Date.now()]).first<Row>():null;
  const actual=found?await stmt('SELECT * FROM users WHERE id=? AND active=1 AND demo=0',[found.userId]).first<Row>():null;
  if(!actual||!roles.includes(actual.role))throw new AppError('Please sign in with your college username and password.',401);
+ actual.passwordChangeRequired=actual.passwordChangeRequired||actual.passwordPolicyVersion!==1?1:0;
  if(actual.passwordChangeRequired&&!allowPasswordChange)throw new AppError('Change your password before using the portal.',403);
  const rolePrivileges=await getRolePrivileges();actual.accessConfig=rolePrivileges;
  const isOwner=actual.role==='ADMIN';
@@ -40,7 +42,7 @@ export async function context(loadData=true,allowPasswordChange=false){
 export type Context=Awaited<ReturnType<typeof context>>;
 export function payload(c:Context){return {user:c.user,owner:c.isOwner,actualName:c.actual.name,demo:!!c.user.demo,demoUsers:c.isOwner?c.data.users.filter(u=>u.demo&&u.active).map(u=>({id:u.id,name:u.name,role:u.role})):[],data:scopedData(c.user,c.data,c.rolePrivileges),loginReminder:!c.remindersSeen,reminders:loginReminders(c.user,scopedData(c.user,c.data,c.rolePrivileges)),rolePrivileges:c.rolePrivileges,serverTime:new Date().toISOString()};}
 const specs:Record<string,string[]>={
- departments:['name','code','active'],programs:['name','departmentId','active'],sessions:['name','active'],batches:['name','departmentId','programId','sessionId','semester','active'],users:['name','username','email','role','departmentId','batchId','identifier','phone','employmentType','designation','office','schedule','active'],subjects:['name','code','departmentId','credits','active'],offerings:['subjectId','batchId','teacherId','active'],enrollments:['studentId','offeringId','active'],hodScopes:['userId','batchId'],timetable:['offeringId','day','startTime','endTime','room'],timetableFiles:['batchId','fileId','mime','createdAt'],attendance:['offeringId','studentId','date','status','reason'],assignments:['offeringId','title','instructions','dueDate','maxMarks','allowLate','published','fileId'],quizzes:['offeringId','title','topic','opensAt','closesAt','duration','questions','published','release','fileId'],results:['offeringId','studentId','title','marks','maxMarks','published','feedback'],announcements:['title','body','departmentId','batchId','offeringId','targetRole'],materials:['offeringId','title','kind','url','fileId'],tasks:['userId','title','dueDate','status','notes']};
+ departments:['name','code','active'],programs:['name','departmentId','active'],sessions:['name','active'],batches:['name','departmentId','programId','sessionId','semester','active'],users:['name','username','email','role','departmentId','batchId','identifier','phone','employmentType','designation','office','schedule','active'],subjects:['name','code','departmentId','credits','active'],offerings:['subjectId','batchId','teacherId','active'],enrollments:['studentId','offeringId','active'],hodScopes:['userId','batchId'],timetable:['offeringId','day','startTime','endTime','room'],timetableFiles:['batchId','fileId','mime','createdAt'],attendance:['offeringId','studentId','date','status','reason','remarks'],assignments:['offeringId','title','instructions','dueDate','maxMarks','allowLate','published','fileId'],quizzes:['offeringId','title','topic','opensAt','closesAt','duration','questions','published','release','fileId'],results:['offeringId','studentId','title','marks','maxMarks','published','feedback'],announcements:['title','body','departmentId','batchId','offeringId','targetRole'],materials:['offeringId','title','kind','url','fileId'],tasks:['userId','title','dueDate','status','notes']};
 const required:Record<string,string[]>={departments:['name','code'],programs:['name','departmentId'],sessions:['name'],batches:['name','departmentId','programId','sessionId','semester'],users:['name','username','role'],subjects:['name','code','departmentId','credits'],offerings:['subjectId','batchId','teacherId'],enrollments:['studentId','offeringId'],hodScopes:['userId','batchId'],timetable:['offeringId','day','startTime','endTime','room'],attendance:['offeringId','studentId','date','status'],assignments:['offeringId','title','instructions','dueDate','maxMarks'],quizzes:['offeringId','title'],results:['offeringId','studentId','title','marks','maxMarks'],announcements:['title','body'],materials:['offeringId','title','kind'],tasks:['userId','title','dueDate','status']};
 function assert(ok:any,message='You do not have permission to perform this action.',status=403):asserts ok {if(!ok)throw new AppError(message,status);}
 function number(value:any,min:number,max:number,name:string){assert(Number.isFinite(Number(value))&&Number(value)>=min&&Number(value)<=max,`${name} must be between ${min} and ${max}.`,400);return Number(value);}
@@ -82,7 +84,7 @@ function validate(c:Context,t:string,r:Row,previous?:Row){const u=c.user,d=c.dat
  if(['attendance','assignments','quizzes','materials'].includes(t))assert(off&&teachingAllowed(u,off));
  if(t==='results')assert(off&&resultsAllowed(u,off,d));
  if(['attendance','results'].includes(t)){relation(d,'users',r.studentId);assert(d.enrollments.some(e=>e.studentId===r.studentId&&e.offeringId===r.offeringId&&e.active),'Student is not enrolled in this subject.',400);}
- if(t==='attendance'){assert(['Present','Absent','Late','Excused'].includes(r.status),'Invalid attendance status.',400);date(r.date,'Attendance date');assert(/^\d{4}-\d{2}-\d{2}$/.test(r.date)&&r.date<=new Date().toISOString().slice(0,10),'Attendance cannot be recorded for a future date.',400);if(previous&&previous.status!==r.status)assert(r.reason?.trim(),'Give a reason for the attendance correction.',400);r.recordedBy=u.id;}
+ if(t==='attendance'){assert(['Present','Absent','Late'].includes(r.status)||(previous?.status==='Excused'&&r.status==='Excused'),'Invalid attendance status.',400);assert(!r.remarks||typeof r.remarks==='string'&&r.remarks.length<=1000,'Remarks are too long.',400);r.remarks=r.status==='Late'?(r.remarks||null):null;date(r.date,'Attendance date');assert(/^\d{4}-\d{2}-\d{2}$/.test(r.date)&&r.date<=new Date().toISOString().slice(0,10),'Attendance cannot be recorded for a future date.',400);if(previous&&previous.status!==r.status)assert(r.reason?.trim(),'Give a reason for the attendance correction.',400);r.recordedBy=u.id;}
  if(['assignments','results'].includes(t)){r.maxMarks=number(r.maxMarks,1,1000,'Maximum marks');if(t==='results')r.marks=number(r.marks,0,r.maxMarks,'Marks');}
  if(t==='assignments')date(r.dueDate,'Due date');
  if(t==='quizzes'){date(r.opensAt,'Opening time');date(r.closesAt,'Closing time');assert(Date.parse(r.closesAt)>Date.parse(r.opensAt),'Closing time must follow opening time.',400);r.duration=1;r.questions='[]';}
@@ -219,14 +221,14 @@ export async function action(c:Context,body:Row){const u=c.user,d=c.data;
   assert(offering,'You are not authorized to view attendance for this subject/class.',403);
   let students:Row[];
   if(u.role==='STUDENT'){
-   students=(await stmt('SELECT id,name,identifier,role,active FROM users WHERE id=? AND role=?',[u.id,'STUDENT']).all<Row>()).results;
+   students=(await stmt('SELECT id,name,identifier,role,active,avatar FROM users WHERE id=? AND role=?',[u.id,'STUDENT']).all<Row>()).results;
   }else{
-   students=(await stmt("SELECT u.id,u.name,u.identifier,u.role,u.active FROM users u WHERE u.role='STUDENT' AND (EXISTS (SELECT 1 FROM enrollments e WHERE e.offeringId=? AND e.studentId=u.id AND e.active=1) OR EXISTS (SELECT 1 FROM attendance a WHERE a.offeringId=? AND a.studentId=u.id)) ORDER BY u.name",[offering.id,offering.id]).all<Row>()).results;
+   students=(await stmt("SELECT u.id,u.name,u.identifier,u.role,u.active,u.avatar FROM users u WHERE u.role='STUDENT' AND (EXISTS (SELECT 1 FROM enrollments e WHERE e.offeringId=? AND e.studentId=u.id AND e.active=1) OR EXISTS (SELECT 1 FROM attendance a WHERE a.offeringId=? AND a.studentId=u.id)) ORDER BY u.name",[offering.id,offering.id]).all<Row>()).results;
   }
   const selectedStudent=body.studentId?students.find(student=>student.id===body.studentId):null;
   if(body.studentId)assert(selectedStudent,'You are not authorized to view this student’s attendance for the selected subject/class.',403);
   const recordStudentId=u.role==='STUDENT'?u.id:selectedStudent?.id;
-  let attendanceSql='SELECT id,offeringId,studentId,date,status FROM attendance WHERE offeringId=?',attendanceValues:any[]=[offering.id];
+  let attendanceSql='SELECT id,offeringId,studentId,date,status,remarks FROM attendance WHERE offeringId=?',attendanceValues:any[]=[offering.id];
   if(recordStudentId){attendanceSql+=' AND studentId=?';attendanceValues.push(recordStudentId);}
   if(body.date!==undefined){assert(typeof body.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(body.date)&&Number.isFinite(Date.parse(body.date)),'Attendance date is invalid.',400);attendanceSql+=' AND date=?';attendanceValues.push(body.date);}
   attendanceSql+=' ORDER BY date,studentId';
@@ -234,7 +236,7 @@ export async function action(c:Context,body:Row){const u=c.user,d=c.data;
    stmt(attendanceSql,attendanceValues).all<Row>(),
    stmt('SELECT id,offeringId,day,startTime,endTime,room FROM timetable WHERE offeringId=? ORDER BY day,startTime',[offering.id]).all<Row>()
   ]));
-  return {offerings,offering,students,attendance:attendance.results,timetable:permitted(u,'view_timetable',c.rolePrivileges)?timetable.results:[]};
+  return {offerings,offering,students:students.sort(rollOrder),attendance:attendance.results,timetable:permitted(u,'view_timetable',c.rolePrivileges)?timetable.results:[]};
  }
  if(body.action==='attendanceSubmit'){
   assert(permitted(u,'attendance',c.rolePrivileges));
@@ -245,7 +247,8 @@ export async function action(c:Context,body:Row){const u=c.user,d=c.data;
   const roster=d.enrollments.filter(e=>e.offeringId===offering.id&&e.active).map(e=>e.studentId).sort();
   const submitted=body.records.map((record:Row)=>record?.studentId).sort();
   assert(new Set(submitted).size===submitted.length&&submitted.length===roster.length&&submitted.every((id:string,i:number)=>id===roster[i]),'Attendance must include each currently enrolled student exactly once.',400);
-  assert(body.records.every((record:Row)=>['Present','Absent','Late','Excused'].includes(record?.status)),'Select a valid attendance status.',400);
+  assert(body.records.every((record:Row)=>['Present','Absent','Late'].includes(record?.status)||(record?.status==='Excused'&&d.attendance.some(a=>a.offeringId===offering.id&&a.studentId===record.studentId&&a.date===body.date&&a.status==='Excused'))),'Select a valid attendance status.',400);
+  assert(body.records.every((r:Row)=>!r.remarks||typeof r.remarks==='string'&&r.remarks.length<=1000),'Remarks must be at most 1000 characters.',400);
   const reason=typeof body.reason==='string'?body.reason.trim():'';
   assert(reason.length<=1000,'Correction reason is too long.',400);
   const existing=d.attendance.filter(record=>record.offeringId===offering.id&&record.date===body.date);
@@ -254,7 +257,7 @@ export async function action(c:Context,body:Row){const u=c.user,d=c.data;
   const now=new Date().toISOString();
   const writes=body.records.map((record:Row)=>{
    const previous=existing.find(item=>item.studentId===record.studentId);
-   return stmt('INSERT INTO attendance(id,offeringId,studentId,date,status,reason,recordedBy) VALUES(?,?,?,?,?,?,?) ON CONFLICT(offeringId,studentId,date) DO UPDATE SET status=excluded.status,reason=excluded.reason,recordedBy=excluded.recordedBy',[previous?.id||uid(),offering.id,record.studentId,body.date,record.status,corrections.some(item=>item.studentId===record.studentId)?reason:previous?.reason||null,u.id]);
+   return stmt('INSERT INTO attendance(id,offeringId,studentId,date,status,reason,recordedBy,remarks) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(offeringId,studentId,date) DO UPDATE SET status=excluded.status,reason=excluded.reason,recordedBy=excluded.recordedBy,remarks=excluded.remarks',[previous?.id||uid(),offering.id,record.studentId,body.date,record.status,corrections.some(item=>item.studentId===record.studentId)?reason:previous?.reason||null,u.id,record.status==='Late'?(record.remarks?.trim()||null):null]);
   });
   writes.push(auditStmt(u,'submit','attendance',offering.id,JSON.stringify({date:body.date,students:body.records.length,corrections:corrections.length,submittedAt:now})));
   await db().batch(writes);

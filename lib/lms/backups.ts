@@ -37,7 +37,8 @@ export async function restoreBackup(c:Context,id:string,password:string,confirma
  if(parsed.version!==1||!parsed.data)throw new AppError('Unsupported backup format.');
  const data=parsed.data as Record<string,Row[]>;
  for(const t of ['personalEntries','coursePolicies','managementRecords'])if(!Array.isArray(data[t]))data[t]=[];
- if(Array.isArray(data.users))for(const u of data.users)u.passwordChangeRequired??=0;
+ if(Array.isArray(data.users))for(const u of data.users){u.passwordChangeRequired??=0;u.passwordPolicyVersion??=0;}
+ if(Array.isArray(data.attendance))for(const a of data.attendance)a.remarks??=null;
  if(!Array.isArray(data.facultyTasks))data.facultyTasks=[];
  if(Array.isArray(data.users))for(const u of data.users){u.responsibilities??='[]';u.qualifications??=null;if(u.role==='STAFF'){u.role='RETIRED';u.active=0;u.permissions='{}';}}
  if(!Array.isArray(data.timetableFiles))data.timetableFiles=[];

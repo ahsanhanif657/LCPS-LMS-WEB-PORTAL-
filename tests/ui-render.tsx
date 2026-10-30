@@ -25,3 +25,30 @@ const hodPolicy=renderToStaticMarkup(<CoursePolicy data={data} user={hod} offeri
 const banner=renderToStaticMarkup(<CommunityBanner data={scoped}/>);for(const domain of ['facebook.com','instagram.com','tiktok.com','whatsapp.com'])assert(banner.includes(domain));assert(banner.includes('Management announcements'));assert(banner.includes('social-brand'));
 const personal=renderToStaticMarkup(<RecordWorkspace data={scoped} user={student} run={async()=>{}} personal/>);assert(personal.includes('Personal diary'));assert(personal.includes('To-do list'));
 console.log('PASS policy permissions, reference weights, social links and personal workspace rendering');
+const {UserDirectory,UserPhoto}=await import('../app/user-directory');
+const directory=renderToStaticMarkup(<UserDirectory data={data} user={hod} rows={data.users} render={()=>'PRIVATE-ROWS'}/>);assert(directory.includes('Academic session'));assert(directory.includes('Sort users'));assert(!directory.includes('PRIVATE-ROWS'));
+const {TimetableManager}=await import('../app/timetable-manager');const incharge={...data.users.find(u=>u.id==='teacher')!,responsibilities:'["timetable_incharge"]'};
+const timetableManager=renderToStaticMarkup(<TimetableManager data={data} user={incharge} refresh={async()=>{}} onEdit={()=>{}} onDelete={()=>{}}/>);assert(timetableManager.includes('Academic session'));assert(timetableManager.includes('Choose a session and class'));assert(!timetableManager.includes('Edit class'));
+const {ResourceSubjects}=await import('../app/resource-subjects');const resourcePicker=renderToStaticMarkup(<ResourceSubjects data={scoped} title="Assignments" onSelect={()=>{}}/>);assert(resourcePicker.includes('Select a subject'));assert(!resourcePicker.includes('Submit assignment'));
+assert(outlines.includes('Assessment policy reference'));assert(outlines.includes('60%'));assert(!login.includes('Remember me'));
+assert(renderToStaticMarkup(<UserPhoto user={{name:'Test User',avatar:'photo-test'}}/>).includes('/api/files/photo-test'));
+console.log('PASS session/subject gates, incharge timetable gate, policy visibility and profile images');
+
+const {FacultyAttendance}=await import('../app/attendance-workspace');
+const {AttendanceWorkflow}=await import('../app/portal');
+const teacher=data.users.find(u=>u.id==='teacher')!;
+for(const user of [teacher,hod]){
+ const ownData=scopedData(user,data);const html=renderToStaticMarkup(<FacultyAttendance data={ownData} user={user} loadView={async()=>({offerings:[]})} renderMark={id=><span>MARK-CLASS:{id}</span>}/>);
+ assert(html.includes('Mark attendance'));assert(html.includes('MARK-CLASS:'));assert(!html.includes('MARK-CLASS:off-automata'));
+}
+const denied={...teacher,permissions:JSON.stringify({attendance:false})};
+const disabled=renderToStaticMarkup(<FacultyAttendance data={scopedData(denied,data)} user={denied} loadView={async()=>({offerings:[]})} renderMark={()=>'MUST-NOT-MARK'}/>);
+assert(disabled.includes('Attendance marking is disabled'));assert(!disabled.includes('MUST-NOT-MARK'));
+const register=renderToStaticMarkup(<AttendanceWorkflow data={scopedData(teacher,data)} user={teacher} label={(_,id)=>id} run={async()=>{}} fixedOfferingId="off-mobile"/>);
+const header=register.match(/<thead>(.*?)<\/thead>/s)![1];assert.equal((header.match(/<th>/g)||[]).length,6);assert.equal((header.match(/S.No./g)||[]).length,1);assert(register.includes('Remarks (Late)'));
+console.log('PASS direct faculty marking, HOD own-class entry, explicit denied-access message, six-column attendance register');
+
+const {clientRowId}=await import('../lib/lms/client-id');
+const originalRandomUUID=globalThis.crypto.randomUUID;
+try{Object.defineProperty(globalThis.crypto,'randomUUID',{value:undefined,configurable:true});const first=clientRowId(),second=clientRowId();assert.match(first,/^[a-f0-9]{32}$/);assert.notEqual(first,second);}finally{Object.defineProperty(globalThis.crypto,'randomUUID',{value:originalRandomUUID,configurable:true});}
+console.log('PASS HTTP LAN form-row IDs work without randomUUID');

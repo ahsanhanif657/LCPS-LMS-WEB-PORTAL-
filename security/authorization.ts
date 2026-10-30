@@ -11,6 +11,7 @@ export function offeringAllowed(u:Row,o:Row,d:Data):boolean {
  return false;
 }
 export function teachingAllowed(u:Row,o:Row):boolean {return broad(u)||(['TEACHER','HOD'].includes(u.role)&&o.teacherId===u.id);}
+export function canRecordAttendance(u:Row,o:Row):boolean {return o.active!==0&&permitted(u,'attendance')&&teachingAllowed(u,o);}
 // Results are the only teaching workflow delegated to the whole HOD department.
 export function resultsAllowed(u:Row,o:Row,d:Data):boolean {
  if(u.role==='ADMIN'||permitted(u,'exams'))return true;

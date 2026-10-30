@@ -28,7 +28,7 @@ await test('fresh database has only administrator and requires college login',as
 await test('password change revokes sessions and old password',async()=>{assert.equal((await auth({action:'change',currentPassword:'test-admin-password',newPassword:'new-test-password'})).status,200);await rejects(()=>context());assert.equal((await auth({action:'login',username:'ahsanhanif',password:'test-admin-password'})).status,401);assert.equal((await auth({action:'login',username:'ahsanhanif',password:'new-test-password'})).status,200);});
 await test('bootstrap is idempotent and does not reset password',async()=>{await context();assert.equal((await all('users')).length,1);assert.equal((await auth({action:'login',username:'ahsanhanif',password:'new-test-password'})).status,200);});
 // Academic fixtures exist only in the test database, never in deployed initialization.
-const fixture=seedData();for(const t of tables)for(const row of fixture[t]||[])await insert(t,{...row,...(t==='users'?{demo:0}:{})}).run();
+const fixture=seedData();for(const t of tables)for(const row of fixture[t]||[])await insert(t,{...row,...(t==='users'?{demo:0,passwordPolicyVersion:1}:{})}).run();
 await test('unauthenticated visitors denied',async()=>{const value=jar.get('lcps_session')!.value;jar.set('lcps_session','',{maxAge:0});await rejects(()=>context(),/sign in/);jar.set('lcps_session',value);});
 await test('student sees only own attendance results and submissions',async()=>{const c=await ctx('student');const d=payload(c).data;assert(d.attendance.every(x=>x.studentId==='student'));assert(d.results.every(x=>x.studentId==='student'));assert(!d.users.some(x=>x.id==='student2'));assert(d.quizzes.every(q=>q.questions.every((x:any)=>!('correct'in x))));});
 await test('student cannot create user or change marks',async()=>{const c=await ctx('student');await rejects(()=>save(c,'users',{name:'Evil',username:'evil',role:'ADMIN'}));await rejects(()=>save(c,'results',{...c.data.results[0],marks:25}));});
@@ -330,5 +330,50 @@ await test('result sheet deletion respects teaching scope and leaves entered mar
 });
 await test('new policy and personal records survive backup restore',async()=>{
  const note=await action(await ctx('student'),{action:'personalSave',kind:'diary',title:'Recovery test',body:'Retained'});const c=await ctx(),id=await createBackup(c);await stmt('DELETE FROM personalEntries').run();await stmt('DELETE FROM coursePolicies').run();await restoreBackup(c,id,'new-test-password','RESTORE');await impersonate('lcps-administrator');assert((await all('personalEntries')).some(r=>r.id===note));assert((await all('coursePolicies')).some(r=>r.offeringId==='off-mobile'));
+});
+
+await test('attendance persists late remarks and rejects new excused marks',async()=>{
+ const c=await ctx('teacher'),roster=c.data.enrollments.filter(e=>e.offeringId==='off-mobile'&&e.active);assert(roster.length);
+ const records=roster.map((e,i)=>({studentId:e.studentId,status:i===0?'Late':'Present',remarks:i===0?'Bus arrived late':'Ignore for Present'}));
+ await action(c,{action:'attendanceSubmit',offeringId:'off-mobile',date:'2026-01-09',records,reason:'Verified new register'});
+ const stored=(await all('attendance')).filter(a=>a.offeringId==='off-mobile'&&a.date==='2026-01-09');assert.equal(stored.find(a=>a.studentId===records[0].studentId)?.remarks,'Bus arrived late');assert(stored.filter(a=>a.status==='Present').every(a=>a.remarks===null));
+ const view=await action(await ctx('teacher'),{action:'attendanceView',offeringId:'off-mobile',date:'2026-01-09'});assert.equal(view.attendance.find((a:Row)=>a.studentId===records[0].studentId)?.remarks,'Bus arrived late');
+ await rejects(async()=>action(await ctx('teacher'),{action:'attendanceSubmit',offeringId:'off-mobile',date:'2026-01-10',records:records.map(r=>({...r,status:'Excused'}))}),/valid attendance status/);
+ await rejects(async()=>action(await ctx('teacher'),{action:'attendanceSubmit',offeringId:'off-mobile',date:'2026-01-10',records:records.map(r=>({...r,remarks:'a'.repeat(1001)}))}),/1000/);
+});
+await test('roll number sorting is numeric and places missing identifiers last',async()=>{
+ const {rollOrder}=await import('../lib/lms/ordering');assert.deepEqual([{id:'a',identifier:'CS-10'},{id:'b',identifier:'CS-2'},{id:'c',identifier:''},{id:'d',identifier:'CS-1'}].sort(rollOrder).map(r=>r.id),['d','b','a','c']);
+ const view=await action(await ctx('teacher'),{action:'attendanceView',offeringId:'off-mobile'});assert.deepEqual(view.students.map((s:Row)=>s.id),view.students.slice().sort(rollOrder).map((s:Row)=>s.id));
+});
+await test('legacy accounts also get mandatory password gate once after upgrade',async()=>{
+ const id=await save(await ctx(),'users',{name:'Legacy login',username:'legacy-login',password:'legacy-temporary-password',role:'STUDENT',departmentId:'cs',batchId:'cs4'});
+ await stmt('UPDATE users SET passwordChangeRequired=0,passwordPolicyVersion=0 WHERE id=?',[id]).run();await impersonate(id);await rejects(()=>context(),/Change your password/);
+ const route=await import('../app/api/lms/route');const response=await route.GET(),body=await response.json();assert.equal(body.passwordChangeRequired,true);assert.equal(body.data,undefined);
+ assert.equal((await auth({action:'change',currentPassword:'legacy-temporary-password',newPassword:'legacy-personal-password'})).status,200);assert.equal((await auth({action:'login',username:'legacy-login',password:'legacy-personal-password'})).status,200);assert.equal((await context()).user.passwordPolicyVersion,1);
+ await impersonate('lcps-administrator');await remove(await ctx(),'users',id);
+});
+
+await test('signout revokes the token and replay cannot restore a logged-in session',async()=>{
+ await impersonate('lcps-administrator');const old=jar.get('lcps_session')!.value;assert.equal((await auth({action:'logout'})).status,200);assert.equal(jar.get('lcps_session'),undefined);await rejects(()=>context());
+ jar.set('lcps_session',old);await rejects(()=>context());const route=await import('../app/api/lms/route');assert.equal((await route.GET()).status,401);await impersonate('lcps-administrator');
+});
+await test('subject resources and related submissions remain isolated to the selected course',async()=>{
+ const {resourceScope}=await import('../lib/lms/resource-scope');const data=(await ctx()).data,scoped=resourceScope(data,'off-mobile');for(const t of ['materials','assignments','quizzes'])assert(scoped[t].every(r=>r.offeringId==='off-mobile'));assert(scoped.submissions.every(r=>scoped.assignments.some(a=>a.id===r.assignmentId)));assert(scoped.attempts.every(r=>scoped.quizzes.some(q=>q.id===r.quizId)));assert(scoped.progress.every(r=>scoped.materials.some(m=>m.id===r.materialId)));
+ const empty=resourceScope(data,'nonexistent');assert.equal(empty.materials.length+empty.assignments.length+empty.quizzes.length+empty.submissions.length,0);
+});
+await test('attendance marking availability follows assignment, active class and explicit access controls',async()=>{
+ const {canRecordAttendance}=await import('../security/authorization');const c=await ctx('teacher');
+ assert(canRecordAttendance(c.user,c.data.offerings.find(o=>o.id==='off-mobile')!));
+ assert(!canRecordAttendance(c.user,c.data.offerings.find(o=>o.id==='off-security')!));
+ assert(!canRecordAttendance({...c.user,permissions:JSON.stringify({attendance:false})},c.data.offerings.find(o=>o.id==='off-mobile')!));
+ assert(!canRecordAttendance(c.user,{...c.data.offerings.find(o=>o.id==='off-mobile'),active:0}));
+ assert(!canRecordAttendance((await ctx('student')).user,c.data.offerings.find(o=>o.id==='off-mobile')!));
+ const h=await ctx('hod_cs');assert(canRecordAttendance(h.user,h.data.offerings.find(o=>o.id==='off-security')!));assert(!canRecordAttendance(h.user,h.data.offerings.find(o=>o.id==='off-mobile')!));
+});
+await test('HOD records own class attendance but cannot mark another teachers class',async()=>{
+ const h=await ctx('hod_cs'),records=h.data.enrollments.filter(e=>e.offeringId==='off-security'&&e.active).map(e=>({studentId:e.studentId,status:'Present'}));
+ await action(h,{action:'attendanceSubmit',offeringId:'off-security',date:'2026-01-11',records});
+ await rejects(async()=>action(await ctx('hod_cs'),{action:'attendanceSubmit',offeringId:'off-mobile',date:'2026-01-11',records}));
+ await rejects(async()=>action({...await ctx('teacher'),user:{...(await ctx('teacher')).user,permissions:JSON.stringify({attendance:false})}},{action:'attendanceSubmit',offeringId:'off-mobile',date:'2026-01-11',records}));
 });
 console.log(`Final total: ${passed} integration checks passed.`);
