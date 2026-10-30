@@ -22,7 +22,7 @@ console.log('PASS 8 component rendering checks: attendance, profile privacy, out
 const {CoursePolicy,CommunityBanner,RecordWorkspace}=await import('../app/portal-additions');
 const policyView=renderToStaticMarkup(<CoursePolicy data={scoped} user={student} offeringId="off-mobile" run={async()=>{}}/>);assert(policyView.includes('30%'));assert(policyView.includes('60%'));assert(policyView.includes('Participation / Presentation'));assert(!policyView.includes('Edit assessment policy'));
 const hodPolicy=renderToStaticMarkup(<CoursePolicy data={data} user={hod} offeringId="off-mobile" run={async()=>{}}/>);assert(hodPolicy.includes('Edit assessment policy'));
-const banner=renderToStaticMarkup(<CommunityBanner data={scoped}/>);for(const domain of ['facebook.com','instagram.com','tiktok.com','whatsapp.com'])assert(banner.includes(domain));assert(banner.includes('Management announcements'));assert(banner.includes('social-brand'));
+const banner=renderToStaticMarkup(<CommunityBanner data={scoped}/>);for(const domain of ['facebook.com','instagram.com','tiktok.com','whatsapp.com'])assert(banner.includes(domain));assert(banner.includes('Management announcements'));assert(banner.includes('social-brand'));assert(banner.includes('social-username'));assert(banner.includes('social-platform'));assert.equal((banner.match(/target="_blank"/g)||[]).length,5);
 const personal=renderToStaticMarkup(<RecordWorkspace data={scoped} user={student} run={async()=>{}} personal/>);assert(personal.includes('Personal diary'));assert(personal.includes('To-do list'));
 console.log('PASS policy permissions, reference weights, social links and personal workspace rendering');
 const {UserDirectory,UserPhoto}=await import('../app/user-directory');
@@ -30,7 +30,7 @@ const directory=renderToStaticMarkup(<UserDirectory data={data} user={hod} rows=
 const {TimetableManager}=await import('../app/timetable-manager');const incharge={...data.users.find(u=>u.id==='teacher')!,responsibilities:'["timetable_incharge"]'};
 const timetableManager=renderToStaticMarkup(<TimetableManager data={data} user={incharge} refresh={async()=>{}} onEdit={()=>{}} onDelete={()=>{}}/>);assert(timetableManager.includes('Academic session'));assert(timetableManager.includes('Choose a session and class'));assert(!timetableManager.includes('Edit class'));
 const {ResourceSubjects}=await import('../app/resource-subjects');const resourcePicker=renderToStaticMarkup(<ResourceSubjects data={scoped} title="Assignments" onSelect={()=>{}}/>);assert(resourcePicker.includes('Select a subject'));assert(!resourcePicker.includes('Submit assignment'));
-assert(outlines.includes('Assessment policy reference'));assert(outlines.includes('60%'));assert(login.includes('Remember my username'));
+assert(outlines.includes('Assessment policy reference'));assert(outlines.includes('60%'));assert(login.includes('Remember me'));assert(login.includes('aria-label="Show password"'));
 assert(renderToStaticMarkup(<UserPhoto user={{name:'Test User',avatar:'photo-test'}}/>).includes('/api/files/photo-test'));
 console.log('PASS session/subject gates, incharge timetable gate, policy visibility and profile images');
 

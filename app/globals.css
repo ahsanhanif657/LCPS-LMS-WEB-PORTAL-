@@ -211,3 +211,45 @@ button:focus-visible,a:focus-visible{outline:3px solid #0099d0;outline-offset:3p
 
 .profile-control{display:flex;align-items:center;gap:8px;min-width:0}.profile-short{display:none}.profile-control .profile-button{max-width:180px}
 @media(max-width:1000px){.profile-control .profile-button>.profile-short{display:block;font-weight:700;font-size:12px}.profile-control .profile-button{max-width:none;min-width:44px;min-height:44px}.profile-control .profile-photo-trigger{display:inline-flex}}
+
+.auth-page.login-page.login-screen{display:flex!important;align-items:stretch!important;justify-content:center!important;min-height:100svh!important;padding:0!important;gap:0!important;overflow:hidden!important;background:linear-gradient(90deg,rgba(8,27,22,.24),rgba(8,27,22,.08)),url('/lcps-campus.jpg') center/cover no-repeat!important}
+.auth-page.login-page.login-screen:before{content:none!important;display:none!important}
+.auth-page.login-page.login-screen .auth-card{width:100%!important;max-width:none!important;height:100svh!important;min-height:100svh!important;display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:space-between!important;gap:5vw!important;padding:90px 9vw 48px!important;margin:0!important;position:relative!important;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important}
+.auth-page.login-page.login-screen .auth-promo.campus-promo{order:1!important;display:flex!important;flex:1 1 55%!important;min-width:0!important;min-height:0!important;align-items:center!important;padding:0 0 0 40px!important;background:transparent!important}
+.auth-page.login-page.login-screen .campus-caption{max-width:570px;color:#fff;text-shadow:0 2px 20px rgba(0,0,0,.58)}
+.auth-page.login-page.login-screen .campus-caption span{font-size:11px;letter-spacing:2px}
+.auth-page.login-page.login-screen .campus-caption h2{margin:18px 0;font-size:42px}
+.auth-page.login-page.login-screen .campus-caption p{color:#fff;font-size:14px}
+.auth-page.login-page.login-screen .auth-form-side{order:2!important;grid-column:auto!important;grid-row:auto!important;flex:0 1 490px!important;width:100%!important;min-width:0!important;min-height:0!important;padding:42px 44px!important;display:flex;align-items:center;justify-content:center;background:rgba(219,242,239,.16)!important;border:2px solid rgba(255,255,255,.9)!important;border-radius:25px!important;box-shadow:0 12px 40px rgba(15,41,39,.12)!important;backdrop-filter:blur(8px)!important;-webkit-backdrop-filter:blur(8px)!important;transform:none!important}
+.auth-page.login-page.login-screen .auth-form{max-width:400px!important;gap:14px!important}
+.auth-page.login-page.login-screen .auth-form h1{color:#fff!important;font-size:38px!important}
+.auth-page.login-page.login-screen .auth-description{margin:0 0 10px!important;color:#fff!important;font-size:14px!important}
+.auth-page.login-page.login-screen .auth-form .field>span{color:#fff!important;font-size:12px!important;font-weight:650}
+.auth-page.login-page.login-screen .auth-form .field input{height:58px!important;padding:0 14px!important;border:1px solid rgba(255,255,255,.9)!important;border-radius:16px!important;background:rgba(232,240,255,.96)!important;color:#17324b!important;font-size:14px!important}
+.auth-page.login-page.login-screen .auth-form .field input::placeholder{color:#76869a}
+.auth-page.login-page.login-screen .auth-form .field input:focus{outline:2px solid #fff;outline-offset:2px}
+.auth-page.login-page.login-screen .remember-option{display:flex;align-items:center;gap:9px;color:#fff;font-size:13px}
+.auth-page.login-page.login-screen .remember-option input{width:19px;height:19px;accent-color:#a6c85c}
+.auth-page.login-page.login-screen .auth-submit{height:60px!important;border:1px solid #fff!important;border-radius:16px!important;background:linear-gradient(100deg,#a8c85e,#477d0b)!important;color:#fff!important;font-size:19px!important;font-weight:700}
+.auth-page.login-page.login-screen .auth-submit:hover:not(:disabled){background:linear-gradient(100deg,#b6d671,#548d13)!important}
+.auth-page.login-page.login-screen .auth-footnote,.auth-page.login-page.login-screen .auth-footnote button{color:#fff!important;font-size:13px!important}
+.auth-page.login-page.login-screen .auth-signup-link{color:#fff!important}
+.auth-page.login-page.login-screen .auth-setup{align-self:center;margin-top:2px!important;color:#fff!important;font-size:11px!important}
+.auth-page.login-page.login-screen .password-toggle{color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.auth-page.login-page.login-screen .powered-login{right:32px;bottom:12px;color:#fff}
+@media(max-width:850px){.auth-page.login-page.login-screen{overflow:auto!important}.auth-page.login-page.login-screen .auth-card{height:auto!important;min-height:100svh!important;justify-content:center!important;padding:105px 18px 32px!important}.auth-page.login-page.login-screen .auth-promo.campus-promo{display:none!important}.auth-page.login-page.login-screen .auth-form-side{flex:0 1 490px!important;padding:34px 28px!important}.auth-page.login-page.login-screen .campus-caption h2{font-size:30px!important}}
+@media(max-width:420px){.auth-page.login-page.login-screen .auth-card{padding:94px 12px 30px!important}.auth-page.login-page.login-screen .auth-form-side{padding:28px 20px!important}.auth-page.login-page.login-screen .auth-form h1{font-size:30px!important}.auth-page.login-page.login-screen .auth-form .field input{height:52px!important}.auth-page.login-page.login-screen .auth-submit{height:54px!important}}
+
+.social-links a.social-account{flex:0 1 148px;min-width:132px;max-width:175px;min-height:145px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:14px 12px;border:1px solid #d5e2ed;border-radius:12px;background:#fff;color:#173b53;text-align:center;text-decoration:none;transition:transform .16s,box-shadow .16s,border-color .16s}
+.social-links a.social-account:hover{transform:translateY(-3px);border-color:#91bdd6;background:#fff;box-shadow:0 8px 20px rgba(27,74,102,.12)}
+.social-icon-frame{width:54px;height:54px;display:grid;place-items:center}
+.social-brand{display:block;width:40px;height:40px}
+.social-account.facebook .social-brand{color:#0866ff}
+.social-account.instagram .social-brand{color:#d62976}
+.social-account.tiktok .social-brand{color:#111}
+.social-account.whatsapp .social-brand{color:#25d366}
+.social-account .social-username{max-width:100%;color:#183b53;font-size:12px;font-weight:700;line-height:1.4;overflow-wrap:anywhere}
+.social-account .social-platform{color:#708497;font-size:10px;font-weight:550;line-height:1.3}
+@media(max-width:600px){.social-links a.social-account{flex:1 1 120px;min-width:110px;max-width:none;min-height:132px;padding:12px 9px}.social-icon-frame{width:48px;height:48px}.social-brand{width:36px;height:36px}}
+.app-shell .college-caption::after{content:"Powered by A & U";display:block;width:fit-content;margin-top:14px;padding:7px 10px;border:1px solid #6f8e7d;border-radius:6px;background:#203b32;color:#e3efc1;font-size:11px;font-weight:750;letter-spacing:.35px}
+.app-shell .footer>span:first-child{display:inline-flex;align-items:center;width:fit-content;max-width:100%;padding:10px 13px;border:1px solid #c8dcd1;border-radius:8px;background:#f0f6ee;color:#365b47;font-size:13px;font-weight:700;line-height:1.55}

@@ -4,23 +4,23 @@ import {ArrowRight,BookOpen,Building2,Eye,EyeOff,ShieldCheck,Sparkles} from 'luc
 export async function authRequest(body:Record<string,string>){const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json() as {error?:string};if(!r.ok)throw new Error(j.error||'Request failed.');}
 export function PasswordInput(props:InputHTMLAttributes<HTMLInputElement>){
  const [visible,setVisible]=useState(false);
- return <span className="password-input-wrap"><input {...props} type={visible?'text':'password'}/><button type="button" className="password-toggle" aria-label={visible?'Hide password':'Show password'} aria-pressed={visible} onClick={()=>setVisible(value=>!value)}>{visible?'Hide':'Show'}</button></span>;
+ return <span className="password-input-wrap"><input {...props} type={visible?'text':'password'}/><button type="button" className="password-toggle" aria-label={visible?'Hide password':'Show password'} aria-pressed={visible} onClick={()=>setVisible(value=>!value)}>{visible?<EyeOff size={18} aria-hidden="true"/>:<Eye size={18} aria-hidden="true"/>}</button></span>;
 }
 export function LoginForm({error,onLogin}:{error:string;onLogin:()=>Promise<void>}){
  const [username,setUsername]=useState(''),[password,setPassword]=useState(''),[err,setErr]=useState(''),[busy,setBusy]=useState(false),[mode,setMode]=useState<'login'|'signup'>('login');
  const [remember,setRemember]=useState(false);useEffect(()=>{try{const saved=localStorage.getItem('lcps-remember-username');if(saved){setUsername(saved);setRemember(true);}}catch{}},[]);
  const switchMode=(next:'login'|'signup')=>{setMode(next);setErr('');};
- return <main className="login-page auth-page"><a className="glass-college-logo" href="/" aria-label="LCPS home"><img src="/api/branding/logo" alt="Lahore College of Pharmaceutical Sciences"/></a><section className={'auth-card '+(mode==='signup'?'is-signup':'')} aria-label="LCPS account access">
+ return <main className="login-page auth-page login-screen"><a className="glass-college-logo" href="/" aria-label="LCPS home"><img src="/api/branding/logo" alt="Lahore College of Pharmaceutical Sciences"/></a><section className={'auth-card '+(mode==='signup'?'is-signup':'')} aria-label="LCPS account access">
   <div className="auth-form-side">
    {mode==='login'?<form className="auth-form" onSubmit={async e=>{e.preventDefault();setBusy(true);setErr('');try{await authRequest({action:'login',username,password});try{if(remember)localStorage.setItem('lcps-remember-username',username);else localStorage.removeItem('lcps-remember-username');}catch{}await onLogin();}catch(e){setErr((e as Error).message);}finally{setBusy(false);}}}>
     <div className="auth-kicker"><span/> ACADEMIC PORTAL</div>
-    <h1>Welcome back</h1><p className="auth-description">Sign in to your college account.</p>
+    <h1>Login</h1><p className="auth-description">Welcome back please login to your account</p>
     <label className="field"><span>Username</span><input required autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} placeholder="Enter your username"/></label>
     <label className="field"><span>Password</span><PasswordInput aria-label="Password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter your password"/></label>
-    <label className="remember-option"><input type="checkbox" checked={remember} onChange={e=>{setRemember(e.target.checked);if(!e.target.checked)try{localStorage.removeItem('lcps-remember-username');}catch{}}}/>Remember my username</label><p className="auth-footnote">Use your browser’s saved password if available, then click Sign in.</p>
+    <label className="remember-option"><input type="checkbox" checked={remember} onChange={e=>{setRemember(e.target.checked);if(!e.target.checked)try{localStorage.removeItem('lcps-remember-username');}catch{}}}/>Remember me</label>
     {(err||error)&&<p role="alert" className="form-error">{err||error}</p>}
-    <button className="btn primary full auth-submit" disabled={busy}>{busy?'Signing in…':'Sign in'}</button>
-    <p className="auth-footnote">Don’t have an account? <button type="button" className="auth-signup-link" onClick={()=>switchMode('signup')}>Account help</button></p>
+    <button className="btn primary full auth-submit" disabled={busy}>{busy?'Signing in…':'Login'}</button>
+    <p className="auth-footnote">Don’t have an account? <button type="button" className="auth-signup-link" onClick={()=>switchMode('signup')}>Signup</button></p>
     <a className="auth-setup" href="/setup">First-time administrator setup</a>
    </form>:<div className="auth-form auth-signup">
     <div className="auth-kicker"><span/> JOIN THE LCPS COMMUNITY</div>
