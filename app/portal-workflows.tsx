@@ -1,173 +1,1870 @@
 'use client';
-import {SubjectCard} from './subject-card';
-import {SubjectArt} from './subject-art';
-import {ChevronLeft,ChevronRight} from 'lucide-react';
-import {rollOrder} from '@/lib/lms/ordering';
-import {UserPhoto,UserDirectory} from './user-directory';
-import {permitted,responsibilityKeys,responsibilityTemplates} from '@/security/privileges';
-import {AttendanceSummary,TeacherProfile,CourseOutlines} from './academic-components';
-import {TimetableSchedule} from './academic-hierarchy';
-import {useEffect,useState} from 'react';
-import {Download,Upload,CalendarDays,Clock,FileText,UserRound,ArrowLeft,Search} from 'lucide-react';
-import {Data,Row} from '@/lib/lms/types';
-import {documentAccept} from '@/lib/lms/file-types';
-import {attendancePercent,resultsAllowed} from '@/lib/lms/policy';
-import {reportOptions as downloadReport} from '@/lib/lms/export';
+import { SubjectCard } from './subject-card';
+import { SubjectArt } from './subject-art';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { rollOrder } from '@/lib/lms/ordering';
+import { UserPhoto, UserDirectory } from './user-directory';
+import { permitted, responsibilityKeys, responsibilityTemplates } from '@/security/privileges';
+import { AttendanceSummary, TeacherProfile, CourseOutlines } from './academic-components';
+import { TimetableSchedule } from './academic-hierarchy';
+import { useEffect, useState } from 'react';
+import {
+  Download,
+  Upload,
+  CalendarDays,
+  Clock,
+  FileText,
+  UserRound,
+  ArrowLeft,
+  Search,
+} from 'lucide-react';
+import { Data, Row } from '@/lib/lms/types';
+import { documentAccept } from '@/lib/lms/file-types';
+import { attendancePercent, resultsAllowed } from '@/lib/lms/policy';
+import { reportOptions as downloadReport } from '@/lib/lms/export';
 
-export function SemesterSubjectAssignment({data,user,run}:{data:Data;user:Row;run:(body:Row,message?:string)=>Promise<any>}){
- const batches=(data.batches||[]).filter(batch=>batch.active!==0);
- const [batchId,setBatchId]=useState(batches[0]?.id||''),[selections,setSelections]=useState<Record<string,string>>({}),[secondTeachers,setSecondTeachers]=useState<Record<string,string>>({}),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
- const batch=batches.find(item=>item.id===batchId);
- const subjects=(data.subjects||[]).filter(subject=>subject.active!==0&&subject.departmentId===batch?.departmentId).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code))||String(a.name).localeCompare(String(b.name)));
- const teachers=(data.users||[]).filter(person=>person.active!==0&&['TEACHER','HOD'].includes(person.role)&&person.departmentId===batch?.departmentId).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name)));
- const assigned=new Map((data.offerings||[]).filter(offering=>offering.batchId===batchId).map(offering=>[offering.subjectId,offering]));
- const selected=subjects.filter(subject=>subject.id in selections);
- const students=(data.users||[]).filter(person=>person.role==='STUDENT'&&person.active&&person.batchId===batchId).length;
- async function submit(){
-  setBusy(true);setError('');setMessage('');
-  try{
-   const result=await run({action:'assignSemesterSubjects',batchId,subjects:selected.map(subject=>({subjectId:subject.id,teacherId:selections[subject.id],coTeacherId:secondTeachers[subject.id]||null}))},'');
-   setSelections({});setSecondTeachers({});
-   setMessage(`${result.created} subject${result.created===1?'':'s'} assigned to ${batch?.name}. ${result.enrolled} student enrollment${result.enrolled===1?'':'s'} created automatically.`);
-  }catch(e){setError(e instanceof Error?e.message:'Semester subjects could not be assigned.');}
-  finally{setBusy(false);}
- }
- if(!permitted(user,'academic')||!permitted(user,'student_enrollment'))return null;
- return <section className="panel operations-panel">
-  <h2>Assign subjects to a semester</h2>
-  <p>Choose the subjects this batch will study and assign a teacher to each one. All active students in the batch are enrolled automatically; no student-by-student enrollment is needed. Teacher assignments can still be managed under Teaching assignments.</p>
-  <div className="form-grid">
-   <label className="field"><span>Semester / batch</span><select value={batchId} onChange={event=>{setBatchId(event.target.value);setSelections({});setSecondTeachers({});setMessage('');setError('');}}><option value="">Select a batch</option>{batches.map(item=><option key={item.id} value={item.id}>{item.name} · Semester {item.semester}</option>)}</select></label>
-   <div className="field"><span>Active students in this batch</span><p>{students}</p></div>
-  </div>
-  {!batch&&<p>Select a batch to view its available subjects.</p>}
-  {batch&&<div className="table-scroll"><table><thead><tr><th>Subject</th><th>Teacher</th><th>Second teacher (optional)</th><th>Semester assignment</th></tr></thead><tbody>{subjects.map(subject=>{
-   const offering=assigned.get(subject.id),teacher=teachers.find(person=>person.id===offering?.teacherId),checked=!!offering||subject.id in selections;
-   return <tr key={subject.id}><td><label className="checkbox-field"><input type="checkbox" checked={checked} disabled={!!offering||busy} onChange={event=>{const isChecked=event.target.checked;setSelections(previous=>{const next={...previous};if(isChecked)next[subject.id]='';else delete next[subject.id];return next;});setError('');setMessage('');}}/><span>{subject.code} · {subject.name}</span></label></td><td>{offering?teacher?.name||'Teacher assigned':checked?<select aria-label={`Teacher for ${subject.name}`} value={selections[subject.id]||''} disabled={busy} onChange={event=>setSelections(previous=>({...previous,[subject.id]:event.target.value}))}><option value="">Select a teacher</option>{teachers.map(person=><option key={person.id} value={person.id}>{person.name}</option>)}</select>:'—'}</td><td>{offering?teachers.find(t=>t.id===offering.coTeacherId)?.name||'—':checked?<select aria-label={`Second teacher for ${subject.name}`} value={secondTeachers[subject.id]||''} disabled={busy} onChange={e=>setSecondTeachers({...secondTeachers,[subject.id]:e.target.value})}><option value="">No second teacher</option>{teachers.filter(t=>t.id!==selections[subject.id]).map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>:'—'}</td><td>{offering?'Already assigned':checked?'Ready to assign':'Not assigned'}</td></tr>;
-  })}</tbody></table>{!subjects.length&&<p>No active subjects are available for this department. Add them in the Subject catalogue first.</p>}</div>}
-  {error&&<p role="alert" className="form-error">{error}</p>}
-  {message&&<p role="status">{message}</p>}
-  <button className="btn primary" disabled={busy||!batch||!selected.length||selected.some(subject=>!selections[subject.id])||!teachers.length} onClick={submit}>{busy?'Assigning subjects…':`Assign ${selected.length||''} selected subject${selected.length===1?'':'s'} to this semester`}</button>
-  {batch&&teachers.length===0&&<p>No active teachers are available in this department. Add or activate a teacher before assigning subjects.</p>}
- </section>;
+export function SemesterSubjectAssignment({
+  data,
+  user,
+  run,
+}: {
+  data: Data;
+  user: Row;
+  run: (body: Row, message?: string) => Promise<any>;
+}) {
+  const batches = (data.batches || []).filter((batch) => batch.active !== 0);
+  const [batchId, setBatchId] = useState(batches[0]?.id || ''),
+    [selections, setSelections] = useState<Record<string, string>>({}),
+    [secondTeachers, setSecondTeachers] = useState<Record<string, string>>({}),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(''),
+    [message, setMessage] = useState('');
+  const batch = batches.find((item) => item.id === batchId);
+  const subjects = (data.subjects || [])
+    .filter((subject) => subject.active !== 0 && subject.departmentId === batch?.departmentId)
+    .slice()
+    .sort(
+      (a, b) =>
+        String(a.code).localeCompare(String(b.code)) ||
+        String(a.name).localeCompare(String(b.name)),
+    );
+  const teachers = (data.users || [])
+    .filter(
+      (person) =>
+        person.active !== 0 &&
+        ['TEACHER', 'HOD'].includes(person.role) &&
+        person.departmentId === batch?.departmentId,
+    )
+    .slice()
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const assigned = new Map(
+    (data.offerings || [])
+      .filter((offering) => offering.batchId === batchId)
+      .map((offering) => [offering.subjectId, offering]),
+  );
+  const selected = subjects.filter((subject) => subject.id in selections);
+  const students = (data.users || []).filter(
+    (person) => person.role === 'STUDENT' && person.active && person.batchId === batchId,
+  ).length;
+  async function submit() {
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const result = await run(
+        {
+          action: 'assignSemesterSubjects',
+          batchId,
+          subjects: selected.map((subject) => ({
+            subjectId: subject.id,
+            teacherId: selections[subject.id],
+            coTeacherId: secondTeachers[subject.id] || null,
+          })),
+        },
+        '',
+      );
+      setSelections({});
+      setSecondTeachers({});
+      setMessage(
+        `${result.created} subject${result.created === 1 ? '' : 's'} assigned to ${batch?.name}. ${result.enrolled} student enrollment${result.enrolled === 1 ? '' : 's'} created automatically.`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Semester subjects could not be assigned.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (!permitted(user, 'academic') || !permitted(user, 'student_enrollment')) return null;
+  return (
+    <section className="panel operations-panel">
+      <h2>Assign subjects to a semester</h2>
+      <p>
+        Choose the subjects this batch will study and assign a teacher to each one. All active
+        students in the batch are enrolled automatically; no student-by-student enrollment is
+        needed. Teacher assignments can still be managed under Teaching assignments.
+      </p>
+      <div className="form-grid">
+        <label className="field">
+          <span>Semester / batch</span>
+          <select
+            value={batchId}
+            onChange={(event) => {
+              setBatchId(event.target.value);
+              setSelections({});
+              setSecondTeachers({});
+              setMessage('');
+              setError('');
+            }}
+          >
+            <option value="">Select a batch</option>
+            {batches.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name} · Semester {item.semester}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="field">
+          <span>Active students in this batch</span>
+          <p>{students}</p>
+        </div>
+      </div>
+      {!batch && <p>Select a batch to view its available subjects.</p>}
+      {batch && (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Subject</th>
+                <th>Teacher</th>
+                <th>Second teacher (optional)</th>
+                <th>Semester assignment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {subjects.map((subject) => {
+                const offering = assigned.get(subject.id),
+                  teacher = teachers.find((person) => person.id === offering?.teacherId),
+                  checked = !!offering || subject.id in selections;
+                return (
+                  <tr key={subject.id}>
+                    <td>
+                      <label className="checkbox-field">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={!!offering || busy}
+                          onChange={(event) => {
+                            const isChecked = event.target.checked;
+                            setSelections((previous) => {
+                              const next = { ...previous };
+                              if (isChecked) next[subject.id] = '';
+                              else delete next[subject.id];
+                              return next;
+                            });
+                            setError('');
+                            setMessage('');
+                          }}
+                        />
+                        <span>
+                          {subject.code} · {subject.name}
+                        </span>
+                      </label>
+                    </td>
+                    <td>
+                      {offering ? (
+                        teacher?.name || 'Teacher assigned'
+                      ) : checked ? (
+                        <select
+                          aria-label={`Teacher for ${subject.name}`}
+                          value={selections[subject.id] || ''}
+                          disabled={busy}
+                          onChange={(event) =>
+                            setSelections((previous) => ({
+                              ...previous,
+                              [subject.id]: event.target.value,
+                            }))
+                          }
+                        >
+                          <option value="">Select a teacher</option>
+                          {teachers.map((person) => (
+                            <option key={person.id} value={person.id}>
+                              {person.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>
+                      {offering ? (
+                        teachers.find((t) => t.id === offering.coTeacherId)?.name || '—'
+                      ) : checked ? (
+                        <select
+                          aria-label={`Second teacher for ${subject.name}`}
+                          value={secondTeachers[subject.id] || ''}
+                          disabled={busy}
+                          onChange={(e) =>
+                            setSecondTeachers({ ...secondTeachers, [subject.id]: e.target.value })
+                          }
+                        >
+                          <option value="">No second teacher</option>
+                          {teachers
+                            .filter((t) => t.id !== selections[subject.id])
+                            .map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name}
+                              </option>
+                            ))}
+                        </select>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>
+                      {offering ? 'Already assigned' : checked ? 'Ready to assign' : 'Not assigned'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {!subjects.length && (
+            <p>
+              No active subjects are available for this department. Add them in the Subject
+              catalogue first.
+            </p>
+          )}
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="form-error">
+          {error}
+        </p>
+      )}
+      {message && <p role="status">{message}</p>}
+      <button
+        className="btn primary"
+        disabled={
+          busy ||
+          !batch ||
+          !selected.length ||
+          selected.some((subject) => !selections[subject.id]) ||
+          !teachers.length
+        }
+        onClick={submit}
+      >
+        {busy
+          ? 'Assigning subjects…'
+          : `Assign ${selected.length || ''} selected subject${selected.length === 1 ? '' : 's'} to this semester`}
+      </button>
+      {batch && teachers.length === 0 && (
+        <p>
+          No active teachers are available in this department. Add or activate a teacher before
+          assigning subjects.
+        </p>
+      )}
+    </section>
+  );
 }
 
-export function ResultsWorkflow({data,user,label,run}:{data:Data;user:Row;label:(table:string,id:any)=>string;run:(body:Row,message?:string)=>Promise<any>}){
- const [sessionId,setSessionId]=useState('');
- const allOfferings=(data.offerings||[]).filter(o=>o.active!==0&&resultsAllowed(user,o,data));
- const offerings=allOfferings.filter(o=>!['ADMIN','PRINCIPAL','HOD','EXAMINATION_CONTROLLER'].includes(user.role)||data.batches.some(b=>b.id===o.batchId&&b.sessionId===sessionId));
- const [offeringId,setOfferingId]=useState(''),[title,setTitle]=useState(''),[maxMarks,setMaxMarks]=useState('100'),[published,setPublished]=useState(true),[marks,setMarks]=useState<Record<string,string>>({}),[reason,setReason]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
- const offering=offerings.find(o=>o.id===offeringId),roster=offering?(data.enrollments||[]).filter(e=>e.offeringId===offering.id&&e.active).map(e=>data.users.find(u=>u.id===e.studentId)).filter((u):u is Row=>!!u).sort(rollOrder):[];
- useEffect(()=>setMarks({}),[offeringId,title]);
- if(!permitted(user,'results'))return null;
- return <section className="panel operations-panel">
-  <h2>Publish results for a subject</h2><p>Choose a subject and class to enter every enrolled student’s marks together. Published marks appear in the student results portal.</p>
-  <div className="form-grid">{['ADMIN','PRINCIPAL','HOD','EXAMINATION_CONTROLLER'].includes(user.role)&&<label className="field"><span>1. Academic session</span><select value={sessionId} onChange={e=>{setSessionId(e.target.value);setOfferingId('');setMarks({});}}><option value="">Select session</option>{data.sessions.filter(s=>data.batches.some(b=>b.sessionId===s.id&&allOfferings.some(o=>o.batchId===b.id))).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>}
-   <label className="field"><span>2. Subject & semester</span><select value={offeringId} onChange={e=>setOfferingId(e.target.value)}><option value="">Select subject</option>{offerings.map(o=><option key={o.id} value={o.id}>{label('offerings',o.id)}</option>)}</select></label>
-   <label className="field"><span>Assessment name</span><input value={title} maxLength={120} required onChange={e=>setTitle(e.target.value)}/></label>
-   <label className="field"><span>Maximum marks</span><input type="number" min="1" max="1000" value={maxMarks} onChange={e=>setMaxMarks(e.target.value)}/></label>
-   <label className="field checkbox-field"><input type="checkbox" checked={published} onChange={e=>setPublished(e.target.checked)}/>Publish to students immediately</label>
-   <label className="field span-two"><span>Correction reason (required when changing published results)</span><input value={reason} maxLength={1000} onChange={e=>setReason(e.target.value)}/></label>
-  </div>
-  {roster.length>0&&<><h3>3. Students → 4. Marks</h3><div className="table-scroll"><table><thead><tr><th>S.No.</th><th>Photo</th><th>Roll number</th><th>Student</th><th>Marks / {maxMarks}</th><th>Last updated by</th></tr></thead><tbody>{roster.map((student,index)=>{const previous=(data.results||[]).find(r=>r.offeringId===offeringId&&r.studentId===student.id&&r.title===title);return <tr key={student.id}><td>{index+1}</td><td><UserPhoto user={student}/></td><td>{student.identifier||'—'}</td><td>{student.name}</td><td><input aria-label={`Marks for ${student.name}`} type="number" min="0" max={maxMarks} step="any" value={marks[student.id]??(previous?String(previous.marks):'')} onChange={e=>setMarks(values=>({...values,[student.id]:e.target.value}))}/></td><td>{previous?.updatedBy?label('users',previous.updatedBy):'—'}</td></tr>;})}</tbody></table></div></>}
-  {!roster.length&&<p>No enrolled students are assigned to this subject and semester yet.</p>}
-  {error&&<p className="form-error" role="alert">{error}</p>}
-  <button className="btn primary" disabled={busy||!offering||!roster.length||!title.trim()||roster.some(s=>(marks[s.id]??'')==='') } onClick={async()=>{setBusy(true);setError('');try{await run({action:'resultBatch',offeringId,title,maxMarks:Number(maxMarks),published,correctionReason:reason,records:roster.map(s=>({studentId:s.id,marks:Number(marks[s.id]??(data.results||[]).find(r=>r.offeringId===offeringId&&r.studentId===s.id&&r.title===title)?.marks)}))},'Results published');setMarks({});}catch(e){setError(e instanceof Error?e.message:'Results could not be published.');}finally{setBusy(false);}}}>{busy?'Publishing…':'Publish all student results'}</button>
- </section>;
+export function ResultsWorkflow({
+  data,
+  user,
+  label,
+  run,
+}: {
+  data: Data;
+  user: Row;
+  label: (table: string, id: any) => string;
+  run: (body: Row, message?: string) => Promise<any>;
+}) {
+  const [sessionId, setSessionId] = useState('');
+  const allOfferings = (data.offerings || []).filter(
+    (o) => o.active !== 0 && resultsAllowed(user, o, data),
+  );
+  const offerings = allOfferings.filter(
+    (o) =>
+      !['ADMIN', 'PRINCIPAL', 'HOD', 'EXAMINATION_CONTROLLER'].includes(user.role) ||
+      data.batches.some((b) => b.id === o.batchId && b.sessionId === sessionId),
+  );
+  const [offeringId, setOfferingId] = useState(''),
+    [title, setTitle] = useState(''),
+    [maxMarks, setMaxMarks] = useState('100'),
+    [published, setPublished] = useState(true),
+    [marks, setMarks] = useState<Record<string, string>>({}),
+    [reason, setReason] = useState(''),
+    [error, setError] = useState(''),
+    [busy, setBusy] = useState(false);
+  const offering = offerings.find((o) => o.id === offeringId),
+    roster = offering
+      ? (data.enrollments || [])
+          .filter((e) => e.offeringId === offering.id && e.active)
+          .map((e) => data.users.find((u) => u.id === e.studentId))
+          .filter((u): u is Row => !!u)
+          .sort(rollOrder)
+      : [];
+  useEffect(() => setMarks({}), [offeringId, title]);
+  if (!permitted(user, 'results')) return null;
+  return (
+    <section className="panel operations-panel">
+      <h2>Publish results for a subject</h2>
+      <p>
+        Choose a subject and class to enter every enrolled student’s marks together. Published marks
+        appear in the student results portal.
+      </p>
+      <div className="form-grid">
+        {['ADMIN', 'PRINCIPAL', 'HOD', 'EXAMINATION_CONTROLLER'].includes(user.role) && (
+          <label className="field">
+            <span>1. Academic session</span>
+            <select
+              value={sessionId}
+              onChange={(e) => {
+                setSessionId(e.target.value);
+                setOfferingId('');
+                setMarks({});
+              }}
+            >
+              <option value="">Select session</option>
+              {data.sessions
+                .filter((s) =>
+                  data.batches.some(
+                    (b) => b.sessionId === s.id && allOfferings.some((o) => o.batchId === b.id),
+                  ),
+                )
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+        )}
+        <label className="field">
+          <span>2. Subject & semester</span>
+          <select value={offeringId} onChange={(e) => setOfferingId(e.target.value)}>
+            <option value="">Select subject</option>
+            {offerings.map((o) => (
+              <option key={o.id} value={o.id}>
+                {label('offerings', o.id)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Assessment name</span>
+          <input
+            value={title}
+            maxLength={120}
+            required
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span>Maximum marks</span>
+          <input
+            type="number"
+            min="1"
+            max="1000"
+            value={maxMarks}
+            onChange={(e) => setMaxMarks(e.target.value)}
+          />
+        </label>
+        <label className="field checkbox-field">
+          <input
+            type="checkbox"
+            checked={published}
+            onChange={(e) => setPublished(e.target.checked)}
+          />
+          Publish to students immediately
+        </label>
+        <label className="field span-two">
+          <span>Correction reason (required when changing published results)</span>
+          <input value={reason} maxLength={1000} onChange={(e) => setReason(e.target.value)} />
+        </label>
+      </div>
+      {roster.length > 0 && (
+        <>
+          <h3>3. Students → 4. Marks</h3>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>S.No.</th>
+                  <th>Photo</th>
+                  <th>Roll number</th>
+                  <th>Student</th>
+                  <th>Marks / {maxMarks}</th>
+                  <th>Last updated by</th>
+                </tr>
+              </thead>
+              <tbody>
+                {roster.map((student, index) => {
+                  const previous = (data.results || []).find(
+                    (r) =>
+                      r.offeringId === offeringId &&
+                      r.studentId === student.id &&
+                      r.title === title,
+                  );
+                  return (
+                    <tr key={student.id}>
+                      <td>{index + 1}</td>
+                      <td>
+                        <UserPhoto user={student} />
+                      </td>
+                      <td>{student.identifier || '—'}</td>
+                      <td>{student.name}</td>
+                      <td>
+                        <input
+                          aria-label={`Marks for ${student.name}`}
+                          type="number"
+                          min="0"
+                          max={maxMarks}
+                          step="any"
+                          value={marks[student.id] ?? (previous ? String(previous.marks) : '')}
+                          onChange={(e) =>
+                            setMarks((values) => ({ ...values, [student.id]: e.target.value }))
+                          }
+                        />
+                      </td>
+                      <td>{previous?.updatedBy ? label('users', previous.updatedBy) : '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+      {!roster.length && <p>No enrolled students are assigned to this subject and semester yet.</p>}
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <button
+        className="btn primary"
+        disabled={
+          busy ||
+          !offering ||
+          !roster.length ||
+          !title.trim() ||
+          roster.some((s) => (marks[s.id] ?? '') === '')
+        }
+        onClick={async () => {
+          setBusy(true);
+          setError('');
+          try {
+            await run(
+              {
+                action: 'resultBatch',
+                offeringId,
+                title,
+                maxMarks: Number(maxMarks),
+                published,
+                correctionReason: reason,
+                records: roster.map((s) => ({
+                  studentId: s.id,
+                  marks: Number(
+                    marks[s.id] ??
+                      (data.results || []).find(
+                        (r) =>
+                          r.offeringId === offeringId && r.studentId === s.id && r.title === title,
+                      )?.marks,
+                  ),
+                })),
+              },
+              'Results published',
+            );
+            setMarks({});
+          } catch (e) {
+            setError(e instanceof Error ? e.message : 'Results could not be published.');
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? 'Publishing…' : 'Publish all student results'}
+      </button>
+    </section>
+  );
 }
 
-export function ResultFiles({data,user,label}:{data:Data;user:Row;label:(table:string,id:any)=>string}){
- const allowed=permitted(user,'results'),offerings=(data.offerings||[]).filter(o=>o.active!==0&&resultsAllowed(user,o,data));
- const [offeringId,setOfferingId]=useState(offerings[0]?.id||''),[busy,setBusy]=useState(false),[error,setError]=useState('');
- return <section className="panel operations-panel"><h2>Result sheets</h2><p>Download a published class result sheet or upload a CSV, Excel spreadsheet or PDF for the selected subject.</p>{allowed&&<div className="form-grid"><label className="field"><span>Subject & semester</span><select value={offeringId} onChange={e=>setOfferingId(e.target.value)}><option value="">Select subject</option>{offerings.map(o=><option key={o.id} value={o.id}>{label('offerings',o.id)}</option>)}</select></label><label className="btn upload-label">{busy?'Uploading…':'Upload result sheet'}<input type="file" accept=".csv,.xls,.xlsx,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={busy||!offeringId} onChange={async e=>{const file=e.target.files?.[0];e.target.value='';if(!file)return;setBusy(true);setError('');try{const form=new FormData();form.append('file',file);form.append('purpose','result-sheet');form.append('offeringId',offeringId);const response=await fetch('/api/files',{method:'POST',body:form}),result=await response.json();if(!response.ok)throw new Error(result.error||'Upload failed.');window.location.reload();}catch(e){setError(e instanceof Error?e.message:'Upload failed.');}finally{setBusy(false);}}}/></label></div>}{error&&<p role="alert" className="form-error">{error}</p>}{(data.resultFiles||[]).map(file=><div className="material-row" key={file.id}><div className="grow"><h3>{label('offerings',file.offeringId)}</h3><p>Uploaded {new Date(file.createdAt).toLocaleDateString()}</p></div><a className="btn" href={`/api/files/${file.fileId}`}>Download result sheet</a>{allowed&&offerings.some(o=>o.id===file.offeringId)&&<button className="btn" disabled={busy} onClick={async()=>{if(!window.confirm('Delete this uploaded result sheet? Entered marks will stay.'))return;setBusy(true);setError('');try{const response=await fetch('/api/lms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'deleteResultSheet',id:file.id})});const result=await response.json();if(!response.ok)throw new Error(result.error||'Delete failed.');window.location.reload();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}}>Delete sheet</button>}</div>)}{!(data.resultFiles||[]).length&&<p>No result sheets have been uploaded.</p>}</section>;
+export function ResultFiles({
+  data,
+  user,
+  label,
+}: {
+  data: Data;
+  user: Row;
+  label: (table: string, id: any) => string;
+}) {
+  const allowed = permitted(user, 'results'),
+    offerings = (data.offerings || []).filter(
+      (o) => o.active !== 0 && resultsAllowed(user, o, data),
+    );
+  const [offeringId, setOfferingId] = useState(offerings[0]?.id || ''),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState('');
+  return (
+    <section className="panel operations-panel">
+      <h2>Result sheets</h2>
+      <p>
+        Download a published class result sheet or upload a CSV, Excel spreadsheet or PDF for the
+        selected subject.
+      </p>
+      {allowed && (
+        <div className="form-grid">
+          <label className="field">
+            <span>Subject & semester</span>
+            <select value={offeringId} onChange={(e) => setOfferingId(e.target.value)}>
+              <option value="">Select subject</option>
+              {offerings.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {label('offerings', o.id)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="btn upload-label">
+            {busy ? 'Uploading…' : 'Upload result sheet'}
+            <input
+              type="file"
+              accept=".csv,.xls,.xlsx,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              disabled={busy || !offeringId}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (!file) return;
+                setBusy(true);
+                setError('');
+                try {
+                  const form = new FormData();
+                  form.append('file', file);
+                  form.append('purpose', 'result-sheet');
+                  form.append('offeringId', offeringId);
+                  const response = await fetch('/api/files', { method: 'POST', body: form }),
+                    result = await response.json();
+                  if (!response.ok) throw new Error(result.error || 'Upload failed.');
+                  window.location.reload();
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Upload failed.');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
+          </label>
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="form-error">
+          {error}
+        </p>
+      )}
+      {(data.resultFiles || []).map((file) => (
+        <div className="material-row" key={file.id}>
+          <div className="grow">
+            <h3>{label('offerings', file.offeringId)}</h3>
+            <p>Uploaded {new Date(file.createdAt).toLocaleDateString()}</p>
+          </div>
+          <a className="btn" href={`/api/files/${file.fileId}`}>
+            Download result sheet
+          </a>
+          {allowed && offerings.some((o) => o.id === file.offeringId) && (
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={async () => {
+                if (!window.confirm('Delete this uploaded result sheet? Entered marks will stay.'))
+                  return;
+                setBusy(true);
+                setError('');
+                try {
+                  const response = await fetch('/api/lms', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'deleteResultSheet', id: file.id }),
+                  });
+                  const result = await response.json();
+                  if (!response.ok) throw new Error(result.error || 'Delete failed.');
+                  window.location.reload();
+                } catch (e) {
+                  setError((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Delete sheet
+            </button>
+          )}
+        </div>
+      ))}
+      {!(data.resultFiles || []).length && <p>No result sheets have been uploaded.</p>}
+    </section>
+  );
 }
 
-export function AssessmentPolicy({data,user}:{data:Data;user:Row}){
- const allowed=permitted(user,'results')&&(['ADMIN','HOD'].includes(user.role)||permitted(user,'results_department')),departments=data.departments||[];
- const [departmentId,setDepartmentId]=useState(user.departmentId||departments[0]?.id||''),[busy,setBusy]=useState(false),[error,setError]=useState('');
- const policy=(data.assessmentPolicies||[]).find(p=>p.departmentId===departmentId);
- return <section className="panel operations-panel"><h2>Department assessment policy</h2><p>View your department’s assessment policy. HODs can upload a replacement policy document.</p>{allowed&&<div className="form-grid"><label className="field"><span>Department</span><select value={departmentId} disabled={user.role==='HOD'} onChange={e=>setDepartmentId(e.target.value)}>{departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></label><label className="btn upload-label">{busy?'Uploading…':policy?'Replace policy':'Upload policy'}<input type="file" accept={documentAccept} disabled={busy||!departmentId} onChange={async e=>{const file=e.target.files?.[0];e.target.value='';if(!file)return;setBusy(true);setError('');try{const form=new FormData();form.append('file',file);form.append('purpose','assessment-policy');form.append('departmentId',departmentId);const response=await fetch('/api/files',{method:'POST',body:form}),result=await response.json();if(!response.ok)throw new Error(result.error||'Upload failed.');window.location.reload();}catch(e){setError(e instanceof Error?e.message:'Upload failed.');}finally{setBusy(false);}}}/></label></div>}{error&&<p className="form-error" role="alert">{error}</p>}{policy?<div className="material-row"><div className="grow"><h3>{departments.find(d=>d.id===policy.departmentId)?.name} assessment policy</h3><p>Last updated {new Date(policy.createdAt).toLocaleDateString()}</p></div><a className="btn" href={`/api/files/${policy.fileId}`}>Download policy</a></div>:<p>No assessment policy has been uploaded for this department yet.</p>}</section>;
+export function AssessmentPolicy({ data, user }: { data: Data; user: Row }) {
+  const allowed =
+      permitted(user, 'results') &&
+      (['ADMIN', 'HOD'].includes(user.role) || permitted(user, 'results_department')),
+    departments = data.departments || [];
+  const [departmentId, setDepartmentId] = useState(user.departmentId || departments[0]?.id || ''),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState('');
+  const policy = (data.assessmentPolicies || []).find((p) => p.departmentId === departmentId);
+  return (
+    <section className="panel operations-panel">
+      <h2>Department assessment policy</h2>
+      <p>
+        View your department’s assessment policy. HODs can upload a replacement policy document.
+      </p>
+      {allowed && (
+        <div className="form-grid">
+          <label className="field">
+            <span>Department</span>
+            <select
+              value={departmentId}
+              disabled={user.role === 'HOD'}
+              onChange={(e) => setDepartmentId(e.target.value)}
+            >
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="btn upload-label">
+            {busy ? 'Uploading…' : policy ? 'Replace policy' : 'Upload policy'}
+            <input
+              type="file"
+              accept={documentAccept}
+              disabled={busy || !departmentId}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (!file) return;
+                setBusy(true);
+                setError('');
+                try {
+                  const form = new FormData();
+                  form.append('file', file);
+                  form.append('purpose', 'assessment-policy');
+                  form.append('departmentId', departmentId);
+                  const response = await fetch('/api/files', { method: 'POST', body: form }),
+                    result = await response.json();
+                  if (!response.ok) throw new Error(result.error || 'Upload failed.');
+                  window.location.reload();
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Upload failed.');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
+          </label>
+        </div>
+      )}
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      {policy ? (
+        <div className="material-row">
+          <div className="grow">
+            <h3>{departments.find((d) => d.id === policy.departmentId)?.name} assessment policy</h3>
+            <p>Last updated {new Date(policy.createdAt).toLocaleDateString()}</p>
+          </div>
+          <a className="btn" href={`/api/files/${policy.fileId}`}>
+            Download policy
+          </a>
+        </div>
+      ) : (
+        <p>No assessment policy has been uploaded for this department yet.</p>
+      )}
+    </section>
+  );
 }
 
-export function DepartmentHodAssignments({data,run}:{data:Data;run:(body:Row,message?:string)=>Promise<any>}){
- const [busy,setBusy]=useState(''),[error,setError]=useState('');
- const hods=(data.users||[]).filter(u=>u.role==='HOD'&&u.active);
- return <section className="panel operations-panel"><h2>Assign department HODs</h2><p>Select a HOD for each department. An HOD can be assigned to one department at a time.</p>{error&&<p className="form-error" role="alert">{error}</p>}{(data.departments||[]).map(department=>{const assigned=hods.find(h=>h.departmentId===department.id);return <div className="policy-row" key={department.id}><strong className="grow">{department.name}</strong><select aria-label={`HOD for ${department.name}`} value={assigned?.id||''} disabled={busy===department.id} onChange={async e=>{setBusy(department.id);setError('');try{await run({action:'assignHod',departmentId:department.id,hodId:e.target.value||null},'Department HOD updated');}catch(error){setError(error instanceof Error?error.message:'HOD assignment failed.');}finally{setBusy('');}}}><option value="">Unassigned</option>{hods.map(hod=><option key={hod.id} value={hod.id}>{hod.name}</option>)}</select></div>;})}</section>;
+export function DepartmentHodAssignments({
+  data,
+  run,
+}: {
+  data: Data;
+  run: (body: Row, message?: string) => Promise<any>;
+}) {
+  const [busy, setBusy] = useState(''),
+    [error, setError] = useState('');
+  const hods = (data.users || []).filter((u) => u.role === 'HOD' && u.active);
+  return (
+    <section className="panel operations-panel">
+      <h2>Assign department HODs</h2>
+      <p>Select a HOD for each department. An HOD can be assigned to one department at a time.</p>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      {(data.departments || []).map((department) => {
+        const assigned = hods.find((h) => h.departmentId === department.id);
+        return (
+          <div className="policy-row" key={department.id}>
+            <strong className="grow">{department.name}</strong>
+            <select
+              aria-label={`HOD for ${department.name}`}
+              value={assigned?.id || ''}
+              disabled={busy === department.id}
+              onChange={async (e) => {
+                setBusy(department.id);
+                setError('');
+                try {
+                  await run(
+                    {
+                      action: 'assignHod',
+                      departmentId: department.id,
+                      hodId: e.target.value || null,
+                    },
+                    'Department HOD updated',
+                  );
+                } catch (error) {
+                  setError(error instanceof Error ? error.message : 'HOD assignment failed.');
+                } finally {
+                  setBusy('');
+                }
+              }}
+            >
+              <option value="">Unassigned</option>
+              {hods.map((hod) => (
+                <option key={hod.id} value={hod.id}>
+                  {hod.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      })}
+    </section>
+  );
 }
 
-export function AttendanceReport({data,user,label,initialOfferingId,showSubjectSelect=true}:{data:Data;user:Row;label:(table:string,id:any)=>string;initialOfferingId?:string;showSubjectSelect?:boolean}){
- const options=(data.offerings||[]).filter(o=>user.role!=='TEACHER'||(o.teacherId===user.id||!!o.coTeacherId&&o.coTeacherId===user.id)).filter(o=>showSubjectSelect||o.id===initialOfferingId);
- const [offeringId,setOfferingId]=useState(initialOfferingId||options[0]?.id||''),[showBelow75,setShowBelow75]=useState(false);
- useEffect(()=>{if(initialOfferingId&&options.some(o=>o.id===initialOfferingId))setOfferingId(initialOfferingId);},[initialOfferingId]);
- const offering=options.find(o=>o.id===offeringId),enrolled=data.enrollments.filter(e=>e.offeringId===offering?.id&&e.active);
- const roster=user.role==='STUDENT'?[user]:enrolled.map(e=>data.users.find(s=>s.id===e.studentId)).filter((s):s is Row=>!!s).sort(rollOrder);
- const rows=roster.map(student=>{const records=data.attendance.filter(a=>a.offeringId===offering?.id&&a.studentId===student.id),count=(status:string)=>records.filter(a=>a.status===status).length;return {student,records,percent:attendancePercent(records),attended:count('Present')+count('Late'),missed:count('Absent'),late:count('Late'),excused:count('Excused'),sessions:records.filter(a=>a.status!=='Excused').length};});
- const visible=rows.filter(row=>!showBelow75||(row.percent!==null&&row.percent<75));
- function exportCurrent(){const title=`${label('offerings',offering?.id)} attendance — ${showBelow75?'Below 75%':'All students'}`;const headers=['Student','Student ID','Attendance','Attended','Absent','Late','Excused'];const reportRows=visible.map(row=>[row.student.name,row.student.identifier||'—',row.percent===null?'No attendance recorded':`${row.percent}%`,String(row.attended),String(row.missed),String(row.late),String(row.excused)]);downloadReport(title,'attendance-report',headers,reportRows,'word');}
- if(!options.length)return <section className="panel operations-panel"><h2>Subject attendance report</h2><p>No subjects with attendance records are available for this account.</p></section>;
- return <section className="panel operations-panel"><div className="row between"><div><h2>Subject attendance report</h2><p>Attendance is calculated by subject. Present and late count as attended; excused sessions are excluded.</p></div><button className="btn" disabled={!permitted(user,'reports')} onClick={exportCurrent}>Download report</button></div>
-  {showSubjectSelect&&<label className="field"><span>Subject & class</span><select value={offering?.id||''} onChange={e=>setOfferingId(e.target.value)}>{options.map(o=><option key={o.id} value={o.id}>{label('offerings',o.id)}</option>)}</select></label>}
-  <div className="attendance-report-controls" role="radiogroup" aria-label="Attendance report filter"><label><input type="radio" name="attendance-report-filter" checked={!showBelow75} onChange={()=>setShowBelow75(false)}/>All</label><label><input type="radio" name="attendance-report-filter" checked={showBelow75} onChange={()=>setShowBelow75(true)}/>Below 75%</label></div>
-  <div className="table-scroll"><table><thead><tr><th>S.No.</th><th>Photo</th><th>Student ID</th><th>Student</th><th>Attendance</th><th>Attended</th><th>Absent</th><th>Late</th></tr></thead><tbody>{visible.map((row,index)=><tr key={row.student.id} className={row.percent!==null&&row.percent<75?'attendance-low':''}><td>{index+1}</td><td><UserPhoto user={row.student}/></td><td>{row.student.identifier||'—'}</td><td>{row.student.name}</td><td>{row.percent===null?'No data':`${row.percent}%`}</td><td>{row.attended}</td><td>{row.missed}</td><td>{row.late}</td></tr>)}</tbody></table>{!visible.length&&<p className="muted">{showBelow75?'No students are below 75% for this subject.':'No attendance records are available for this subject yet.'}</p>}</div>
- </section>;
+export function AttendanceReport({
+  data,
+  user,
+  label,
+  initialOfferingId,
+  showSubjectSelect = true,
+}: {
+  data: Data;
+  user: Row;
+  label: (table: string, id: any) => string;
+  initialOfferingId?: string;
+  showSubjectSelect?: boolean;
+}) {
+  const options = (data.offerings || [])
+    .filter(
+      (o) =>
+        user.role !== 'TEACHER' ||
+        o.teacherId === user.id ||
+        (!!o.coTeacherId && o.coTeacherId === user.id),
+    )
+    .filter((o) => showSubjectSelect || o.id === initialOfferingId);
+  const [offeringId, setOfferingId] = useState(initialOfferingId || options[0]?.id || ''),
+    [showBelow75, setShowBelow75] = useState(false);
+  useEffect(() => {
+    if (initialOfferingId && options.some((o) => o.id === initialOfferingId))
+      setOfferingId(initialOfferingId);
+  }, [initialOfferingId]);
+  const offering = options.find((o) => o.id === offeringId),
+    enrolled = data.enrollments.filter((e) => e.offeringId === offering?.id && e.active);
+  const roster =
+    user.role === 'STUDENT'
+      ? [user]
+      : enrolled
+          .map((e) => data.users.find((s) => s.id === e.studentId))
+          .filter((s): s is Row => !!s)
+          .sort(rollOrder);
+  const rows = roster.map((student) => {
+    const records = data.attendance.filter(
+        (a) => a.offeringId === offering?.id && a.studentId === student.id,
+      ),
+      count = (status: string) => records.filter((a) => a.status === status).length;
+    return {
+      student,
+      records,
+      percent: attendancePercent(records),
+      attended: count('Present') + count('Late'),
+      missed: count('Absent'),
+      late: count('Late'),
+      excused: count('Excused'),
+      sessions: records.filter((a) => a.status !== 'Excused').length,
+    };
+  });
+  const visible = rows.filter((row) => !showBelow75 || (row.percent !== null && row.percent < 75));
+  function exportCurrent() {
+    const title = `${label('offerings', offering?.id)} attendance — ${showBelow75 ? 'Below 75%' : 'All students'}`;
+    const headers = [
+      'Student',
+      'Student ID',
+      'Attendance',
+      'Attended',
+      'Absent',
+      'Late',
+      'Excused',
+    ];
+    const reportRows = visible.map((row) => [
+      row.student.name,
+      row.student.identifier || '—',
+      row.percent === null ? 'No attendance recorded' : `${row.percent}%`,
+      String(row.attended),
+      String(row.missed),
+      String(row.late),
+      String(row.excused),
+    ]);
+    downloadReport(title, 'attendance-report', headers, reportRows, 'word');
+  }
+  if (!options.length)
+    return (
+      <section className="panel operations-panel">
+        <h2>Subject attendance report</h2>
+        <p>No subjects with attendance records are available for this account.</p>
+      </section>
+    );
+  return (
+    <section className="panel operations-panel">
+      <div className="row between">
+        <div>
+          <h2>Subject attendance report</h2>
+          <p>
+            Attendance is calculated by subject. Present and late count as attended; excused
+            sessions are excluded.
+          </p>
+        </div>
+        <button className="btn" disabled={!permitted(user, 'reports')} onClick={exportCurrent}>
+          Download report
+        </button>
+      </div>
+      {showSubjectSelect && (
+        <label className="field">
+          <span>Subject & class</span>
+          <select value={offering?.id || ''} onChange={(e) => setOfferingId(e.target.value)}>
+            {options.map((o) => (
+              <option key={o.id} value={o.id}>
+                {label('offerings', o.id)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <div
+        className="attendance-report-controls"
+        role="radiogroup"
+        aria-label="Attendance report filter"
+      >
+        <label>
+          <input
+            type="radio"
+            name="attendance-report-filter"
+            checked={!showBelow75}
+            onChange={() => setShowBelow75(false)}
+          />
+          All
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="attendance-report-filter"
+            checked={showBelow75}
+            onChange={() => setShowBelow75(true)}
+          />
+          Below 75%
+        </label>
+      </div>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>S.No.</th>
+              <th>Photo</th>
+              <th>Student ID</th>
+              <th>Student</th>
+              <th>Attendance</th>
+              <th>Attended</th>
+              <th>Absent</th>
+              <th>Late</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((row, index) => (
+              <tr
+                key={row.student.id}
+                className={row.percent !== null && row.percent < 75 ? 'attendance-low' : ''}
+              >
+                <td>{index + 1}</td>
+                <td>
+                  <UserPhoto user={row.student} />
+                </td>
+                <td>{row.student.identifier || '—'}</td>
+                <td>{row.student.name}</td>
+                <td>{row.percent === null ? 'No data' : `${row.percent}%`}</td>
+                <td>{row.attended}</td>
+                <td>{row.missed}</td>
+                <td>{row.late}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!visible.length && (
+          <p className="muted">
+            {showBelow75
+              ? 'No students are below 75% for this subject.'
+              : 'No attendance records are available for this subject yet.'}
+          </p>
+        )}
+      </div>
+    </section>
+  );
 }
 
-type AttendanceViewData={offerings:Row[];offering?:Row;students?:Row[];attendance?:Row[];timetable?:Row[]};
-export function AttendanceBrowser({user,data,loadView,onMarkAttendance,canMark}:{user:Row;data:Data;loadView:(request:Row)=>Promise<AttendanceViewData>;onMarkAttendance:(offeringId:string)=>void;canMark:(offeringId:string)=>boolean}){
- const [offerings,setOfferings]=useState<Row[]>([]),[offering,setOffering]=useState<Row|null>(null),[students,setStudents]=useState<Row[]>([]),[records,setRecords]=useState<Row[]>([]),[timetable,setTimetable]=useState<Row[]>([]),[availableDates,setAvailableDates]=useState<string[]>([]),[selectedStudent,setSelectedStudent]=useState<Row|null>(null),[date,setDate]=useState(''),[query,setQuery]=useState(''),[stage,setStage]=useState<'subjects'|'students'|'student'|'date'>('subjects'),[busy,setBusy]=useState(true),[error,setError]=useState(''),[reload,setReload]=useState(0);
- const studentView=user.role==='STUDENT';
- useEffect(()=>{let live=true;setBusy(true);loadView({action:'attendanceView'}).then(result=>{if(live)setOfferings(result.offerings||[]);}).catch(e=>{if(live)setError(e instanceof Error?e.message:'Attendance could not be loaded.');}).finally(()=>{if(live)setBusy(false);});return()=>{live=false;};},[loadView,reload]);
- const loadOffering=async(id:string)=>{setBusy(true);setError('');setQuery('');try{const result=await loadView({action:'attendanceView',offeringId:id});setOffering(result.offering||null);setStudents((result.students||[]).slice().sort(rollOrder));setRecords(result.attendance||[]);setAvailableDates(Array.from(new Set((result.attendance||[]).map((record:Row)=>record.date))).sort());setTimetable(result.timetable||[]);if(studentView){const own=(result.students||[]).find(person=>person.id===user.id);if(!own)throw new Error('Your enrollment could not be verified for this subject/class.');setSelectedStudent(own);setStage('student');}else setStage('students');}catch(e){setError(e instanceof Error?e.message:'Attendance could not be loaded.');}finally{setBusy(false);}};
- const loadStudent=async(person:Row)=>{if(!offering)return;setBusy(true);setError('');try{const result=await loadView({action:'attendanceView',offeringId:offering.id,studentId:person.id});setSelectedStudent(person);setRecords(result.attendance||[]);setStage('student');}catch(e){setError(e instanceof Error?e.message:'Student attendance could not be loaded.');}finally{setBusy(false);}};
- const openDate=async()=>{if(!offering)return;const recent=availableDates.at(-1)||new Date().toISOString().slice(0,10);setBusy(true);setError('');try{const result=await loadView({action:'attendanceView',offeringId:offering.id,date:recent});setDate(recent);setRecords(result.attendance||[]);setStage('date');}catch(e){setError(e instanceof Error?e.message:'Attendance could not be loaded.');}finally{setBusy(false);}};
- const counts=(attendance:Row[])=>({present:attendance.filter(a=>a.status==='Present').length,absent:attendance.filter(a=>a.status==='Absent').length,late:attendance.filter(a=>a.status==='Late').length,excused:attendance.filter(a=>a.status==='Excused').length});
- const summary=(attendance:Row[])=>{const values=counts(attendance),counted=values.present+values.absent+values.late;return {...values,counted,percent:attendancePercent(attendance)};};
- const offeringTitle=(item:Row)=>`${item.subjectCode||''} ${item.subjectName||'Subject'} · ${item.programName||'Program'} · ${item.batchName||'Class'} · Semester ${item.semester}${item.sessionName?' · '+item.sessionName:''}`;
- const visibleStudents=students.filter(person=>`${person.name} ${person.identifier||''}`.toLowerCase().includes(query.toLowerCase()));
- const ownRecords=records.filter(record=>record.studentId===selectedStudent?.id).slice().sort((a,b)=>a.date.localeCompare(b.date));
- const timetableForDate=(value:string)=>{const day=new Date(`${value}T12:00:00`).toLocaleDateString('en-US',{weekday:'long'});return timetable.filter(slot=>slot.day===day);};
- const exportRows=(rows:Row[],title:string)=>downloadReport(title,'attendance-report',['Date','Scheduled time / room','Student','Student ID','Status'],rows.map(record=>{const slots=timetableForDate(record.date);return [record.date,slots.length?slots.map(slot=>`${slot.startTime}–${slot.endTime} · ${slot.room}`).join('; '):'—',selectedStudent?.name||students.find(person=>person.id===record.studentId)?.name||'—',selectedStudent?.identifier||students.find(person=>person.id===record.studentId)?.identifier||'—',record.status];}),'word');
- const summaryCard=(attendance:Row[])=><AttendanceSummary records={attendance}/>;
- const backToSubjects=()=>{setOffering(null);setSelectedStudent(null);setRecords([]);setStage('subjects');setQuery('');setError('');};
- const backToStudents=async()=>{if(!offering)return;setBusy(true);setError('');try{const result=await loadView({action:'attendanceView',offeringId:offering.id});setStudents((result.students||[]).slice().sort(rollOrder));setRecords(result.attendance||[]);setTimetable(result.timetable||[]);setSelectedStudent(null);setStage('students');setQuery('');}catch(e){setError(e instanceof Error?e.message:'Attendance could not be loaded.');}finally{setBusy(false);}};
- if(busy&&stage==='subjects'&&!offerings.length)return <section className="panel operations-panel"><p>Loading attendance subjects…</p></section>;
- return <section className="operations-panel">
-  {error&&<div className="form-error" role="alert">{error}{stage==='subjects'&&<button className="btn" onClick={()=>{setError('');setReload(n=>n+1);}}>Retry loading</button>}</div>}
-  {stage==='subjects'&&<><div className="section-head"><div><h2>{studentView?'Select a subject':'Select subject / class'}</h2><p>{studentView?'View your attendance one subject at a time.':'Authorized department or assigned classes only.'}</p></div></div>{!offerings.length?<div className="panel"><p>{studentView?'You are not enrolled in any subjects with attendance access yet.':'No authorized subject/classes are available.'}</p></div>:<div className="subjects-grid full-grid">{offerings.map((item,index)=><SubjectCard key={item.id} offering={item} data={data} index={index} disabled={busy} onSelect={()=>void loadOffering(item.id)}/>)}</div>}</>}
-  {stage!=='subjects'&&offering&&<><div className="row between attendance-navigation"><button className="btn" disabled={busy} onClick={()=>stage==='student'&&!studentView||stage==='date'?void backToStudents():backToSubjects()}>{stage==='student'&&!studentView||stage==='date'?'Back to students':'Back to subjects'}<ChevronLeft size={16}/></button><div><strong>{offeringTitle(offering)}</strong><p>{stage==='student'&&selectedStudent?`${selectedStudent.name} · ${selectedStudent.identifier||'No roll number'}`:stage==='date'?'Class roster by date':'Attendance for this offering'}</p></div></div>
-   {stage==='students'&&<><div className="row between"><h2>{user.role==='TEACHER'?'Class overview and students':'Students enrolled'}</h2><label className="search-box"><input aria-label="Search students" placeholder="Search name or roll number" value={query} onChange={e=>setQuery(e.target.value)}/></label></div>{canMark(offering.id)&&<div className="row gap attendance-actions"><button className="btn primary" onClick={()=>onMarkAttendance(offering.id)}>Mark attendance</button><button className="btn" disabled={busy} onClick={()=>void openDate()}>View by date</button><button className="btn" disabled={!permitted(user,'reports')} onClick={()=>exportRows(records,`${offeringTitle(offering)} attendance`)}><Download size={16}/>Export class records</button></div>}{!canMark(offering.id)&&user.role==='TEACHER'&&<div className="row gap attendance-actions"><button className="btn" disabled={busy} onClick={()=>void openDate()}>View by date</button><button className="btn" disabled={!permitted(user,'reports')} onClick={()=>exportRows(records,`${offeringTitle(offering)} attendance`)}><Download size={16}/>Export class records</button></div>}<div className="table-scroll"><table><thead><tr><th>S.No.</th><th>Photo</th><th>Student</th><th>Roll number</th><th>Attendance %</th><th>Counted classes</th><th>Present</th><th>Absent</th><th>Late</th><th>Details</th></tr></thead><tbody>{visibleStudents.map((person,index)=>{const personal=records.filter(record=>record.studentId===person.id),total=summary(personal);return <tr key={person.id}><td>{index+1}</td><td><UserPhoto user={person}/></td><td>{person.name}</td><td>{person.identifier||'—'}</td><td>{total.percent===null?'N/A':`${total.percent}%`}</td><td>{total.counted}</td><td>{total.present}</td><td>{total.absent}</td><td>{total.late}</td><td><button className="text-btn" disabled={busy} onClick={()=>void loadStudent(person)}>View attendance<ChevronRight size={16}/></button></td></tr>;})}</tbody></table>{!visibleStudents.length&&<p className="muted">{students.length?'No students match your search.':'No students are enrolled in this subject/class.'}</p>}</div></>}
-   {stage==='student'&&selectedStudent&&<>{summaryCard(ownRecords)}<div className="row between"><h2>Date-wise attendance</h2><button className="btn" disabled={!permitted(user,'reports')} onClick={()=>exportRows(ownRecords,`${selectedStudent.name} · ${offeringTitle(offering)} attendance`)}><Download size={16}/>Export records</button></div><div className="table-scroll"><table><thead><tr><th>S.No.</th><th>Class date</th><th>Scheduled sessions</th><th>Status</th><th>Remarks</th></tr></thead><tbody>{ownRecords.map((record,index)=>{const slots=timetableForDate(record.date);return <tr key={record.id}><td>{index+1}</td><td>{record.date}</td><td>{slots.length?slots.map(slot=><div key={slot.id}>{slot.startTime}–{slot.endTime} · {slot.room}</div>):'—'}</td><td><span className={`badge ${record.status==='Absent'?'red':record.status==='Late'?'amber':'green'}`}>{record.status}</span></td><td>{record.remarks||'—'}</td></tr>;})}</tbody></table>{!ownRecords.length&&<p className="muted">No attendance recorded for this subject/class.</p>}</div>{ownRecords.some(record=>timetableForDate(record.date).length>1)&&<p className="muted">The stored attendance record is per student and date, not linked to an individual timetable session. Scheduled times are shown for reference; a status cannot be assigned to a specific time with the current records.</p>}</>}
-   {stage==='date'&&<><div className="form-grid"><label className="field"><span>Class date</span><input type="date" value={date} onChange={async e=>{const nextDate=e.target.value;if(!nextDate)return;setDate(nextDate);setBusy(true);setError('');try{const result=await loadView({action:'attendanceView',offeringId:offering.id,date:nextDate});setStudents((result.students||[]).slice().sort(rollOrder));setRecords(result.attendance||[]);}catch(error){setError(error instanceof Error?error.message:'Attendance could not be loaded.');}finally{setBusy(false);}}}/></label></div><div className="row between"><h2>Class roster</h2><button className="btn" disabled={!permitted(user,'reports')} onClick={()=>exportRows(records.filter(r=>r.date===date),`${offeringTitle(offering)} · ${date} attendance`)}><Download size={16}/>Export selected date</button></div><div className="table-scroll"><table><thead><tr><th>S.No.</th><th>Photo</th><th>Student</th><th>Roll number</th><th>Scheduled sessions</th><th>Status</th></tr></thead><tbody>{students.filter(person=>`${person.name} ${person.identifier||''}`.toLowerCase().includes(query.toLowerCase())).sort(rollOrder).map((person,index)=>{const record=records.find(item=>item.studentId===person.id&&item.date===date),slots=timetableForDate(date);return <tr key={person.id}><td>{index+1}</td><td><UserPhoto user={person}/></td><td>{person.name}</td><td>{person.identifier||'—'}</td><td>{slots.length?slots.map(slot=><div key={slot.id}>{slot.startTime}–{slot.endTime} · {slot.room}</div>):'—'}</td><td>{record?<span className={`badge ${record.status==='Absent'?'red':record.status==='Late'?'amber':'green'}`}>{record.status}</span>:'Not recorded'}</td></tr>;})}</tbody></table>{!students.length&&<p className="muted">No students are enrolled in this subject/class.</p>}</div><p className="muted">Only recorded statuses are counted. Unmarked class sessions are not treated as absences. Attendance is stored once per student and date, so it is not linked to an individual scheduled session.</p></>}
-  </>}
- </section>;
+type AttendanceViewData = {
+  offerings: Row[];
+  offering?: Row;
+  students?: Row[];
+  attendance?: Row[];
+  timetable?: Row[];
+};
+export function AttendanceBrowser({
+  user,
+  data,
+  loadView,
+  onMarkAttendance,
+  canMark,
+}: {
+  user: Row;
+  data: Data;
+  loadView: (request: Row) => Promise<AttendanceViewData>;
+  onMarkAttendance: (offeringId: string) => void;
+  canMark: (offeringId: string) => boolean;
+}) {
+  const [offerings, setOfferings] = useState<Row[]>([]),
+    [offering, setOffering] = useState<Row | null>(null),
+    [students, setStudents] = useState<Row[]>([]),
+    [records, setRecords] = useState<Row[]>([]),
+    [timetable, setTimetable] = useState<Row[]>([]),
+    [availableDates, setAvailableDates] = useState<string[]>([]),
+    [selectedStudent, setSelectedStudent] = useState<Row | null>(null),
+    [date, setDate] = useState(''),
+    [query, setQuery] = useState(''),
+    [stage, setStage] = useState<'subjects' | 'students' | 'student' | 'date'>('subjects'),
+    [busy, setBusy] = useState(true),
+    [error, setError] = useState(''),
+    [reload, setReload] = useState(0);
+  const studentView = user.role === 'STUDENT';
+  useEffect(() => {
+    let live = true;
+    setBusy(true);
+    loadView({ action: 'attendanceView' })
+      .then((result) => {
+        if (live) setOfferings(result.offerings || []);
+      })
+      .catch((e) => {
+        if (live) setError(e instanceof Error ? e.message : 'Attendance could not be loaded.');
+      })
+      .finally(() => {
+        if (live) setBusy(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, [loadView, reload]);
+  const loadOffering = async (id: string) => {
+    setBusy(true);
+    setError('');
+    setQuery('');
+    try {
+      const result = await loadView({ action: 'attendanceView', offeringId: id });
+      setOffering(result.offering || null);
+      setStudents((result.students || []).slice().sort(rollOrder));
+      setRecords(result.attendance || []);
+      setAvailableDates(
+        Array.from(new Set((result.attendance || []).map((record: Row) => record.date))).sort(),
+      );
+      setTimetable(result.timetable || []);
+      if (studentView) {
+        const own = (result.students || []).find((person) => person.id === user.id);
+        if (!own) throw new Error('Your enrollment could not be verified for this subject/class.');
+        setSelectedStudent(own);
+        setStage('student');
+      } else setStage('students');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Attendance could not be loaded.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const loadStudent = async (person: Row) => {
+    if (!offering) return;
+    setBusy(true);
+    setError('');
+    try {
+      const result = await loadView({
+        action: 'attendanceView',
+        offeringId: offering.id,
+        studentId: person.id,
+      });
+      setSelectedStudent(person);
+      setRecords(result.attendance || []);
+      setStage('student');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Student attendance could not be loaded.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const openDate = async () => {
+    if (!offering) return;
+    const recent = availableDates.at(-1) || new Date().toISOString().slice(0, 10);
+    setBusy(true);
+    setError('');
+    try {
+      const result = await loadView({
+        action: 'attendanceView',
+        offeringId: offering.id,
+        date: recent,
+      });
+      setDate(recent);
+      setRecords(result.attendance || []);
+      setStage('date');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Attendance could not be loaded.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const counts = (attendance: Row[]) => ({
+    present: attendance.filter((a) => a.status === 'Present').length,
+    absent: attendance.filter((a) => a.status === 'Absent').length,
+    late: attendance.filter((a) => a.status === 'Late').length,
+    excused: attendance.filter((a) => a.status === 'Excused').length,
+  });
+  const summary = (attendance: Row[]) => {
+    const values = counts(attendance),
+      counted = values.present + values.absent + values.late;
+    return { ...values, counted, percent: attendancePercent(attendance) };
+  };
+  const offeringTitle = (item: Row) =>
+    `${item.subjectCode || ''} ${item.subjectName || 'Subject'} · ${item.programName || 'Program'} · ${item.batchName || 'Class'} · Semester ${item.semester}${item.sessionName ? ' · ' + item.sessionName : ''}`;
+  const visibleStudents = students.filter((person) =>
+    `${person.name} ${person.identifier || ''}`.toLowerCase().includes(query.toLowerCase()),
+  );
+  const ownRecords = records
+    .filter((record) => record.studentId === selectedStudent?.id)
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const timetableForDate = (value: string) => {
+    const day = new Date(`${value}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long' });
+    return timetable.filter((slot) => slot.day === day);
+  };
+  const exportRows = (rows: Row[], title: string) =>
+    downloadReport(
+      title,
+      'attendance-report',
+      ['Date', 'Scheduled time / room', 'Student', 'Student ID', 'Status'],
+      rows.map((record) => {
+        const slots = timetableForDate(record.date);
+        return [
+          record.date,
+          slots.length
+            ? slots.map((slot) => `${slot.startTime}–${slot.endTime} · ${slot.room}`).join('; ')
+            : '—',
+          selectedStudent?.name ||
+            students.find((person) => person.id === record.studentId)?.name ||
+            '—',
+          selectedStudent?.identifier ||
+            students.find((person) => person.id === record.studentId)?.identifier ||
+            '—',
+          record.status,
+        ];
+      }),
+      'word',
+    );
+  const summaryCard = (attendance: Row[]) => <AttendanceSummary records={attendance} />;
+  const backToSubjects = () => {
+    setOffering(null);
+    setSelectedStudent(null);
+    setRecords([]);
+    setStage('subjects');
+    setQuery('');
+    setError('');
+  };
+  const backToStudents = async () => {
+    if (!offering) return;
+    setBusy(true);
+    setError('');
+    try {
+      const result = await loadView({ action: 'attendanceView', offeringId: offering.id });
+      setStudents((result.students || []).slice().sort(rollOrder));
+      setRecords(result.attendance || []);
+      setTimetable(result.timetable || []);
+      setSelectedStudent(null);
+      setStage('students');
+      setQuery('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Attendance could not be loaded.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (busy && stage === 'subjects' && !offerings.length)
+    return (
+      <section className="panel operations-panel">
+        <p>Loading attendance subjects…</p>
+      </section>
+    );
+  return (
+    <section className="operations-panel">
+      {error && (
+        <div className="form-error" role="alert">
+          {error}
+          {stage === 'subjects' && (
+            <button
+              className="btn"
+              onClick={() => {
+                setError('');
+                setReload((n) => n + 1);
+              }}
+            >
+              Retry loading
+            </button>
+          )}
+        </div>
+      )}
+      {stage === 'subjects' && (
+        <>
+          <div className="section-head">
+            <div>
+              <h2>{studentView ? 'Select a subject' : 'Select subject / class'}</h2>
+              <p>
+                {studentView
+                  ? 'View your attendance one subject at a time.'
+                  : 'Authorized department or assigned classes only.'}
+              </p>
+            </div>
+          </div>
+          {!offerings.length ? (
+            <div className="panel">
+              <p>
+                {studentView
+                  ? 'You are not enrolled in any subjects with attendance access yet.'
+                  : 'No authorized subject/classes are available.'}
+              </p>
+            </div>
+          ) : (
+            <div className="subjects-grid full-grid">
+              {offerings.map((item, index) => (
+                <SubjectCard
+                  key={item.id}
+                  offering={item}
+                  data={data}
+                  index={index}
+                  disabled={busy}
+                  onSelect={() => void loadOffering(item.id)}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {stage !== 'subjects' && offering && (
+        <>
+          <div className="row between attendance-navigation">
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() =>
+                (stage === 'student' && !studentView) || stage === 'date'
+                  ? void backToStudents()
+                  : backToSubjects()
+              }
+            >
+              {(stage === 'student' && !studentView) || stage === 'date'
+                ? 'Back to students'
+                : 'Back to subjects'}
+              <ChevronLeft size={16} />
+            </button>
+            <div>
+              <strong>{offeringTitle(offering)}</strong>
+              <p>
+                {stage === 'student' && selectedStudent
+                  ? `${selectedStudent.name} · ${selectedStudent.identifier || 'No roll number'}`
+                  : stage === 'date'
+                    ? 'Class roster by date'
+                    : 'Attendance for this offering'}
+              </p>
+            </div>
+          </div>
+          {stage === 'students' && (
+            <>
+              <div className="row between">
+                <h2>
+                  {user.role === 'TEACHER' ? 'Class overview and students' : 'Students enrolled'}
+                </h2>
+                <label className="search-box">
+                  <input
+                    aria-label="Search students"
+                    placeholder="Search name or roll number"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                </label>
+              </div>
+              {canMark(offering.id) && (
+                <div className="row gap attendance-actions">
+                  <button className="btn primary" onClick={() => onMarkAttendance(offering.id)}>
+                    Mark attendance
+                  </button>
+                  <button className="btn" disabled={busy} onClick={() => void openDate()}>
+                    View by date
+                  </button>
+                  <button
+                    className="btn"
+                    disabled={!permitted(user, 'reports')}
+                    onClick={() => exportRows(records, `${offeringTitle(offering)} attendance`)}
+                  >
+                    <Download size={16} />
+                    Export class records
+                  </button>
+                </div>
+              )}
+              {!canMark(offering.id) && user.role === 'TEACHER' && (
+                <div className="row gap attendance-actions">
+                  <button className="btn" disabled={busy} onClick={() => void openDate()}>
+                    View by date
+                  </button>
+                  <button
+                    className="btn"
+                    disabled={!permitted(user, 'reports')}
+                    onClick={() => exportRows(records, `${offeringTitle(offering)} attendance`)}
+                  >
+                    <Download size={16} />
+                    Export class records
+                  </button>
+                </div>
+              )}
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>S.No.</th>
+                      <th>Photo</th>
+                      <th>Student</th>
+                      <th>Roll number</th>
+                      <th>Attendance %</th>
+                      <th>Counted classes</th>
+                      <th>Present</th>
+                      <th>Absent</th>
+                      <th>Late</th>
+                      <th>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleStudents.map((person, index) => {
+                      const personal = records.filter((record) => record.studentId === person.id),
+                        total = summary(personal);
+                      return (
+                        <tr key={person.id}>
+                          <td>{index + 1}</td>
+                          <td>
+                            <UserPhoto user={person} />
+                          </td>
+                          <td>{person.name}</td>
+                          <td>{person.identifier || '—'}</td>
+                          <td>{total.percent === null ? 'N/A' : `${total.percent}%`}</td>
+                          <td>{total.counted}</td>
+                          <td>{total.present}</td>
+                          <td>{total.absent}</td>
+                          <td>{total.late}</td>
+                          <td>
+                            <button
+                              className="text-btn"
+                              disabled={busy}
+                              onClick={() => void loadStudent(person)}
+                            >
+                              View attendance
+                              <ChevronRight size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {!visibleStudents.length && (
+                  <p className="muted">
+                    {students.length
+                      ? 'No students match your search.'
+                      : 'No students are enrolled in this subject/class.'}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+          {stage === 'student' && selectedStudent && (
+            <>
+              {summaryCard(ownRecords)}
+              <div className="row between">
+                <h2>Date-wise attendance</h2>
+                <button
+                  className="btn"
+                  disabled={!permitted(user, 'reports')}
+                  onClick={() =>
+                    exportRows(
+                      ownRecords,
+                      `${selectedStudent.name} · ${offeringTitle(offering)} attendance`,
+                    )
+                  }
+                >
+                  <Download size={16} />
+                  Export records
+                </button>
+              </div>
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>S.No.</th>
+                      <th>Class date</th>
+                      <th>Scheduled sessions</th>
+                      <th>Status</th>
+                      <th>Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ownRecords.map((record, index) => {
+                      const slots = timetableForDate(record.date);
+                      return (
+                        <tr key={record.id}>
+                          <td>{index + 1}</td>
+                          <td>{record.date}</td>
+                          <td>
+                            {slots.length
+                              ? slots.map((slot) => (
+                                  <div key={slot.id}>
+                                    {slot.startTime}–{slot.endTime} · {slot.room}
+                                  </div>
+                                ))
+                              : '—'}
+                          </td>
+                          <td>
+                            <span
+                              className={`badge ${record.status === 'Absent' ? 'red' : record.status === 'Late' ? 'amber' : 'green'}`}
+                            >
+                              {record.status}
+                            </span>
+                          </td>
+                          <td>{record.remarks || '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {!ownRecords.length && (
+                  <p className="muted">No attendance recorded for this subject/class.</p>
+                )}
+              </div>
+              {ownRecords.some((record) => timetableForDate(record.date).length > 1) && (
+                <p className="muted">
+                  The stored attendance record is per student and date, not linked to an individual
+                  timetable session. Scheduled times are shown for reference; a status cannot be
+                  assigned to a specific time with the current records.
+                </p>
+              )}
+            </>
+          )}
+          {stage === 'date' && (
+            <>
+              <div className="form-grid">
+                <label className="field">
+                  <span>Class date</span>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={async (e) => {
+                      const nextDate = e.target.value;
+                      if (!nextDate) return;
+                      setDate(nextDate);
+                      setBusy(true);
+                      setError('');
+                      try {
+                        const result = await loadView({
+                          action: 'attendanceView',
+                          offeringId: offering.id,
+                          date: nextDate,
+                        });
+                        setStudents((result.students || []).slice().sort(rollOrder));
+                        setRecords(result.attendance || []);
+                      } catch (error) {
+                        setError(
+                          error instanceof Error
+                            ? error.message
+                            : 'Attendance could not be loaded.',
+                        );
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+              <div className="row between">
+                <h2>Class roster</h2>
+                <button
+                  className="btn"
+                  disabled={!permitted(user, 'reports')}
+                  onClick={() =>
+                    exportRows(
+                      records.filter((r) => r.date === date),
+                      `${offeringTitle(offering)} · ${date} attendance`,
+                    )
+                  }
+                >
+                  <Download size={16} />
+                  Export selected date
+                </button>
+              </div>
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>S.No.</th>
+                      <th>Photo</th>
+                      <th>Student</th>
+                      <th>Roll number</th>
+                      <th>Scheduled sessions</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {students
+                      .filter((person) =>
+                        `${person.name} ${person.identifier || ''}`
+                          .toLowerCase()
+                          .includes(query.toLowerCase()),
+                      )
+                      .sort(rollOrder)
+                      .map((person, index) => {
+                        const record = records.find(
+                            (item) => item.studentId === person.id && item.date === date,
+                          ),
+                          slots = timetableForDate(date);
+                        return (
+                          <tr key={person.id}>
+                            <td>{index + 1}</td>
+                            <td>
+                              <UserPhoto user={person} />
+                            </td>
+                            <td>{person.name}</td>
+                            <td>{person.identifier || '—'}</td>
+                            <td>
+                              {slots.length
+                                ? slots.map((slot) => (
+                                    <div key={slot.id}>
+                                      {slot.startTime}–{slot.endTime} · {slot.room}
+                                    </div>
+                                  ))
+                                : '—'}
+                            </td>
+                            <td>
+                              {record ? (
+                                <span
+                                  className={`badge ${record.status === 'Absent' ? 'red' : record.status === 'Late' ? 'amber' : 'green'}`}
+                                >
+                                  {record.status}
+                                </span>
+                              ) : (
+                                'Not recorded'
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+                {!students.length && (
+                  <p className="muted">No students are enrolled in this subject/class.</p>
+                )}
+              </div>
+              <p className="muted">
+                Only recorded statuses are counted. Unmarked class sessions are not treated as
+                absences. Attendance is stored once per student and date, so it is not linked to an
+                individual scheduled session.
+              </p>
+            </>
+          )}
+        </>
+      )}
+    </section>
+  );
 }
 
-export function DepartmentTeachers({data,user,label}:{data:Data;user:Row;label:(table:string,id:any)=>string}){
- const teachers=(data.users||[]).filter(person=>person.role==='TEACHER'&&person.active!==0&&person.departmentId===user.departmentId);
- const [teacherId,setTeacherId]=useState(teachers[0]?.id||''),[offeringId,setOfferingId]=useState(''),[appointment,setAppointment]=useState('All');
- const visibleTeachers=teachers.filter(t=>appointment==='All'||(t.employmentType||'Not specified')===appointment);
- const selectedTeacher=teachers.find(person=>person.id===teacherId),offerings=(data.offerings||[]).filter(o=>(o.teacherId===teacherId||!!o.coTeacherId&&o.coTeacherId===teacherId));
- const selectedOffering=offerings.find(o=>o.id===offeringId);
- useEffect(()=>{if(teacherId&&!teachers.some(person=>person.id===teacherId))setTeacherId('');setOfferingId('');},[teacherId]);
- return <><div className="page-title"><div><div className="eyebrow">LCPS ACADEMIC PORTAL</div><h1>Department teachers</h1><p>Browse each teacher’s subjects, lecture timetable, coursework, quiz topics, attendance and learning materials.</p></div></div>
-  <div className="tabs">{['All','Permanent','Visiting','Not specified'].map(type=><button key={type} className={appointment===type?'active':''} onClick={()=>{setAppointment(type);setTeacherId('');setOfferingId('');}}>{type}</button>)}</div>
-  {!teachers.length?<div className="panel"><p>No active teachers are assigned to your department.</p></div>:<><div className="subjects-grid full-grid">{visibleTeachers.slice().sort(rollOrder).map((person,index)=><button className={'subject-card '+(person.id===teacherId?'selected':'')} key={person.id} onClick={()=>{setTeacherId(person.id);setOfferingId('');}}><span className="stat-icon purple"></span><div className="subject-body"><UserPhoto user={person}/><small>{index+1}. TEACHER · {person.identifier||person.id}</small><h3>{person.name}</h3><span className="badge">{person.employmentType||'Not specified'}</span>{responsibilityKeys(person).map(k=><span className="badge" key={k}>{responsibilityTemplates[k].label}</span>)}<p>{data.offerings.filter(o=>(o.teacherId===person.id||!!o.coTeacherId&&o.coTeacherId===person.id)).length} assigned subjects</p></div></button>)}</div>
-   {!visibleTeachers.length&&<p>No teachers in this appointment group.</p>}{selectedTeacher&&visibleTeachers.some(t=>t.id===selectedTeacher.id)&&<section className="panel operations-panel"><TeacherProfile teacher={selectedTeacher}/><h2>{selectedTeacher.name} — subjects</h2>{!offerings.length?<p>No subject assignments are available for this teacher.</p>:<div className="subjects-grid full-grid">{offerings.map((o,index)=><SubjectCard key={o.id} offering={o} data={data} index={index} onSelect={()=>setOfferingId(o.id)}/>)}</div>}
-    {selectedOffering&&<div className="department-course-details"><h3>{label('offerings',selectedOffering.id)}</h3><h4>Lecture timetable</h4><TimetableSchedule data={{...data,batches:data.batches.filter(b=>b.id===selectedOffering.batchId),offerings:[selectedOffering],timetable:data.timetable.filter(t=>t.offeringId===selectedOffering.id)}} user={user}/>
-     <h4>Assignments</h4>{data.assignments.filter(a=>a.offeringId===selectedOffering.id).length?data.assignments.filter(a=>a.offeringId===selectedOffering.id).map(a=><p key={a.id}>{a.title} · Due {new Date(a.dueDate).toLocaleString()}{a.fileId&&<> · <a href={`/api/files/${a.fileId}`}>Download attachment</a></>}</p>):<p>No assignments are available.</p>}
-     <h4>Quiz topics</h4>{data.quizzes.filter(q=>q.offeringId===selectedOffering.id).length?data.quizzes.filter(q=>q.offeringId===selectedOffering.id).map(q=><p key={q.id}>{q.title}{q.topic?`: ${q.topic}`:''}{q.fileId&&<> · <a href={`/api/files/${q.fileId}`}>Download resource</a></>}</p>):<p>No quiz topics are available.</p>}
-     {permitted(user,'view_courseOutlines')&&<details><summary>Course outlines</summary><CourseOutlines key={selectedOffering.id} data={{...data,offerings:[selectedOffering]}} user={user} initialOfferingId={selectedOffering.id}/></details>}<h4>Learning materials</h4>{data.materials.filter(m=>m.offeringId===selectedOffering.id).length?data.materials.filter(m=>m.offeringId===selectedOffering.id).map(m=><p key={m.id}>{m.title}{m.url&&<> · <a href={m.url} target="_blank" rel="noreferrer">Open resource</a></>}{m.fileId&&<> · <a href={`/api/files/${m.fileId}`}>Download file</a></>}</p>):<p>No learning materials are available.</p>}
-     <AttendanceReport data={data} user={user} label={label} initialOfferingId={selectedOffering.id} showSubjectSelect={false}/>
-    </div>}
-   </section>}
-  </>}
- </>;
+export function DepartmentTeachers({
+  data,
+  user,
+  label,
+}: {
+  data: Data;
+  user: Row;
+  label: (table: string, id: any) => string;
+}) {
+  const teachers = (data.users || []).filter(
+    (person) =>
+      person.role === 'TEACHER' && person.active !== 0 && person.departmentId === user.departmentId,
+  );
+  const [teacherId, setTeacherId] = useState(teachers[0]?.id || ''),
+    [offeringId, setOfferingId] = useState(''),
+    [appointment, setAppointment] = useState('All');
+  const visibleTeachers = teachers.filter(
+    (t) => appointment === 'All' || (t.employmentType || 'Not specified') === appointment,
+  );
+  const selectedTeacher = teachers.find((person) => person.id === teacherId),
+    offerings = (data.offerings || []).filter(
+      (o) => o.teacherId === teacherId || (!!o.coTeacherId && o.coTeacherId === teacherId),
+    );
+  const selectedOffering = offerings.find((o) => o.id === offeringId);
+  useEffect(() => {
+    if (teacherId && !teachers.some((person) => person.id === teacherId)) setTeacherId('');
+    setOfferingId('');
+  }, [teacherId]);
+  return (
+    <>
+      <div className="page-title">
+        <div>
+          <div className="eyebrow">LCPS ACADEMIC PORTAL</div>
+          <h1>Department teachers</h1>
+          <p>
+            Browse each teacher’s subjects, lecture timetable, coursework, quiz topics, attendance
+            and learning materials.
+          </p>
+        </div>
+      </div>
+      <div className="tabs">
+        {['All', 'Permanent', 'Visiting', 'Not specified'].map((type) => (
+          <button
+            key={type}
+            className={appointment === type ? 'active' : ''}
+            onClick={() => {
+              setAppointment(type);
+              setTeacherId('');
+              setOfferingId('');
+            }}
+          >
+            {type}
+          </button>
+        ))}
+      </div>
+      {!teachers.length ? (
+        <div className="panel">
+          <p>No active teachers are assigned to your department.</p>
+        </div>
+      ) : (
+        <>
+          <div className="subjects-grid full-grid">
+            {visibleTeachers
+              .slice()
+              .sort(rollOrder)
+              .map((person, index) => (
+                <button
+                  className={'subject-card ' + (person.id === teacherId ? 'selected' : '')}
+                  key={person.id}
+                  onClick={() => {
+                    setTeacherId(person.id);
+                    setOfferingId('');
+                  }}
+                >
+                  <span className="stat-icon purple"></span>
+                  <div className="subject-body">
+                    <UserPhoto user={person} />
+                    <small>
+                      {index + 1}. TEACHER · {person.identifier || person.id}
+                    </small>
+                    <h3>{person.name}</h3>
+                    <span className="badge">{person.employmentType || 'Not specified'}</span>
+                    {responsibilityKeys(person).map((k) => (
+                      <span className="badge" key={k}>
+                        {responsibilityTemplates[k].label}
+                      </span>
+                    ))}
+                    <p>
+                      {
+                        data.offerings.filter(
+                          (o) =>
+                            o.teacherId === person.id ||
+                            (!!o.coTeacherId && o.coTeacherId === person.id),
+                        ).length
+                      }{' '}
+                      assigned subjects
+                    </p>
+                  </div>
+                </button>
+              ))}
+          </div>
+          {!visibleTeachers.length && <p>No teachers in this appointment group.</p>}
+          {selectedTeacher && visibleTeachers.some((t) => t.id === selectedTeacher.id) && (
+            <section className="panel operations-panel">
+              <TeacherProfile teacher={selectedTeacher} />
+              <h2>{selectedTeacher.name} — subjects</h2>
+              {!offerings.length ? (
+                <p>No subject assignments are available for this teacher.</p>
+              ) : (
+                <div className="subjects-grid full-grid">
+                  {offerings.map((o, index) => (
+                    <SubjectCard
+                      key={o.id}
+                      offering={o}
+                      data={data}
+                      index={index}
+                      onSelect={() => setOfferingId(o.id)}
+                    />
+                  ))}
+                </div>
+              )}
+              {selectedOffering && (
+                <div className="department-course-details">
+                  <h3>{label('offerings', selectedOffering.id)}</h3>
+                  <h4>Lecture timetable</h4>
+                  <TimetableSchedule
+                    data={{
+                      ...data,
+                      batches: data.batches.filter((b) => b.id === selectedOffering.batchId),
+                      offerings: [selectedOffering],
+                      timetable: data.timetable.filter((t) => t.offeringId === selectedOffering.id),
+                    }}
+                    user={user}
+                  />
+                  <h4>Assignments</h4>
+                  {data.assignments.filter((a) => a.offeringId === selectedOffering.id).length ? (
+                    data.assignments
+                      .filter((a) => a.offeringId === selectedOffering.id)
+                      .map((a) => (
+                        <p key={a.id}>
+                          {a.title} · Due {new Date(a.dueDate).toLocaleString()}
+                          {a.fileId && (
+                            <>
+                              {' '}
+                              · <a href={`/api/files/${a.fileId}`}>Download attachment</a>
+                            </>
+                          )}
+                        </p>
+                      ))
+                  ) : (
+                    <p>No assignments are available.</p>
+                  )}
+                  <h4>Quiz topics</h4>
+                  {data.quizzes.filter((q) => q.offeringId === selectedOffering.id).length ? (
+                    data.quizzes
+                      .filter((q) => q.offeringId === selectedOffering.id)
+                      .map((q) => (
+                        <p key={q.id}>
+                          {q.title}
+                          {q.topic ? `: ${q.topic}` : ''}
+                          {q.fileId && (
+                            <>
+                              {' '}
+                              · <a href={`/api/files/${q.fileId}`}>Download resource</a>
+                            </>
+                          )}
+                        </p>
+                      ))
+                  ) : (
+                    <p>No quiz topics are available.</p>
+                  )}
+                  {permitted(user, 'view_courseOutlines') && (
+                    <details>
+                      <summary>Course outlines</summary>
+                      <CourseOutlines
+                        key={selectedOffering.id}
+                        data={{ ...data, offerings: [selectedOffering] }}
+                        user={user}
+                        initialOfferingId={selectedOffering.id}
+                      />
+                    </details>
+                  )}
+                  <h4>Learning materials</h4>
+                  {data.materials.filter((m) => m.offeringId === selectedOffering.id).length ? (
+                    data.materials
+                      .filter((m) => m.offeringId === selectedOffering.id)
+                      .map((m) => (
+                        <p key={m.id}>
+                          {m.title}
+                          {m.url && (
+                            <>
+                              {' '}
+                              ·{' '}
+                              <a href={m.url} target="_blank" rel="noreferrer">
+                                Open resource
+                              </a>
+                            </>
+                          )}
+                          {m.fileId && (
+                            <>
+                              {' '}
+                              · <a href={`/api/files/${m.fileId}`}>Download file</a>
+                            </>
+                          )}
+                        </p>
+                      ))
+                  ) : (
+                    <p>No learning materials are available.</p>
+                  )}
+                  <AttendanceReport
+                    data={data}
+                    user={user}
+                    label={label}
+                    initialOfferingId={selectedOffering.id}
+                    showSubjectSelect={false}
+                  />
+                </div>
+              )}
+            </section>
+          )}
+        </>
+      )}
+    </>
+  );
 }
 
-export function OfferingTimetables({data,label,run}:{data:Data;label:(table:string,id:any)=>string;run:(body:Row,message?:string)=>Promise<any>}){
- const offerings=data.offerings.filter(o=>o.active!==0),[offeringId,setOfferingId]=useState(offerings[0]?.id||''),[day,setDay]=useState('Monday'),[startTime,setStartTime]=useState('09:00'),[endTime,setEndTime]=useState('10:00'),[room,setRoom]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
- const addLecture=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);setError('');try{await run({action:'save',entity:'timetable',record:{offeringId,day,startTime,endTime,room}},'Lecture timetable saved');setRoom('');}catch(e){setError(e instanceof Error?e.message:'Lecture timetable could not be saved.');}finally{setBusy(false);}};
- return <section className="panel operations-panel"><h2>Lecture timetable for teaching assignments</h2><p>Set lecture days, times and rooms for each subject assignment. Students and teachers see these times on their subject cards.</p><form className="form-grid" onSubmit={addLecture}><label className="field"><span>Subject & class</span><select required value={offeringId} onChange={e=>setOfferingId(e.target.value)}><option value="">Select subject</option>{offerings.map(o=><option key={o.id} value={o.id}>{label('offerings',o.id)}</option>)}</select></label><label className="field"><span>Day</span><select value={day} onChange={e=>setDay(e.target.value)}>{['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(value=><option key={value}>{value}</option>)}</select></label><label className="field"><span>Start time</span><input type="time" required value={startTime} onChange={e=>setStartTime(e.target.value)}/></label><label className="field"><span>End time</span><input type="time" required value={endTime} onChange={e=>setEndTime(e.target.value)}/></label><label className="field"><span>Room / lab</span><input required value={room} onChange={e=>setRoom(e.target.value)}/></label><button className="btn primary" disabled={busy||!offeringId}>{busy?'Saving…':'Add lecture time'}</button></form>{error&&<p className="form-error" role="alert">{error}</p>}
-  <div className="table-scroll"><table><thead><tr><th>Subject & class</th><th>Day</th><th>Time</th><th>Room</th></tr></thead><tbody>{data.offerings.flatMap(o=>data.timetable.filter(t=>t.offeringId===o.id).map(t=><tr key={t.id}><td>{label('offerings',o.id)}</td><td>{t.day}</td><td>{t.startTime}–{t.endTime}</td><td>{t.room}</td></tr>))}</tbody></table>{!data.timetable.some(t=>data.offerings.some(o=>o.id===t.offeringId))&&<p>No lecture times have been assigned.</p>}</div>
- </section>;
+export function OfferingTimetables({
+  data,
+  label,
+  run,
+}: {
+  data: Data;
+  label: (table: string, id: any) => string;
+  run: (body: Row, message?: string) => Promise<any>;
+}) {
+  const offerings = data.offerings.filter((o) => o.active !== 0),
+    [offeringId, setOfferingId] = useState(offerings[0]?.id || ''),
+    [day, setDay] = useState('Monday'),
+    [startTime, setStartTime] = useState('09:00'),
+    [endTime, setEndTime] = useState('10:00'),
+    [room, setRoom] = useState(''),
+    [error, setError] = useState(''),
+    [busy, setBusy] = useState(false);
+  const addLecture = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      await run(
+        {
+          action: 'save',
+          entity: 'timetable',
+          record: { offeringId, day, startTime, endTime, room },
+        },
+        'Lecture timetable saved',
+      );
+      setRoom('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Lecture timetable could not be saved.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="panel operations-panel">
+      <h2>Lecture timetable for teaching assignments</h2>
+      <p>
+        Set lecture days, times and rooms for each subject assignment. Students and teachers see
+        these times on their subject cards.
+      </p>
+      <form className="form-grid" onSubmit={addLecture}>
+        <label className="field">
+          <span>Subject & class</span>
+          <select required value={offeringId} onChange={(e) => setOfferingId(e.target.value)}>
+            <option value="">Select subject</option>
+            {offerings.map((o) => (
+              <option key={o.id} value={o.id}>
+                {label('offerings', o.id)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Day</span>
+          <select value={day} onChange={(e) => setDay(e.target.value)}>
+            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(
+              (value) => (
+                <option key={value}>{value}</option>
+              ),
+            )}
+          </select>
+        </label>
+        <label className="field">
+          <span>Start time</span>
+          <input
+            type="time"
+            required
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span>End time</span>
+          <input
+            type="time"
+            required
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span>Room / lab</span>
+          <input required value={room} onChange={(e) => setRoom(e.target.value)} />
+        </label>
+        <button className="btn primary" disabled={busy || !offeringId}>
+          {busy ? 'Saving…' : 'Add lecture time'}
+        </button>
+      </form>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Subject & class</th>
+              <th>Day</th>
+              <th>Time</th>
+              <th>Room</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.offerings.flatMap((o) =>
+              data.timetable
+                .filter((t) => t.offeringId === o.id)
+                .map((t) => (
+                  <tr key={t.id}>
+                    <td>{label('offerings', o.id)}</td>
+                    <td>{t.day}</td>
+                    <td>
+                      {t.startTime}–{t.endTime}
+                    </td>
+                    <td>{t.room}</td>
+                  </tr>
+                )),
+            )}
+          </tbody>
+        </table>
+        {!data.timetable.some((t) => data.offerings.some((o) => o.id === t.offeringId)) && (
+          <p>No lecture times have been assigned.</p>
+        )}
+      </div>
+    </section>
+  );
 }

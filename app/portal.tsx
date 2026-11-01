@@ -1,181 +1,3684 @@
-    'use client';
-import {SubjectCard} from './subject-card';
-import {BulkStudents} from './bulk-students';
-import {SocialAccountSettings} from './portal-additions';
-import {ProfilePhoto,ProfileDetails,ExtendedProfileForm,BrandSettings} from './profile-extras';
-import {canDeleteAnnouncement} from '@/security/announcement-access';
-import {SubjectArt} from './subject-art';
-import {clientRowId} from '@/lib/lms/client-id';
-import {FacultyAttendance} from './attendance-workspace';
-import {canRecordAttendance} from '@/security/authorization';
-import {TimetableManager} from './timetable-manager';
-import {ResourceSubjects,AdminResourceSubjects} from './resource-subjects';
-import {resourceScope} from '@/lib/lms/resource-scope';
-import {rollOrder} from '@/lib/lms/ordering';
-import {UserPhoto,UserDirectory} from './user-directory';
-import {CommunityBanner,RecordWorkspace} from './portal-additions';
-import {CourseOutlines,SessionSubjects,TeacherProfile} from './academic-components';
-import {FacultyTasks,DepartmentResponsibilities,LoginNotices} from './faculty-tasks';
-import type {Reminder} from '@/lib/lms/reminders';
-import {responsibilityKeys,responsibilityTemplates} from '@/security/privileges';
-import {useEffect,useState,useCallback,useRef} from 'react';
-import {LayoutDashboard,BookOpen,ClipboardList,GraduationCap,CalendarDays,CheckCheck,BarChart3,Bell,Users,Settings,LogOut,Search,ChevronRight,ArrowUpRight,Plus,Download,Menu,X,Clock,MapPin,ArrowRight,FileText,Check,Upload,Play,MoreHorizontal,ShieldCheck,Building2,Briefcase,Layers,Library,UserRound,RefreshCw,ExternalLink,AlertCircle,Mail,Pencil,Trash2,ChevronLeft,CheckCircle2,Eye} from 'lucide-react';
-import {Data,Row} from '@/lib/lms/types';
-import {attendancePercent,manager,broad,teachingAllowed,resultsAllowed,accountManageAllowed} from '@/lib/lms/policy';
-import {permitted,entityPrivilege,privileges,privilegeLabels} from '@/lib/lms/access';
-import {GradingSettings,AcademicSummary,BackupSettings} from './operations';
-import {GradingPolicy} from '@/lib/lms/grading';
-import {LoginForm,PasswordForm,PasswordInput,authRequest} from './security';
-import {forms,titles,columns,Field} from '@/lib/lms/forms';
-import {documentAccept,maxUploadBytes} from '@/lib/lms/file-types';
-import {downloadReport,showReport,reportOptions} from '@/lib/lms/export';
-import {TimetableFiles} from './timetable-files';
-import {AssessmentPolicy,AttendanceBrowser,AttendanceReport,DepartmentHodAssignments,DepartmentTeachers,OfferingTimetables,ResultFiles,ResultsWorkflow,SemesterSubjectAssignment} from './portal-workflows';
-import {AcademicHierarchy,HodTimetable,TimetableSchedule} from './academic-hierarchy';
-import {RolePrivilegesWorkflow,UserPermissionFields} from './role-privileges';
-import {pageAllowed,RolePrivilegesConfig,getDefaultRolePrivileges} from '@/security/privileges';
-type Payload={passwordChangeRequired?:boolean;loginReminder?:boolean;reminders?:Reminder[];grading:GradingPolicy|null;user:Row;owner:boolean;demo:boolean;actualName:string;demoUsers:Row[];data:Data;college:string;serverTime:string;rolePrivileges?:RolePrivilegesConfig};
-const icons:Record<string,any>={personal:ClipboardList,management:Briefcase,password:ShieldCheck,courseOutlines:BookOpen,dashboard:LayoutDashboard,subjects:BookOpen,deptSubjects:Building2,materials:Library,assignments:ClipboardList,quizzes:FileText,attendance:CheckCheck,results:BarChart3,timetable:CalendarDays,announcements:Bell,users:Users,teachers:Users,academic:Building2,profile:UserRound,rolePrivileges:ShieldCheck,settings:Settings,teacherTasks:Briefcase,responsibilities:ShieldCheck,reports:BarChart3};
-const names:Record<string,string>={personal:'My diary & to-do',management:'Management',courseOutlines:'Course outlines',dashboard:'Dashboard',subjects:'My subjects',deptSubjects:'Department subjects',materials:'Learning materials',assignments:'Assignments',quizzes:'Quizzes',attendance:'Attendance',results:'Results',timetable:'Timetable',announcements:'Announcements',users:'User management',teachers:'Teachers',academic:'Academic setup',profile:'My profile',rolePrivileges:'Roles & permissions',settings:'System settings',teacherTasks:'Assigned tasks',responsibilities:'Departmental responsibilities',reports:'Reports',password:'Change password'};
-const entityNames:Record<string,string>={users:'account',departments:'department',programs:'program',sessions:'academic session',batches:'batch',subjects:'subject',offerings:'teaching assignment',enrollments:'student enrollment',hodScopes:'HOD scope',timetable:'scheduled class',attendance:'attendance record',assignments:'assignment',quizzes:'quiz topic',results:'result',announcements:'announcement',materials:'learning resource'};
-const colorNames=['mint','purple','peach','blue','pink','yellow'];
-function initials(s:string){return s?.split(' ').slice(0,2).map(x=>x[0]).join('')||'?';}
-function date(s:string,opts:Intl.DateTimeFormatOptions={day:'numeric',month:'short'}){return s?new Date(s).toLocaleDateString('en-GB',opts):'—';}
-function localInput(s:string){if(!s)return '';const d=new Date(s);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);}
-function Badge({children,tone='neutral'}:{children:React.ReactNode;tone?:string}){return <span className={'badge '+tone}>{children}</span>;}
-function Avatar({user,size=''}:{user:Row;size?:string}){return <ProfilePhoto user={user} size={size}/>;}
-function Modal({title,subtitle,children,onClose,wide=false}:{title:string;subtitle?:string;children:React.ReactNode;onClose:()=>void;wide?:boolean}){useEffect(()=>{const prev=document.body.style.overflow;document.body.style.overflow='hidden';const fn=(e:KeyboardEvent)=>{if(e.key==='Escape')onClose();if(e.key==='Tab'){const m=document.querySelector('[role="dialog"]');const nodes=m?.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href]');if(nodes?.length){const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}}};document.addEventListener('keydown',fn);const timer=setTimeout(()=>document.querySelector<HTMLElement>('[role="dialog"] button')?.focus(),0);return()=>{document.body.style.overflow=prev;document.removeEventListener('keydown',fn);clearTimeout(timer);};},[onClose]);return <div className="modal-shade" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}><section role="dialog" aria-modal="true" aria-label={title} className={'modal '+(wide?'wide':'')}><div className="modal-head"><div><h2>{title}</h2>{subtitle&&<p>{subtitle}</p>}</div><button className="icon-btn" aria-label="Close dialog" onClick={onClose}><X size={20}/><span className="sr-only">Close dialog</span></button></div>{children}</section></div>;}
-export default function Portal(){
- const authState=useRef({epoch:0,blocked:false});
- const [resourceOffering,setResourceOffering]=useState('');
- const [p,setP]=useState<Payload|null>(null),[page,setPage]=useState('dashboard'),[loadError,setLoadError]=useState(''),[busy,setBusy]=useState(false),[toast,setToast]=useState(''),[mobile,setMobile]=useState(false),[search,setSearch]=useState(''),[filter,setFilter]=useState('all'),[academic,setAcademic]=useState('departments'),[form,setForm]=useState<{entity:string;record:Row}|null>(null),[detail,setDetail]=useState<{entity:string;record:Row}|null>(null),[confirm,setConfirm]=useState<{entity:string;record:Row}|null>(null),[quizAttempt,setQuizAttempt]=useState<Row|null>(null),[report,setReport]=useState('attendance'),[attendanceOffering,setAttendanceOffering]=useState(''),[attendanceMarkingOffering,setAttendanceMarkingOffering]=useState(''),[tablePage,setTablePage]=useState(0),[departmentTab,setDepartmentTab]=useState('subjects'),[rolePrivileges,setRolePrivileges]=useState<RolePrivilegesConfig>(getDefaultRolePrivileges());
- useEffect(()=>{if(p?.rolePrivileges)setRolePrivileges(p.rolePrivileges);},[p?.rolePrivileges]);
- const refresh=useCallback(async()=>{if(authState.current.blocked)return;const epoch=authState.current.epoch;const res=await fetch('/api/lms',{cache:'no-store'});const json:any=await res.json();if(epoch!==authState.current.epoch||authState.current.blocked)return;if(!res.ok){if(res.status===401||res.status===403)setP(null);throw new Error(json.error);}setP(json);setLoadError('');},[]);
- useEffect(()=>{refresh().catch(e=>setLoadError(e.message));const t=setInterval(()=>refresh().catch(()=>{}),30000);const focus=()=>refresh().catch(()=>{});window.addEventListener('focus',focus);window.addEventListener('lcps:refresh',focus);return()=>{clearInterval(t);window.removeEventListener('focus',focus);window.removeEventListener('lcps:refresh',focus);};},[refresh]);
- useEffect(()=>{if(!mobile)return;const sidebar=document.getElementById('portal-navigation'),previous=document.activeElement as HTMLElement|null,overflow=document.body.style.overflow;document.body.style.overflow='hidden';sidebar?.querySelector<HTMLElement>('button')?.focus();const key=(e:KeyboardEvent)=>{if(e.key==='Escape')setMobile(false);if(e.key==='Tab'){const nodes=Array.from(sidebar?.querySelectorAll<HTMLElement>('button,a[href]')||[]).filter(el=>el.offsetParent!==null);const first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}};document.addEventListener('keydown',key);return()=>{document.body.style.overflow=overflow;document.removeEventListener('keydown',key);previous?.focus();};},[mobile]);
- useEffect(()=>{if(toast){const t=setTimeout(()=>setToast(''),4500);return()=>clearTimeout(t);}},[toast]);
- useEffect(()=>{setSearch('');setFilter('all');setTablePage(0);},[page,academic,report]);
- const navigate=(s:string)=>{if(['materials','assignments','quizzes'].includes(s))setResourceOffering(detail?.entity==='subject'?detail.record.id:'');if(['attendance','courseOutlines'].includes(s)&&detail?.entity==='subject')setAttendanceOffering(detail.record.id);else if(s==='courseOutlines')setAttendanceOffering('');if(s!=='attendance')setAttendanceMarkingOffering('');setPage(s);setMobile(false);setDetail(null);};
- async function run(body:Row,message='Changes saved'){setBusy(true);try{const res=await fetch('/api/lms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const json:any=await res.json();if(!res.ok)throw new Error(json.error);await refresh();if(message)setToast(message);return json.result;}finally{setBusy(false);}}
- function clearLogin(message=''){authState.current.epoch++;authState.current.blocked=true;setP(null);setLoadError(message);setPage('dashboard');setResourceOffering('');setForm(null);setDetail(null);setConfirm(null);setMobile(false);}
- async function signOut(){authState.current.epoch++;authState.current.blocked=true;try{await authRequest({action:'logout'});clearLogin();if(typeof BroadcastChannel!=='undefined'){const channel=new BroadcastChannel('lcps-auth');channel.postMessage('logout');channel.close();}}catch(e){authState.current.blocked=false;setToast((e as Error).message);}}
- useEffect(()=>{if(typeof BroadcastChannel==='undefined')return;const channel=new BroadcastChannel('lcps-auth');channel.onmessage=e=>{if(e.data==='logout')clearLogin();};return()=>channel.close();},[]);
- const safeRun=(body:Row,msg?:string)=>run(body,msg).catch(e=>setToast(e.message));
- const loadAttendanceView=useCallback(async(request:Row)=>{const res=await fetch('/api/lms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request)}),json:any=await res.json();if(!res.ok)throw new Error(json.error||'Attendance could not be loaded.');return json.result;},[]);
- async function upload(file:File,purpose='academic'){const form=new FormData();form.append('file',file);form.append('purpose',purpose);const res=await fetch('/api/files',{method:'POST',body:form});const json:any=await res.json();if(!res.ok)throw new Error(json.error);return json.id;}
- if(!p)return <LoginForm error={loadError} onLogin={async()=>{authState.current.blocked=false;authState.current.epoch++;await refresh();}}/>;
- if(p.passwordChangeRequired)return <main className="password-gate"><section className="password-gate-dialog" role="dialog" aria-modal="true" aria-labelledby="password-gate-title"><h1 id="password-gate-title">Change your password</h1><p>Welcome, {p.user.name}. Set your own password before continuing.</p><PasswordForm onChanged={()=>clearLogin('Password changed. Sign in with your new password.')}/><button className="btn" onClick={()=>void signOut()}>Sign out</button></section></main>;
- const {data:allData}=p,u:Row={...p.user,accessConfig:rolePrivileges},manage=manager(u),teacher=['TEACHER','HOD'].includes(u.role),student=u.role==='STUDENT',admin=u.role==='ADMIN',canManageAccounts=permitted(u,'users',rolePrivileges);const personalOfferingIds=new Set(allData.offerings.filter(o=>(o.teacherId===u.id||!!o.coTeacherId&&o.coTeacherId===u.id)).map(o=>o.id));const personalAssignmentIds=new Set(allData.assignments.filter(a=>personalOfferingIds.has(a.offeringId)).map(a=>a.id));const personalQuizIds=new Set(allData.quizzes.filter(q=>personalOfferingIds.has(q.offeringId)).map(q=>q.id));const personalMaterialIds=new Set(allData.materials.filter(m=>personalOfferingIds.has(m.offeringId)).map(m=>m.id));const baseData=u.role==='HOD'&&!['courseOutlines','deptSubjects','teachers','academic','users','results','reports','timetable','teacherTasks','responsibilities'].includes(page)?{...allData,offerings:allData.offerings.filter(o=>personalOfferingIds.has(o.id)),enrollments:allData.enrollments.filter(e=>personalOfferingIds.has(e.offeringId)),timetable:allData.timetable.filter(t=>personalOfferingIds.has(t.offeringId)),attendance:allData.attendance.filter(a=>personalOfferingIds.has(a.offeringId)),assignments:allData.assignments.filter(a=>personalOfferingIds.has(a.offeringId)),quizzes:allData.quizzes.filter(q=>personalOfferingIds.has(q.offeringId)),results:allData.results.filter(r=>personalOfferingIds.has(r.offeringId)),materials:allData.materials.filter(m=>personalOfferingIds.has(m.offeringId)),resultFiles:allData.resultFiles.filter(f=>personalOfferingIds.has(f.offeringId)),submissions:allData.submissions.filter(s=>personalAssignmentIds.has(s.assignmentId)),attempts:allData.attempts.filter(a=>personalQuizIds.has(a.quizId)),progress:allData.progress.filter(v=>personalMaterialIds.has(v.materialId))}:allData;const d=(student||admin)&&['materials','assignments','quizzes'].includes(page)&&resourceOffering?resourceScope(baseData,resourceOffering):baseData;
- const myBatch=d.batches.find(b=>b.id===u.batchId),myProgram=d.programs.find(b=>b.id===myBatch?.programId),mySession=d.sessions.find(b=>b.id===myBatch?.sessionId),department=d.departments.find(b=>b.id===u.departmentId);
- const baseNav=student?['dashboard','subjects','materials','assignments','quizzes','attendance','results','timetable','announcements']:u.role==='PRINCIPAL'?['dashboard','attendance','results','timetable','announcements','academic','reports']:u.role==='HOD'?['dashboard','subjects','deptSubjects','assignments','quizzes','attendance','results','timetable','materials','announcements','teachers',...(canManageAccounts?['users']:[]),'academic','reports']:['dashboard','subjects','assignments','quizzes','attendance','results','timetable','materials','announcements',...(canManageAccounts?['users']:[]),...(manage?['academic','reports']:[]),...['rolePrivileges','settings'].filter(k=>pageAllowed(u,k,rolePrivileges))];
- const nav=Array.from(new Set([...baseNav,'personal','management',...(['courseOutlines','subjects','academic','users','reports','materials','assignments','quizzes','teacherTasks','responsibilities','rolePrivileges','settings','attendance','results','timetable','announcements'].filter(k=>pageAllowed(u,k,rolePrivileges)))])).filter(k=>pageAllowed(u,k,rolePrivileges));
- const label=(entity:string,id:any):string=>{if(!id)return '—';if(entity==='offerings'){const o=d.offerings.find(o=>o.id===id);return o?`${label('subjects',o.subjectId)} · ${label('batches',o.batchId)}`:'—';}const table=['students','teachers','hods'].includes(entity)?'users':entity;return String(d[table]?.find(r=>r.id===id)?.name||d[table]?.find(r=>r.id===id)?.title||id);};
- const refTable:Record<string,string>={departmentId:'departments',programId:'programs',sessionId:'sessions',batchId:'batches',subjectId:'subjects',offeringId:'offerings',teacherId:'users',coTeacherId:'users',updatedBy:'users',gradedBy:'users',recordedBy:'users',studentId:'users',userId:'users',authorId:'users',actorId:'users'};
- const display=(key:string,val:any)=>{if(refTable[key])return label(refTable[key],val);if(['dueDate','createdAt','date','submittedAt'].includes(key))return date(val);if(key==='active')return val?'Active':'Inactive';if(key==='published')return val?'Published':'Draft';if(key==='role')return String(val).toLowerCase();return val??'—';};
- const head=(key:string)=>({departmentId:'Department',batchId:'Batch',programId:'Program',sessionId:'Session',studentId:'Student',offeringId:'Subject & class',teacherId:'Teacher',subjectId:'Subject',lectureTime:'Lecture timetable',userId:'User',maxMarks:'Out of',createdAt:'Date',actorId:'User',startTime:'Start',endTime:'End',dueDate:'Due date',published:'Visibility',identifier:'Roll / employee ID'}[key]||key.replace(/([A-Z])/g,' $1').replace(/^./,x=>x.toUpperCase()));
- const canEdit=(entity:string,r?:Row)=>{if(!permitted(u,entityPrivilege(entity),rolePrivileges)||entity==='tasks')return false;if(admin)return entity!=='audit';if(entity==='users')return !r||accountManageAllowed(u,r);if(entity==='enrollments'||entity==='offerings')return permitted(u,'student_enrollment',rolePrivileges);if(['departments','programs','sessions'].includes(entity))return permitted(u,'college_setup',rolePrivileges);if(['batches','subjects','timetable'].includes(entity))return manage;if(entity==='hodScopes')return permitted(u,'senior_accounts',rolePrivileges);if(entity==='announcements')return !r||broad(u)||r.authorId===u.id;if(['attendance','assignments','quizzes','results','materials'].includes(entity))return !r||d.offerings.some(o=>o.id===r.offeringId&&(entity==='results'?resultsAllowed(u,o,d):teachingAllowed(u,o)));return false;};
- const openForm=(entity:string,r:Row={})=>setForm({entity,record:{...(['assignments','quizzes','materials'].includes(entity)&&resourceOffering?{offeringId:resourceOffering}:{}),...(entity==='users'&&!admin?{role:'STUDENT',departmentId:u.departmentId}:{}),...r}});
- const attendance=attendancePercent(d.attendance),pending=d.assignments.filter(a=>!d.submissions.some(s=>s.assignmentId===a.id&&s.studentId===u.id));
- const weekday=new Date().toLocaleDateString('en-US',{weekday:'long',timeZone:'Asia/Karachi'});
- const todayLabel=new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Karachi'});
- const subjectCard=(o:Row,i:number)=><SubjectCard key={o.id} offering={o} data={d} index={i} onSelect={()=>setDetail({entity:'subject',record:o})}/>;
- function exportCsv(entity:string,records:Row[]){
-  if(!permitted(u,'reports',rolePrivileges)){setToast('Report export access is disabled.');return;}
-  const cols=columns[entity]||Object.keys(records[0]||{}),headers=cols.map(head);
-  const rows=records.map(record=>cols.map(key=>String(display(key,record[key])??'—')));
-  const title=`LCPS · ${titles[entity]||entity}`,filename=`LCPS-${entity}`;
-  reportOptions(title,filename,headers,rows);
- }
- function renderTable(entity:string,source?:Row[],readonly=false){const rows=(source||d[entity]||[]).filter(r=>{const match=Object.entries(r).some(([k,v])=>String(display(k,v)).toLowerCase().includes(search.toLowerCase()));return match&&(filter==='all'||r.role===filter||String(r.active)===filter||r.offeringId===filter||r.departmentId===filter);});const cols=entity==='users'?['identifier',...(columns[entity]||[]).filter(k=>k!=='identifier')]:columns[entity]||[];const pages=Math.ceil(rows.length/10);const current=Math.min(tablePage,Math.max(0,pages-1));return <div className="panel table-panel"><div className="table-tools"><label className="search-box"><input aria-label="Search records" placeholder={`Search ${titles[entity]?.toLowerCase()||'records'}…`} value={search} onChange={e=>{setSearch(e.target.value);setTablePage(0);}}/></label><div className="row gap"><select className="filter-select" aria-label="Filter records" value={filter} onChange={e=>{setFilter(e.target.value);setTablePage(0);}}><option value="all">All records</option>{entity==='users'?['STUDENT','TEACHER','HOD','PRINCIPAL','ADMIN','TREASURER','EXAMINATION_CONTROLLER','REGISTRAR'].map(r=><option key={r} value={r}>{r}</option>):cols.includes('offeringId')?d.offerings.map(o=><option key={o.id} value={o.id}>{label('offerings',o.id)}</option>):<><option value="1">Active</option><option value="0">Inactive</option></>}</select>{permitted(u,'reports',rolePrivileges)&&<button className="btn" onClick={()=>exportCsv(entity,rows)}><Download size={16}/>Export records</button>}{!readonly&&canEdit(entity)&&<button className="btn primary" onClick={()=>openForm(entity)}><Plus size={16}/>{entity==='users'?'Create account':'Add '+(entityNames[entity]||'record')}</button>}</div></div><div className="table-wrap"><table><thead><tr>{entity==='users'&&<><th>S.No.</th><th>Photo</th></>}{cols.map(k=><th key={k}>{head(k)}</th>)}{!readonly&&<th className="right">Actions</th>}</tr></thead><tbody>{rows.slice(current*10,current*10+10).map((r,index)=><tr key={r.id}>{entity==='users'&&<><td>{current*10+index+1}</td><td><UserPhoto user={r}/></td></>}{cols.map((k,i)=><td key={k}>{['active','published','status','role'].includes(k)?<Badge tone={r[k]===0||r[k]==='Absent'?'red':r[k]==='Late'?'amber':'green'}>{display(k,r[k])}</Badge>:i===0?<strong>{display(k,r[k])}</strong>:display(k,r[k])}</td>)}{!readonly&&<td><div className="table-actions">{['assignments','quizzes'].includes(entity)&&<button className="text-btn" onClick={()=>setDetail({entity,record:r})}>Open</button>}{canEdit(entity,r)&&<><button className="icon-btn" aria-label={'Edit '+(r.name||r.title||'record')} onClick={()=>openForm(entity,r)}><Pencil size={16}/>Edit</button>{entity!=='attendance'&&page!=='reports'&&<button className="icon-btn danger" aria-label={'Archive or remove '+(r.name||r.title||'record')} onClick={()=>setConfirm({entity,record:r})}><Trash2 size={16}/>Delete</button>}</>}</div></td>}</tr>)}</tbody></table>{!rows.length&&<Empty title="No records found" text="Try a different search, or add your first record."/>}</div><div className="table-foot"><span>{rows.length?current*10+1:0}–{Math.min((current+1)*10,rows.length)} of {rows.length} records</span><div className="row gap"><button className="icon-btn" disabled={current===0} aria-label="Previous page" onClick={()=>setTablePage(current-1)}><ChevronLeft size={18}/></button><span>Page {current+1} of {Math.max(1,pages)}</span><button className="icon-btn" disabled={current>=pages-1} aria-label="Next page" onClick={()=>setTablePage(current+1)}><ChevronRight size={18}/></button></div></div></div>;}
- function renderDashboard(){const stats=student?[{label:'Enrolled subjects',value:d.offerings.filter(o=>o.active).length,note:'Your current semester',icon:BookOpen,color:'purple'},{label:'Pending assignments',value:pending.length,note:'Keep your momentum going',icon:ClipboardList,color:'peach'},{label:'Available quizzes',value:d.quizzes.filter(q=>new Date(q.closesAt)>new Date()&&!d.attempts.some(a=>a.quizId===q.id&&a.submittedAt)).length,note:'A chance to test your knowledge',icon:FileText,color:'blue'}]:[{label:teacher?'Assigned subjects':'Students',value:teacher?d.offerings.filter(o=>(o.teacherId===u.id||!!o.coTeacherId&&o.coTeacherId===u.id)).length:d.users.filter(x=>x.role==='STUDENT'&&x.active).length,note:teacher?'Teaching this semester':'Active student accounts',icon:teacher?BookOpen:Users,color:'purple'},{label:teacher?'Submissions to grade':'Teachers',value:teacher?d.submissions.filter(s=>s.marks===null).length:d.users.filter(x=>x.role==='TEACHER'&&x.active).length,note:teacher?'Ready for your feedback':'Active teaching accounts',icon:teacher?ClipboardList:GraduationCap,color:'peach'},{label:manage?'Departments':'Announcements',value:manage?d.departments.length:d.announcements.length,note:manage?'Within your academic scope':'Latest college updates',icon:manage?Building2:Bell,color:'blue'}];return <>{admin&&d.users.length===1&&<div className="notice">Start with Academic setup: departments → programs and sessions → batches and subjects. Then create users, assign teachers and enroll students.</div>}<div className="greeting"><div><div className="eyebrow">YOUR ACADEMIC WORKSPACE</div><h1>{student?'Welcome back, '+u.name.split(' ')[0]:u.role==='ADMIN'?'Your campus, at a glance':'Welcome back, '+u.name.split(' ')[0]} <span className="wave">✦</span></h1><p>{student?'A little progress every day adds up. Let’s make today count.':'Everything you need to keep your academic day moving.'}</p></div><span className="date-chip">{todayLabel}</span></div><div className="stats-grid">{stats.map((s,i)=><div className="stat-card" key={s.label}><div className="stat-top"><span>{s.label}</span><span className={'stat-icon '+s.color}><s.icon size={19}/></span></div><strong className="stat-value">{s.value}</strong><p>{s.note}</p></div>)}</div><div className="dashboard-columns"><div className="main-column"><CommunityBanner data={allData}/>{<><Section title={student?'My subjects':teacher?'Your teaching subjects':'Subjects this semester'} subtitle={student?`${myProgram?.name||''} · ${mySession?.name||''}`:'Connected teaching and learning'} link="View all subjects" onClick={()=>navigate('subjects')}/><div className="subjects-grid">{pageAllowed(u,'subjects',rolePrivileges)&&d.offerings.filter(o=>o.active&&(!teacher||(o.teacherId===u.id||!!o.coTeacherId&&o.coTeacherId===u.id))).slice(0,3).map(subjectCard)}</div></>}<Section title="Latest announcements" link="View all" onClick={()=>navigate('announcements')}/><div className="panel">{d.announcements.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,2).map((a,i)=><button key={a.id} className="announcement-row" onClick={()=>setDetail({entity:'announcements',record:a})}><span className={'announcement-icon '+colorNames[i]}><Bell size={20}/></span><div><h3>{a.title}</h3>{a.updatedBy&&<small className="actor-credit">Updated by {label('users',a.updatedBy)}</small>}<p>{a.body}</p><small>{label('users',a.authorId)} <span>·</span> {date(a.createdAt)}</small></div><ChevronRight size={18} aria-hidden="true"/></button>)}</div></div><aside className="right-column"><div className="panel deadlines-panel"><Section title={student?'Upcoming deadlines':'Coursework deadlines'} link="View all" onClick={()=>navigate('assignments')}/>{d.assignments.slice().sort((a,b)=>a.dueDate.localeCompare(b.dueDate)).slice(0,3).map((a,i)=><button className="deadline" key={a.id} onClick={()=>setDetail({entity:'assignments',record:a})}><span className={'deadline-icon '+colorNames[(i+2)%6]}></span><div><h4>{a.title}</h4><p>{label('subjects',d.offerings.find(o=>o.id===a.offeringId)?.subjectId)}</p><span className="due">Due {date(a.dueDate)}</span></div><ChevronRight size={18} aria-hidden="true"/></button>)}{!d.assignments.length&&<p className="muted">You’re all caught up.</p>}</div><div className="help-card"><div className="help-symbol"></div><h3>Learning is a journey.</h3><p>Stay curious. Ask questions.<br/>Take one step forward, every day.</p><span>LCPS · LEARN. GROW. ACHIEVE.</span></div></aside></div></>;}
- function renderContent(){
- if(page==='password')return <><PageTitle title="Change password" text="Choose a new password, then sign in again."/><PasswordForm onChanged={()=>clearLogin('Password changed. Sign in with your new password.')}/></>;
- if(!pageAllowed(u,page,rolePrivileges))return <p className="panel">Access unavailable.</p>;
- if((student||admin)&&['materials','assignments','quizzes'].includes(page)&&!allData.offerings.some(o=>o.id===resourceOffering))return admin?<AdminResourceSubjects key={page} data={allData} title={names[page]} onSelect={setResourceOffering}/>:<ResourceSubjects data={allData} title={names[page]} onSelect={setResourceOffering}/>;if(!pageAllowed(u,page,rolePrivileges))return <div className="panel"><h2>Access unavailable</h2><p>Your administrator has disabled this module.</p></div>;if(page==='password')return <><PageTitle title="Change password" text="Change your password and sign out of all existing sessions."/><PasswordForm onChanged={()=>clearLogin('Password changed. Sign in with your new password.')}/></>;if(page==='dashboard')return renderDashboard();if(page==='subjects')return <><PageTitle title={student||u.role==='HOD'?'My subjects':teacher?'Teaching & subjects':'Subjects & classes'} text="A connected view of your courses, teachers and learning resources." action={manage&&permitted(u,'academic',rolePrivileges)?<button className="btn primary" onClick={()=>{setAcademic('offerings');navigate('academic');}}>Manage assignments</button>:undefined}/><div className="subject-toolbar"><span className="tag">{d.offerings.length} subjects</span><label className="search-box"><input aria-label="Search subjects" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Find a subject…"/></label></div><div className="subjects-grid full-grid">{d.offerings.filter(o=>(u.role!=='TEACHER'||(o.teacherId===u.id||!!o.coTeacherId&&o.coTeacherId===u.id))&&label('offerings',o.id).toLowerCase().includes(search.toLowerCase())).map(subjectCard)}</div>{!d.offerings.length&&<Empty title="No subjects assigned yet" text="Your academic team will add your subjects here."/>}</>;
- if(page==='personal'||page==='management')return <RecordWorkspace key={page} data={allData} user={u} run={run} personal={page==='personal'}/>;
- if(page==='courseOutlines')return <><PageTitle title="Course outlines" text="Subject-wise syllabi and course plans."/><CourseOutlines run={run} data={allData} user={u} initialOfferingId={attendanceOffering} onEdit={record=>openForm('materials',record)}/></>;
- if(page==='deptSubjects')return <><PageTitle title="Department subjects" text="Select a session, then a subject to explore its resources."/><SessionSubjects data={allData} renderSubject={subjectCard} renderDetails={selectedData=>{const tabs=['subjects','assignments','quizzes','attendance','materials','results'],selected=tabs.includes(departmentTab)?departmentTab:'subjects',ids=new Set(selectedData.offerings.map(o=>o.id));return <><div className="tabs">{tabs.map(tab=><button key={tab} className={selected===tab?'active':''} onClick={()=>setDepartmentTab(tab)}>{tab==='subjects'?'Subjects':tab==='materials'?'Learning materials':tab[0].toUpperCase()+tab.slice(1)}</button>)}</div>{selected==='subjects'?<div className="subjects-grid full-grid">{selectedData.offerings.map(subjectCard)}</div>:renderTable(selected,(allData[selected]||[]).filter(r=>ids.has(r.offeringId)))}</>;}}/></>; if(page==='academic'){const tabs=['departments','programs','sessions','batches',...(u.role==='PRINCIPAL'?[]:['subjects']), 'offerings',...(permitted(u,'student_enrollment',rolePrivileges)?['enrollments']:[]),...(admin?['hodScopes']:[]),...(u.role==='PRINCIPAL'?['departmentHods']:[])];const selected=tabs.includes(academic)?academic:tabs[0];return <><PageTitle title="Academic setup" text="Manage academic structure and semester subject assignments."/><div className="tabs">{tabs.map(t=><button className={selected===t?'active':''} key={t} onClick={()=>setAcademic(t)}>{titles[t]||({assessmentPolicy:'Assessment policy',departmentHods:'Department HODs'} as Record<string,string>)[t]}</button>)}</div>{selected==='departmentHods'?permitted(u,'academic',rolePrivileges)?<DepartmentHodAssignments data={d} run={run}/>:<p>HOD assignment access is disabled.</p>:<>{selected==='batches'&&u.role==='ADMIN'&&permitted(u,'academic',rolePrivileges)&&<SemesterSubjectAssignment data={d} user={u} run={run}/ >}{selected==='offerings'&&u.role!=='PRINCIPAL'&&permitted(u,'timetable',rolePrivileges)&&<OfferingTimetables data={d} label={label} run={run}/ >}{renderTable(selected,undefined,selected==='offerings'&&!permitted(u,'student_enrollment',rolePrivileges))}</>}</>;}
- if(page==='teachers'&&u.role==='HOD')return <DepartmentTeachers data={allData} user={u} label={label}/>;
- if(page==='users')return <><PageTitle title={admin?'User management':'Department accounts'} text={admin?'Create college accounts, set passwords, assign roles and control permitted actions.':'Create and update student and teacher accounts in your department.'}/>{canEdit('users')&&<button className="btn primary" onClick={()=>openForm('users')}>Add account</button>}<UserDirectory data={allData} user={u} rows={permitted(u,'senior_accounts',rolePrivileges)?d.users:d.users.filter(x=>['STUDENT','TEACHER'].includes(x.role)&&x.departmentId===u.departmentId)} render={rows=>renderTable('users',rows)}/></>;
- if(page==='assignments')return <><PageTitle title="Assignments" text={student?'Your coursework, deadlines and feedback in one place.':'Create meaningful coursework and keep track of student submissions.'} action={canEdit('assignments')?<button className="btn primary" onClick={()=>openForm('assignments')}>Create assignment</button>:undefined}/><div className="assignment-list">{d.assignments.filter(a=>!student||a.published).map(a=>{const s=d.submissions.find(s=>s.assignmentId===a.id&&s.studentId===u.id),closed=Date.now()>Date.parse(a.dueDate);return <div className="assignment-entry" key={a.id}><button className="panel assignment-card" onClick={()=>setDetail({entity:'assignments',record:a})}><span className="assignment-icon peach"></span><div className="grow"><small>{label('offerings',a.offeringId)}</small><h3>{a.title}</h3>{a.updatedBy&&<small className="actor-credit">Updated by {label('users',a.updatedBy)}</small>}<p>{a.instructions}</p><div className="row gap"><span>{closed?'Closed · ':''}Due {date(a.dueDate)} · {new Date(a.dueDate).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</span><span>{a.maxMarks} marks</span></div></div><div className="assignment-state"><Badge tone={s?'green':closed?'red':a.published?'amber':'neutral'}>{student?s?s.marks!==null?'Graded':'Submitted':closed?'Closed':'To do':a.published?'Published':'Draft'}</Badge><span>{student?s&&s.marks!==null?`${s.marks} / ${a.maxMarks}`:closed?'Submission closed':'View assignment':`${d.submissions.filter(s=>s.assignmentId===a.id).length} submissions`}</span></div></button>{canEdit('assignments',a)&&<button type="button" className="icon-btn danger assignment-delete" aria-label={'Delete '+a.title} onClick={()=>setConfirm({entity:'assignments',record:a})}><Trash2 size={16}/>Delete</button>}</div>;})}</div>{!d.assignments.filter(a=>!student||a.published).length&&<Empty title="No assignments yet" text="New coursework will appear here when published."/>}</>;
- if(page==='quizzes')return <><PageTitle title="Quiz topics & resources" text="Teachers share topics to review and related study files here." action={canEdit('quizzes')?<button className="btn primary" onClick={()=>openForm('quizzes')}><Plus size={16}/>Add quiz topic</button>:undefined}/><div className="quiz-grid">{d.quizzes.map(q=><article className="panel quiz-card" key={q.id}><div className="row between"><span className="stat-icon purple"></span><small>{label('offerings',q.offeringId)}</small></div><h3>{q.title}</h3>{q.updatedBy&&<small className="actor-credit">Updated by {label('users',q.updatedBy)}</small>}{q.topic&&<p className="preserve">{q.topic}</p>}{q.fileId&&<FileActions id={q.fileId} compact/>}{canEdit('quizzes',q)&&<><button className="btn" onClick={()=>openForm('quizzes',q)}><Pencil size={16}/>Edit quiz topic</button><button className="btn destructive" onClick={()=>setConfirm({entity:'quizzes',record:q})}><Trash2 size={16}/>Delete quiz topic</button></>}</article>)}</div>{!d.quizzes.length&&<Empty title="No topics or resources yet" text="Teachers will share quiz topics and study resources here."/>}</>;
- if(u.role==='PRINCIPAL'&&['attendance','results','timetable'].includes(page)&&!permitted(u,page,rolePrivileges))return <><PageTitle title={names[page]} text="Select a department, then a session to browse academic records."/><AcademicHierarchy key={page} data={allData} user={u} mode={page as 'attendance'|'results'|'timetable'}/></>;
- if(page==='timetable'&&u.role==='HOD')return <><PageTitle title="Timetable" text="Your teaching schedule and session-wise departmental timetable."/><HodTimetable data={allData} user={u} refresh={refresh} onDelete={file=>setConfirm({entity:'timetableFiles',record:file})} onEdit={row=>openForm('timetable',row)}/></>;
- if(page==='attendance'&&admin)return !allData.offerings.some(o=>o.id===attendanceOffering)?<AdminResourceSubjects data={allData} title="Attendance" onSelect={setAttendanceOffering}/>:<><button className="btn" onClick={()=>setAttendanceOffering('')}>Back to sessions / subjects</button><AttendanceReport key={attendanceOffering} data={allData} user={u} label={label} initialOfferingId={attendanceOffering} showSubjectSelect={false}/><AttendanceWorkflow key={'mark-'+attendanceOffering} data={allData} user={u} label={label} run={run} fixedOfferingId={attendanceOffering}/></>;
- if(page==='attendance'&&['TEACHER','HOD'].includes(u.role))return <><PageTitle title="Attendance" text={u.role==='HOD'?'Mark your teaching classes or review departmental attendance.':'Record attendance for your assigned classes and review previous records.'}/><FacultyAttendance data={allData} user={u} initialOfferingId={attendanceOffering} loadView={loadAttendanceView} renderMark={id=><AttendanceWorkflow key={id} data={allData} user={u} label={label} run={run} fixedOfferingId={id}/>}/></>;
- if(page==='attendance')return <><PageTitle title="Attendance" text={student?'Select a subject to view your summary and date-wise attendance.':u.role==='TEACHER'?'Review attendance for your assigned subject/classes.':u.role==='HOD'?'Review attendance for subject/classes in your department.':'Select a subject to view the student-wise attendance summary.'}/>{u.role==='HOD'?<AcademicHierarchy data={allData} user={u} mode="attendance"/>:['STUDENT','TEACHER'].includes(u.role)?attendanceMarkingOffering?<><button className="btn attendance-back" onClick={()=>setAttendanceMarkingOffering('')}>Back to attendance overview</button><AttendanceWorkflow data={allData} user={u} label={label} run={run} fixedOfferingId={attendanceMarkingOffering}/></>:<AttendanceBrowser data={allData} user={u} loadView={loadAttendanceView} canMark={id=>permitted(u,'attendance',rolePrivileges)&&!!allData.offerings.find(o=>o.id===id&&teachingAllowed(u,o))} onMarkAttendance={id=>{setAttendanceOffering(id);setAttendanceMarkingOffering(id);}}/>:<><AttendanceReport data={d} user={u} label={label} initialOfferingId={attendanceOffering}/>{permitted(u,'attendance',rolePrivileges)&&<AttendanceWorkflow data={d} user={u} label={label} run={run}/>}</>}</>;
- if(page==='results')return <><PageTitle title="Academic results" text={student?'Your published assessments and teacher feedback.':'Publish results for a full subject roster or share a class result sheet.'}/>{student&&<AcademicSummary data={d} studentId={u.id} policy={p!.grading}/>}{permitted(u,'results',rolePrivileges)&&<ResultsWorkflow data={d} user={u} label={label} run={run}/>}<ResultFiles data={d} user={u} label={label}/><div className="notice">{p!.grading?'Assessment names: '+p!.grading.assessments.map(a=>a.title+' ('+a.weight+'%)').join(', '):'Assessment marks can be recorded now. An approved grading policy must be configured before GPA calculation.'}</div>{renderTable('results',undefined,!permitted(u,'results',rolePrivileges))}{student&&d.results.length>0&&<div className="notice"><span>Only published results appear here. Contact your assigned teacher if a mark needs review.</span></div>}</>;
- if(page==='timetable'&&(admin||u.role==='PRINCIPAL'||permitted(u,'timetable_department',rolePrivileges)))return <TimetableManager data={allData} user={u} refresh={refresh} onDelete={file=>setConfirm({entity:'timetableFiles',record:file})} onEdit={row=>openForm('timetable',row)}/>;
- if(page==='timetable')return <><PageTitle title="Weekly timetable" text="Plan your week. Times follow the college’s Asia/Karachi time zone." action={manage&&permitted(u,'timetable',rolePrivileges)?<button className="btn primary" onClick={()=>openForm('timetable')}>Add class</button>:undefined}/><details><summary>Uploaded timetable reference</summary><TimetableFiles data={d} user={u} onUploaded={refresh} onDelete={file=>setConfirm({entity:'timetableFiles',record:file})}/></details><TimetableSchedule data={d} user={u} onEdit={canEdit('timetable')?row=>openForm('timetable',row):undefined}/>{manage&&<><Section title="Manage timetable entries"/>{renderTable('timetable')}</>}</>;
- if(page==='announcements')return <><PageTitle title="Announcements" text="Stay connected with the latest from your college and classes." action={canEdit('announcements')?<button className="btn primary" onClick={()=>openForm('announcements')}>New announcement</button>:undefined}/><div className="announcements-grid">{d.announcements.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(a=><article className="panel announcement-full" key={a.id}><div className="row between"><Badge tone={a.departmentId?'purple':'green'}>{a.offeringId?'Subject update':a.departmentId?label('departments',a.departmentId):'College update'}</Badge><small>{date(a.createdAt)}</small></div><h2>{a.title}</h2><p>{a.body}</p><div className="row between"><span className="muted">{label('users',a.authorId)}</span>{canDeleteAnnouncement(u,a,allData)&&<button className="btn danger" onClick={()=>setConfirm({entity:'announcements',record:a})}>Delete</button>}{canEdit('announcements',a)&&<button className="btn" onClick={()=>openForm('announcements',a)}><Pencil size={16}/>Edit</button>}</div></article>)}</div></>;
- if(page==='materials')return <><PageTitle title="Learning materials" text="Open course resources and track your own learning progress." action={canEdit('materials')?<button className="btn primary" onClick={()=>openForm('materials')}>Add resource</button>:undefined}/><div className="panel">{d.materials.map(m=>{const done=d.progress.some(pr=>pr.studentId===u.id&&pr.materialId===m.id&&pr.completed);return <div className="material-row" key={m.id}><span className={'stat-icon '+(m.kind==='Video'?'purple':'blue')}></span><div className="grow"><h3>{m.title}</h3>{m.updatedBy&&<small className="actor-credit">Updated by {label('users',m.updatedBy)}</small>}<p>{label('offerings',m.offeringId)}</p></div>{m.url&&<a className="btn" href={m.url} target="_blank" rel="noreferrer">Open </a>}{m.fileId&&<FileActions id={m.fileId}/ >}{student?<button className={'btn '+(done?'soft-green':'')} disabled={busy} onClick={()=>safeRun({action:'progress',id:m.id,completed:!done},done?'Marked as incomplete':'Learning progress updated')}>{done?'Completed':'Mark complete'}</button>:canEdit('materials',m)&&<button className="icon-btn" aria-label="Edit resource" onClick={()=>openForm('materials',m)}><Pencil size={16}/><span className="sr-only">Edit resource</span></button>}</div>;})}{!d.materials.length&&<Empty title="Your resource shelf is empty" text="Published learning resources will appear here."/>}</div></>;
- if(page==='reports'&&['PRINCIPAL','HOD','ADMIN'].includes(u.role))return <><PageTitle title="Academic reports" text={u.role==='PRINCIPAL'?'Choose a report, department and session.':'Choose a report and a session within your department.'}/><div className="tabs">{['attendance','results','enrollments','offerings','users','timetable'].map(t=><button key={t} className={report===t?'active':''} onClick={()=>setReport(t)}>{titles[t]||t}</button>)}</div><AcademicHierarchy key={report} data={allData} user={u} mode={report as 'attendance'|'results'|'enrollments'|'offerings'|'users'|'timetable'}/></>;
- if(page==='reports')return <><PageTitle title="Academic reports" text="Search, filter and export the academic data within your permission scope."/><div className="tabs">{['attendance','results','enrollments','offerings','users'].map(t=><button key={t} className={report===t?'active':''} onClick={()=>setReport(t)}>{titles[t]}</button>)}</div>{report==='users'?<UserDirectory data={allData} user={u} rows={d.users} render={rows=>renderTable('users',rows,true)}/>:renderTable(report,undefined,true)}</>;
- if(page==='teacherTasks')return <FacultyTasks data={allData} user={u} run={run} upload={upload}/>;
- if(page==='responsibilities')return <DepartmentResponsibilities data={allData} user={u} run={run}/>;
- if(page==='rolePrivileges'&&permitted(u,'manage_access',rolePrivileges))return <><PageTitle title="Role Privileges" text="Manage role defaults and individual user access."/><RolePrivilegesWorkflow users={allData.users} rolePrivileges={rolePrivileges} onUpdate={setRolePrivileges} run={run} setToast={setToast}/></>;
- if(page==='settings')return <><PageTitle title="System settings" text="College information and a record of sensitive administrative actions."/>{permitted(u,'system_settings',rolePrivileges)&&<><SettingsForm college={p!.college} run={run}/>{admin&&<><BrandSettings/><SocialAccountSettings data={allData} run={run}/></>}<GradingSettings policy={p!.grading} run={run}/></>}{permitted(u,'manage_backups',rolePrivileges)&&<BackupSettings onRestored={()=>{setP(null);setLoadError('Backup restored. Sign in again.');}}/>}<Section title="Activity log" subtitle="Recorded account changes and academic updates"/>{renderTable('audit',undefined,true)}</>;
- if(page==='profile')return <><PageTitle title="My profile" text="Your college identity and personal contact details."/><div className="profile-layout"><div className="panel profile-card"><Avatar user={u} size="large"/><h2>{u.name}</h2><ProfileDetails user={u}/><Badge tone="green">{u.role}</Badge>{u.role==='TEACHER'&&<Badge>{u.employmentType||'Employment not specified'}</Badge>}{responsibilityKeys(u).map(k=><Badge key={k}>{responsibilityTemplates[k].label}</Badge>)}<p>{u.identifier||'College administrator'}</p><label className="btn upload-label">{busy?'Uploading photo…':'Change photo'}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={async e=>{const f=e.target.files?.[0];e.target.value='';if(f){setBusy(true);try{await upload(f,'avatar');await refresh();setToast('Profile picture updated');}catch(e){setToast((e as Error).message);}finally{setBusy(false);}}}} disabled={busy}/></label><small>PNG, JPG or WebP · up to 4 MB</small>{u.role==='HOD'&&<button className="btn" onClick={()=>navigate('teachers')}>Department teachers</button>}</div><div className="panel profile-info"><h3>Personal information</h3><ExtendedProfileForm user={u} run={run}/><div className="profile-details">{[['Department',department?.name],['Program',myProgram?.name],['Session',mySession?.name],['Semester',myBatch?.semester],['Batch',myBatch?.name],['Email',u.email],['Appointment',u.employmentType]].filter(x=>x[1]).map(([k,v])=><div key={k}><small>{k}</small><strong>{v}</strong></div>)}</div></div></div></>;
- return null;}
- return <div className="app-shell"><LoginNotices visible={!!p.loginReminder} items={p.reminders||[]} acknowledge={()=>run({action:'ackLoginReminder'},'')} navigate={navigate}/>{mobile&&<div className="sidebar-backdrop" onClick={()=>setMobile(false)}/>}<aside id="portal-navigation" className={'sidebar '+(mobile?'open':'')}><button className="icon-btn sidebar-close" aria-label="Close navigation" onClick={()=>setMobile(false)}><X size={22}/></button><a className="brand" href="#" onClick={e=>{e.preventDefault();navigate('dashboard');}}><img className="college-logo" src="/api/branding/logo" alt="Lahore College of Pharmaceutical Sciences"/></a><div className="workspace-label">{['TREASURER','EXAMINATION_CONTROLLER','REGISTRAR'].includes(u.role)?'MANAGEMENT · '+u.role.replaceAll('_',' '):u.role==='STUDENT'?'STUDENT WORKSPACE':u.role==='TEACHER'?'TEACHING WORKSPACE':u.role+' WORKSPACE'}</div><nav aria-label="Main navigation">{nav.map(n=>{const NavIcon=icons[n]||FileText;return <button key={n} className={'nav-item '+(page===n?'active':'')} aria-current={page===n?'page':undefined} onClick={()=>navigate(n)}><span>{n==='teacherTasks'&&u.role!=='TEACHER'&&permitted(u,'task_assign',rolePrivileges)?'Faculty tasks':n==='subjects'&&u.role==='HOD'?'My Subjects':n==='subjects'&&!student?'Subjects':n==='users'&&u.role==='HOD'?'Department accounts':names[n]}</span>{n==='assignments'&&student&&pending.length>0&&<b>{pending.length}</b>}</button>;})}</nav><div className="sidebar-bottom"><button className={'nav-item '+(page==='profile'?'active':'')} onClick={()=>navigate('profile')}><span>My profile</span></button><button className="nav-item" onClick={()=>navigate('password')}><span>Change password</span></button><button className="nav-item" onClick={()=>void signOut()}><span>Sign out</span></button><div className="college-caption">Lahore College of<br/>Pharmaceutical Sciences<span>Knowledge with purpose.</span></div></div></aside><div className="main-shell"><header className="topbar"><div className="row gap"><button className="icon-btn mobile-menu" aria-label="Open navigation" aria-controls="portal-navigation" aria-expanded={mobile} onClick={()=>setMobile(true)}><Menu size={21}/><span className="sr-only">Open navigation</span></button><span className="breadcrumb">Workspace <strong>{names[page]}</strong></span></div><div className="top-actions"><button className="btn top-signout" onClick={()=>void signOut()}><LogOut size={18}/><span>Sign out</span></button><button hidden={!pageAllowed(u,'announcements',rolePrivileges)} className="notification-btn" aria-label="View announcements" onClick={()=>navigate('announcements')} title="Announcements"><Bell size={21}/><span className="sr-only">Announcements</span>{d.announcements.length>0&&<i/>}</button><span className="top-divider"/><div className="profile-control"><Avatar user={u}/><button className="profile-button" aria-label="Open my profile" title="My profile" onClick={()=>navigate('profile')}><span><strong>{u.name}</strong><small>{u.role.toLowerCase().replaceAll('_',' ')} portal</small></span><span className="profile-short">Profile</span></button></div></div></header><main className="content">{(student||admin)&&resourceOffering&&['materials','assignments','quizzes'].includes(page)&&<div className="panel resource-navigation"><button className="btn" onClick={()=>setResourceOffering('')}><ChevronLeft size={16}/>Back to subjects</button><strong>{label('offerings',resourceOffering)}</strong><div className="row gap">{['materials','assignments','quizzes'].filter(k=>pageAllowed(u,k,rolePrivileges)).map(k=><button className={'btn '+(page===k?'primary':'')} key={k} onClick={()=>{setPage(k);setDetail(null);}}>{names[k]}<ChevronRight size={16}/></button>)}</div></div>}{page==='users'&&permitted(u,'users',rolePrivileges)&&permitted(u,'student_enrollment',rolePrivileges)&&<BulkStudents data={allData} user={u} refresh={refresh}/>}{renderContent()}<footer className="footer"><span>© {new Date().getFullYear()} LCPS · Academic Portal · Powered by A &amp; U</span><span><span className="live-dot"/>Connected workspace · refreshes every 30s</span></footer></main></div>{toast&&<div className="toast" role="status">{toast}<button aria-label="Dismiss notification" onClick={()=>setToast('')}><X size={18}/></button></div>}
- {form&&<EntityForm entity={form.entity} record={form.record} data={d} user={u} label={label} onClose={()=>setForm(null)} onSave={async record=>{await run({action:'save',entity:form.entity,record});setForm(null);}} upload={upload} rolePrivileges={rolePrivileges}/>}
- {confirm&&<Modal title={'active' in confirm.record?'Archive this record?':confirm.entity==='timetableFiles'?'Delete this timetable?':'Remove this record?'} onClose={()=>setConfirm(null)}><div className="modal-body"><p>{'active' in confirm.record?'This will deactivate the record while preserving its academic history.':confirm.entity==='timetableFiles'?'This permanently deletes the uploaded timetable page and its file.':'This removes the selected record. Records required by academic history cannot be removed.'}</p><h3>{confirm.record.name||confirm.record.title||label('offerings',confirm.record.offeringId)}</h3></div><div className="modal-foot"><button className="btn" onClick={()=>setConfirm(null)}>Cancel</button><button className="btn destructive" disabled={busy} onClick={async()=>{try{await run({action:'remove',entity:confirm.entity,id:confirm.record.id});setConfirm(null);}catch(e){setToast((e as Error).message);}}}>Confirm</button></div></Modal>}
- {detail&&<Modal title={detail.entity==='subject'?label('subjects',detail.record.subjectId):detail.entity==='class'?'Class details':detail.record.title||'Details'} subtitle={detail.record.offeringId?label('offerings',detail.record.offeringId):undefined} onClose={()=>setDetail(null)} wide={detail.entity==='assignments'||detail.entity==='quizzes'}><div className="modal-body">{detail.entity==='teacherProfile'?<TeacherProfile teacher={detail.record}/>:detail.entity==='announcements'?<><p className="preserve">{detail.record.body}</p><small>{date(detail.record.createdAt)}</small></>:detail.entity==='class'?<><p>{label('offerings',detail.record.offeringId)}</p><p>{detail.record.day} · {detail.record.startTime}–{detail.record.endTime}</p><p>Room: {detail.record.room}</p></>:detail.entity==='subject'?<>{detail.record.coTeacherId&&<TeacherProfile teacher={d.users.find(t=>t.id===detail.record.coTeacherId)} compact/>}<TeacherProfile teacher={d.users.find(t=>t.id===detail.record.teacherId)} compact onView={()=>setDetail({entity:'teacherProfile',record:d.users.find(t=>t.id===detail.record.teacherId)||{}})}/><p><strong>Course code:</strong> {d.subjects.find(s=>s.id===detail.record.subjectId)?.code||'—'}</p><div className="profile-details"><div><small>Teacher</small><strong>{[detail.record.teacherId,detail.record.coTeacherId].filter(Boolean).map(id=>label('users',id)).join(' / ')}</strong></div><div><small>Class</small><strong>{label('batches',detail.record.batchId)}</strong></div><div><small>Enrolled students</small><strong>{d.enrollments.filter(e=>e.offeringId===detail.record.id&&e.active).length}</strong></div></div><div className="subject-links">{['courseOutlines','materials','assignments','quizzes','attendance','timetable'].filter(s=>pageAllowed(u,s,rolePrivileges)).map(s=>{const Icon=icons[s];return <button className="btn" key={s} onClick={()=>navigate(s)}><Icon size={18}/><span>{names[s]}</span><ChevronRight size={17}/></button>;})}</div></>:detail.entity==='assignments'?<><div className="row gap"><Badge tone="purple">{detail.record.maxMarks} marks</Badge><Badge tone="amber">Due {date(detail.record.dueDate)}</Badge><Badge>{detail.record.allowLate?'Late submissions accepted':'Deadline enforced'}</Badge></div><p className="preserve">{detail.record.instructions}</p>{detail.record.fileId&&<FileActions id={detail.record.fileId}/ >}{student?permitted(u,'submit_assignments',rolePrivileges)?<SubmissionForm assignment={detail.record} submission={d.submissions.find(s=>s.assignmentId===detail.record.id&&s.studentId===u.id)} onSubmit={async r=>{await run({action:'submit',assignmentId:detail.record.id,...r},'Assignment submitted');}} upload={upload}/>:<p>Assignment submission access is disabled.</p>:<><div className="row between"><h3>Student submissions</h3>{canEdit('assignments',detail.record)&&<button className="btn" onClick={()=>{openForm('assignments',detail.record);setDetail(null);}}>Edit assignment</button>}</div>{d.submissions.filter(s=>s.assignmentId===detail.record.id).map(s=><GradeForm key={s.id} submission={s} name={label('users',s.studentId)} gradedBy={s.gradedBy?label('users',s.gradedBy):undefined} max={detail.record.maxMarks} canGrade={canEdit('assignments',detail.record)} run={run}/>)}{!d.submissions.some(s=>s.assignmentId===detail.record.id)&&<Empty title="No submissions yet" text="Student work will appear here after submission."/>}</>}</>:detail.entity==='quizzes'?<><p>{detail.record.questions.length} questions · {detail.record.duration} minutes</p>{detail.record.fileId&&<FileActions id={detail.record.fileId}/ >}<h3>Attempts</h3>{d.attempts.filter(a=>a.quizId===detail.record.id).map(a=><div className="material-row" key={a.id}><strong className="grow">{label('users',a.studentId)}</strong><Badge>{a.submittedAt?'Submitted':'In progress'}</Badge><span>{a.score??'—'} marks</span></div>)}{!d.attempts.some(a=>a.quizId===detail.record.id)&&<Empty title="No attempts yet" text="Published quizzes become available during their scheduled window."/>}</>:null}</div></Modal>}
- {quizAttempt&&<QuizPlayer quiz={quizAttempt} attempt={d.attempts.find(a=>a.quizId===quizAttempt.id&&a.studentId===u.id)} run={run} onClose={()=>setQuizAttempt(null)}/>}
- </div>;
+'use client';
+import { SubjectCard } from './subject-card';
+import { BulkStudents } from './bulk-students';
+import { SocialAccountSettings } from './portal-additions';
+import { ProfilePhoto, ProfileDetails, ExtendedProfileForm, BrandSettings } from './profile-extras';
+import { canDeleteAnnouncement } from '@/security/announcement-access';
+import { SubjectArt } from './subject-art';
+import { clientRowId } from '@/lib/lms/client-id';
+import { FacultyAttendance } from './attendance-workspace';
+import { canRecordAttendance } from '@/security/authorization';
+import { TimetableManager } from './timetable-manager';
+import { ResourceSubjects, AdminResourceSubjects } from './resource-subjects';
+import { resourceScope } from '@/lib/lms/resource-scope';
+import { rollOrder } from '@/lib/lms/ordering';
+import { UserPhoto, UserDirectory } from './user-directory';
+import { CommunityBanner, RecordWorkspace } from './portal-additions';
+import { CourseOutlines, SessionSubjects, TeacherProfile } from './academic-components';
+import { FacultyTasks, DepartmentResponsibilities, LoginNotices } from './faculty-tasks';
+import type { Reminder } from '@/lib/lms/reminders';
+import { responsibilityKeys, responsibilityTemplates } from '@/security/privileges';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import {
+  LayoutDashboard,
+  BookOpen,
+  ClipboardList,
+  GraduationCap,
+  CalendarDays,
+  CheckCheck,
+  BarChart3,
+  Bell,
+  Users,
+  Settings,
+  LogOut,
+  Search,
+  ChevronRight,
+  ArrowUpRight,
+  Plus,
+  Download,
+  Menu,
+  X,
+  Clock,
+  MapPin,
+  ArrowRight,
+  FileText,
+  Check,
+  Upload,
+  Play,
+  MoreHorizontal,
+  ShieldCheck,
+  Building2,
+  Briefcase,
+  Layers,
+  Library,
+  UserRound,
+  RefreshCw,
+  ExternalLink,
+  AlertCircle,
+  Mail,
+  Pencil,
+  Trash2,
+  ChevronLeft,
+  CheckCircle2,
+  Eye,
+} from 'lucide-react';
+import { Data, Row } from '@/lib/lms/types';
+import {
+  attendancePercent,
+  manager,
+  broad,
+  teachingAllowed,
+  resultsAllowed,
+  accountManageAllowed,
+} from '@/lib/lms/policy';
+import { permitted, entityPrivilege, privileges, privilegeLabels } from '@/lib/lms/access';
+import { GradingSettings, AcademicSummary, BackupSettings } from './operations';
+import { GradingPolicy } from '@/lib/lms/grading';
+import { LoginForm, PasswordForm, PasswordInput, authRequest } from './security';
+import { forms, titles, columns, Field } from '@/lib/lms/forms';
+import { documentAccept, maxUploadBytes } from '@/lib/lms/file-types';
+import { downloadReport, showReport, reportOptions } from '@/lib/lms/export';
+import { TimetableFiles } from './timetable-files';
+import {
+  AssessmentPolicy,
+  AttendanceBrowser,
+  AttendanceReport,
+  DepartmentHodAssignments,
+  DepartmentTeachers,
+  OfferingTimetables,
+  ResultFiles,
+  ResultsWorkflow,
+  SemesterSubjectAssignment,
+} from './portal-workflows';
+import { AcademicHierarchy, HodTimetable, TimetableSchedule } from './academic-hierarchy';
+import { RolePrivilegesWorkflow, UserPermissionFields } from './role-privileges';
+import { Badge, Empty, Modal, PageTitle, Section } from './portal-ui';
+import { pageAllowed, RolePrivilegesConfig, getDefaultRolePrivileges } from '@/security/privileges';
+type Payload = {
+  passwordChangeRequired?: boolean;
+  loginReminder?: boolean;
+  reminders?: Reminder[];
+  grading: GradingPolicy | null;
+  user: Row;
+  owner: boolean;
+  demo: boolean;
+  actualName: string;
+  demoUsers: Row[];
+  data: Data;
+  college: string;
+  serverTime: string;
+  rolePrivileges?: RolePrivilegesConfig;
+};
+const icons: Record<string, any> = {
+  personal: ClipboardList,
+  management: Briefcase,
+  password: ShieldCheck,
+  courseOutlines: BookOpen,
+  dashboard: LayoutDashboard,
+  subjects: BookOpen,
+  deptSubjects: Building2,
+  materials: Library,
+  assignments: ClipboardList,
+  quizzes: FileText,
+  attendance: CheckCheck,
+  results: BarChart3,
+  timetable: CalendarDays,
+  announcements: Bell,
+  users: Users,
+  teachers: Users,
+  academic: Building2,
+  profile: UserRound,
+  rolePrivileges: ShieldCheck,
+  settings: Settings,
+  teacherTasks: Briefcase,
+  responsibilities: ShieldCheck,
+  reports: BarChart3,
+};
+const names: Record<string, string> = {
+  personal: 'My diary & to-do',
+  management: 'Management',
+  courseOutlines: 'Course outlines',
+  dashboard: 'Dashboard',
+  subjects: 'My subjects',
+  deptSubjects: 'Department subjects',
+  materials: 'Learning materials',
+  assignments: 'Assignments',
+  quizzes: 'Quizzes',
+  attendance: 'Attendance',
+  results: 'Results',
+  timetable: 'Timetable',
+  announcements: 'Announcements',
+  users: 'User management',
+  teachers: 'Teachers',
+  academic: 'Academic setup',
+  profile: 'My profile',
+  rolePrivileges: 'Roles & permissions',
+  settings: 'System settings',
+  teacherTasks: 'Assigned tasks',
+  responsibilities: 'Departmental responsibilities',
+  reports: 'Reports',
+  password: 'Change password',
+};
+const entityNames: Record<string, string> = {
+  users: 'account',
+  departments: 'department',
+  programs: 'program',
+  sessions: 'academic session',
+  batches: 'batch',
+  subjects: 'subject',
+  offerings: 'teaching assignment',
+  enrollments: 'student enrollment',
+  hodScopes: 'HOD scope',
+  timetable: 'scheduled class',
+  attendance: 'attendance record',
+  assignments: 'assignment',
+  quizzes: 'quiz topic',
+  results: 'result',
+  announcements: 'announcement',
+  materials: 'learning resource',
+};
+const colorNames = ['mint', 'purple', 'peach', 'blue', 'pink', 'yellow'];
+function initials(s: string) {
+  return (
+    s
+      ?.split(' ')
+      .slice(0, 2)
+      .map((x) => x[0])
+      .join('') || '?'
+  );
 }
-export function AttendanceWorkflow({data,user,label,run,fixedOfferingId}:{data:Data;user:Row;label:(t:string,id:any)=>string;run:(body:Row,message?:string)=>Promise<any>;fixedOfferingId?:string}){
- const options=data.offerings.filter(o=>canRecordAttendance(user,o)&&(!fixedOfferingId||o.id===fixedOfferingId));
- const [offeringId,setOfferingId]=useState(()=>fixedOfferingId||options[0]?.id||''),[date,setDate]=useState(()=>new Date().toISOString().slice(0,10)),[marks,setMarks]=useState<Record<string,string>>({}),[remarks,setRemarks]=useState<Record<string,string>>({}),[reason,setReason]=useState(''),[preview,setPreview]=useState(false),[submitted,setSubmitted]=useState(false),[error,setError]=useState(''),[saving,setSaving]=useState(false);
- const offering=options.find(o=>o.id===offeringId)||options[0];
- const roster=offering?data.enrollments.filter(e=>e.offeringId===offering.id&&e.active).map(e=>data.users.find(s=>s.id===e.studentId)).filter((s):s is Row=>!!s).sort(rollOrder):[];
- const rosterKey=roster.map(s=>s.id).join('|');
- const existing=offering?data.attendance.filter(a=>a.offeringId===offering.id&&a.date===date):[];
- const corrections=roster.filter(s=>{const old=existing.find(a=>a.studentId===s.id);return old&&marks[s.id]&&old.status!==marks[s.id];});
- const counts=Object.fromEntries(['Present','Absent','Late','Excused'].map(status=>[status,roster.filter(s=>marks[s.id]===status).length]));
- useEffect(()=>{const current=offering?data.attendance.filter(a=>a.offeringId===offering.id&&a.date===date):[];setMarks(Object.fromEntries(roster.map(s=>{const status=current.find(a=>a.studentId===s.id)?.status;return [s.id,['Present','Absent','Late','Excused'].includes(status)?status:'Present'];})));setRemarks(Object.fromEntries(current.map(a=>[a.studentId,a.remarks||''])));setPreview(false);setSubmitted(false);setReason('');setError('');},[offeringId,date,rosterKey]);
- if(!options.length)return <p className="panel directory-empty">No active classes are available for attendance marking with your current access.</p>;
- return <section className="panel operations-panel">
-  <h2>Mark attendance</h2>
-  <p>Select a subject and class date, mark every enrolled student, then review and submit the report. Choose Present, Absent or Late. Remarks are enabled for Late. Historical excused records remain unchanged until explicitly corrected.</p>
-  <div className="form-grid">
-   {!fixedOfferingId&&<label className="field"><span>Subject & class</span><select value={offering?.id||''} onChange={e=>{setOfferingId(e.target.value);setPreview(false);setSubmitted(false);}}>{options.map(o=><option key={o.id} value={o.id}>{label('offerings',o.id)}</option>)}</select></label>}
-   <label className="field"><span>Attendance date</span><input type="date" max={new Date().toISOString().slice(0,10)} value={date} onChange={e=>{setDate(e.target.value);setPreview(false);setSubmitted(false);}}/></label>
-  </div>
-  {existing.length>0&&<p className="attendance-authors">Recorded by: {[...new Set(existing.map(a=>a.recordedBy).filter(Boolean))].map(id=>data.users.find(person=>person.id===id)?.name||'Previous teacher').join(', ')}</p>}
-  <div className="table-scroll attendance-register"><table><thead><tr><th>S.No.</th><th>Photo</th><th>Roll number</th><th>Student</th><th>Attendance</th><th>Remarks (Late)</th></tr></thead><tbody>{roster.map((s,index)=><tr key={s.id}><td className="register-number">{index+1}</td><td className="register-photo"><UserPhoto user={s}/></td><td className="register-roll">{s.identifier||'—'}</td><td className="register-name">{s.name}</td><td className="register-status" data-label="Attendance"><select className={'attendance-status status-'+(marks[s.id]||'Present').toLowerCase()} aria-label={'Attendance for '+s.name} value={marks[s.id]||'Present'} onChange={e=>{setMarks(previous=>({...previous,[s.id]:e.target.value}));setPreview(false);setSubmitted(false);}}><option value="Present">Present</option><option value="Absent">Absent</option><option value="Late">Late</option>{marks[s.id]==='Excused'&&<option value="Excused" disabled>Historical excused</option>}</select></td><td className="register-remarks" data-label="Remarks (Late)"><input aria-label={'Late remarks for '+s.name} disabled={marks[s.id]!=='Late'} maxLength={1000} value={marks[s.id]==='Late'?remarks[s.id]||'':''} onChange={e=>{setRemarks(prev=>({...prev,[s.id]:e.target.value}));setPreview(false);setSubmitted(false);}} placeholder={marks[s.id]==='Late'?'Reason for arriving late':'Available for Late'}/></td></tr>)}</tbody></table>{!roster.length&&<Empty title="No enrolled students" text="Enroll students in this subject before marking attendance."/>}</div>
-  {corrections.length>0&&<label className="field"><span>Reason for correcting existing attendance</span><textarea rows={3} maxLength={1000} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Explain the correction (at least 5 characters)."/></label>}
-  {error&&<p role="alert" className="form-error">{error}</p>}
-  {!preview?<button className="btn primary" disabled={!roster.length} onClick={()=>{setError('');setPreview(true);}}><CheckCheck size={16}/>Review attendance</button>:<div className="restore-box">
-   <div className="row between"><h3>{submitted?'Attendance saved':'Review attendance'}</h3>{!submitted&&<button className="btn" disabled={saving} onClick={()=>{setPreview(false);setError('');}}><Pencil size={16}/>Edit attendance</button>}</div>
-   <p>{label('offerings',offering.id)} · {date} · {counts.Present} present · {counts.Absent} absent · {counts.Late} late</p>
-   <div className="table-scroll"><table><thead><tr><th>S.No.</th><th>Photo</th><th>Roll number</th><th>Student</th><th>Attendance</th><th>Remarks</th></tr></thead><tbody>{roster.map((s,index)=><tr key={s.id}><td>{index+1}</td><td><UserPhoto user={s}/></td><td>{s.identifier||'—'}</td><td>{s.name}</td><td>{marks[s.id]||'Present'}</td><td>{marks[s.id]==='Late'?remarks[s.id]||'—':'—'}</td></tr>)}</tbody></table></div>
-   {!submitted&&<button className="btn primary" disabled={saving||corrections.length>0&&reason.trim().length<5} onClick={async()=>{if(saving)return;setSaving(true);setError('');try{await run({action:'attendanceSubmit',offeringId:offering.id,date,reason,records:roster.map(s=>({studentId:s.id,status:marks[s.id]||'Present',remarks:marks[s.id]==='Late'?remarks[s.id]||'':''}))},'Attendance report submitted and records updated');setSubmitted(true);}catch(e){setError((e as Error).message);}finally{setSaving(false);}}}>{saving?'Saving attendance…':'Save attendance'}</button>}
-   {submitted&&<p role="status">The database is updated. Student attendance reports now show these results.</p>}
-  </div>}
- </section>;
+function date(s: string, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }) {
+  return s ? new Date(s).toLocaleDateString('en-GB', opts) : '—';
 }
-function Empty({title,text}:{title:string;text:string}){return <div className="empty"><h3>{title}</h3><p>{text}</p></div>;}
-function Section({title,subtitle,link,onClick}:{title:string;subtitle?:string;link?:string;onClick?:()=>void}){return <div className="section-head"><div><h2>{title}</h2>{subtitle&&<p>{subtitle}</p>}</div>{link&&<button className="text-btn" onClick={onClick}>{link}<ChevronRight size={16}/></button>}</div>;}
-function PageTitle({title,text,action}:{title:string;text:string;action?:React.ReactNode}){return <div className="page-title"><div><div className="eyebrow">LCPS ACADEMIC PORTAL</div><h1>{title}</h1><p>{text}</p></div>{action}</div>;}
-function EntityForm({entity,record,data:d,user:u,label,onClose,onSave,upload,rolePrivileges}:{entity:string;record:Row;data:Data;user:Row;label:(t:string,id:any)=>string;onClose:()=>void;onSave:(r:Row)=>Promise<void>;upload:(file:File)=>Promise<string>;rolePrivileges?:RolePrivilegesConfig}){
- const fields=forms[entity]||[];
- const [v,setV]=useState<Row>(()=>{const r:Row={active:1,published:entity==='assignments'?1:0,allowLate:0,release:0,credits:3,semester:4,maxMarks:20,duration:15,status:entity==='attendance'?'Present':'Pending',date:new Date().toISOString().slice(0,10),departmentId:u.departmentId||'',questions:[{id:clientRowId(),text:'',options:['','','',''],correct:0,marks:5}],...record};for(const f of fields){if(f.type==='datetime-local'&&r[f.key])r[f.key]=localInput(r[f.key]);if(f.type==='questions'&&typeof r[f.key]==='string')r[f.key]=JSON.parse(r[f.key]);}return r;}),[error,setError]=useState(''),[saving,setSaving]=useState(false),[fileName,setFileName]=useState('');
- const set=(key:string,value:any)=>setV(prev=>({...prev,[key]:value}));
- const options=(f:Field):Row[]=>{let rows=d[f.ref!]||[];if(entity==='timetable'&&f.ref==='offerings'&&Array.isArray(record._allowedOfferingIds))rows=rows.filter(o=>record._allowedOfferingIds.includes(o.id));if(['students','teachers','hods'].includes(f.ref!))rows=d.users.filter(r=>f.ref==='students'?r.role==='STUDENT':f.ref==='teachers'?['TEACHER','HOD'].includes(r.role):r.role==='HOD');rows=rows.filter(r=>r.active!==0||r.id===v[f.key]);if(f.ref==='programs'&&v.departmentId)rows=rows.filter(r=>r.departmentId===v.departmentId);if(f.ref==='batches'&&v.departmentId)rows=rows.filter(r=>r.departmentId===v.departmentId);if(f.ref==='subjects'&&v.batchId){const b=d.batches.find(b=>b.id===v.batchId);rows=rows.filter(r=>r.departmentId===b?.departmentId);}if(f.ref==='teachers'&&v.batchId){const b=d.batches.find(b=>b.id===v.batchId);rows=rows.filter(r=>r.departmentId===b?.departmentId);}if(f.ref==='students'&&v.offeringId){const o=d.offerings.find(o=>o.id===v.offeringId);rows=rows.filter(r=>r.batchId===o?.batchId&&(entity==='enrollments'||d.enrollments.some(e=>e.studentId===r.id&&e.offeringId===o?.id&&e.active)));}if(f.ref==='offerings'&&['attendance','assignments','quizzes','results','materials'].includes(entity))rows=rows.filter(r=>entity==='results'?resultsAllowed(u,r,d):teachingAllowed(u,r));if(entity==='announcements'&&u.role==='TEACHER'&&f.ref==='offerings')rows=rows.filter(r=>(r.teacherId===u.id||!!r.coTeacherId&&r.coTeacherId===u.id));return rows;};
- async function submit(e:React.FormEvent){e.preventDefault();setSaving(true);setError('');try{const out={...v};for(const f of fields){if(f.type==='datetime-local'&&out[f.key])out[f.key]=new Date(out[f.key]).toISOString();if(f.type==='number'&&out[f.key]!==''&&out[f.key]!=null)out[f.key]=Number(out[f.key]);}await onSave(out);}catch(e){setError((e as Error).message);}finally{setSaving(false);}}
- return <Modal title={(record.id?'Edit ':'Create ')+(entityNames[entity]||entity)} subtitle="Changes are saved to the college database." onClose={onClose} wide={entity==='quizzes'||entity==='users'}><form onSubmit={submit}><div className="modal-body form-grid">{fields.map(f=>{if(entity==='results'&&f.key==='correctionReason'&&!record.published)return null;if(entity==='users'&&f.key==='password'&&record.id&&(record.id===u.id||!permitted(u,'reset_passwords',rolePrivileges)))return null;if(entity==='users'&&v.role!=='TEACHER'&&f.key==='employmentType')return null;if(entity==='users'&&v.role!=='STUDENT'&&f.key==='batchId')return null;const choices=f.key==='role'&&!permitted(u,'senior_accounts',rolePrivileges)?['STUDENT','TEACHER']:f.options;return <label className={'field '+(['textarea','questions','file'].includes(f.type||'')?'span-two':'')+(f.type==='checkbox'?' checkbox-field':'')} key={f.key}><span>{f.label}{f.required&&<em>*</em>}</span>{f.type==='select'?<select value={v[f.key]||''} required={f.required} onChange={e=>set(f.key,e.target.value)}><option value="">{f.required?'Select…':'All / not specified'}</option>{f.ref?options(f).map(o=><option key={o.id} value={o.id}>{label(f.ref!,o.id)}</option>):choices?.map(o=><option key={o} value={o}>{o}</option>)}</select>:f.type==='textarea'?<textarea value={v[f.key]||''} required={f.required} rows={4} onChange={e=>set(f.key,e.target.value)}/>:f.type==='checkbox'?<input type="checkbox" checked={!!v[f.key]} onChange={e=>set(f.key,e.target.checked?1:0)}/>:f.type==='file'?<><input type="file" accept={f.accept||documentAccept} disabled={saving} onChange={async e=>{const file=e.target.files?.[0];e.target.value='';if(file){setSaving(true);setError('');try{const id=await upload(file);set(f.key,id);setFileName(file.name);}catch(e){setError((e as Error).message);}finally{setSaving(false);}}}}/>{v[f.key]&&<small>{fileName||'An attachment is already saved. Choose a file to replace it.'}</small>}{f.help&&<small>{f.help}</small>}</>:f.type==='questions'?<QuestionEditor questions={v.questions} onChange={qs=>set('questions',qs)}/>:f.type==='password'?<PasswordInput required={f.key==='password'?!record.id:f.required} autoComplete={f.key==='password'?'new-password':undefined} value={v[f.key]??''} onChange={e=>set(f.key,e.target.value)}/>:<input type={f.type||'text'} required={f.key==='password'?!record.id:f.required} autoComplete={f.key==='password'?'new-password':undefined} value={v[f.key]??''} min={f.type==='number'?0:undefined} step={f.type==='number'?'any':undefined} onChange={e=>set(f.key,e.target.value)}/>} {f.type!=='file'&&f.help&&<small>{f.help}</small>}</label>;})}{entity==='users'&&permitted(u,'manage_access',rolePrivileges)&&v.role!=='ADMIN'&&<fieldset className="span-two permission-box"><legend>Individual access overrides</legend><UserPermissionFields user={v} config={rolePrivileges||getDefaultRolePrivileges()} onChange={value=>set('permissions',JSON.stringify(value))}/></fieldset>}{error&&<div className="form-error span-two" role="alert">{error}</div>}</div><div className="modal-foot"><button className="btn" type="button" onClick={onClose}>Cancel</button><button className="btn primary" disabled={saving}>{saving?'Saving…':'Save changes'}</button></div></form></Modal>;
+function localInput(s: string) {
+  if (!s) return '';
+  const d = new Date(s);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
-function QuestionEditor({questions,onChange}:{questions:Row[];onChange:(q:Row[])=>void}){const update=(i:number,key:string,v:any)=>onChange(questions.map((q,j)=>j===i?{...q,[key]:v}:q));return <div className="questions-editor">{questions.map((q,i)=><div className="question-edit" key={q.id}><div className="row between"><strong>Question {i+1}</strong>{questions.length>1&&<button className="icon-btn danger" type="button" aria-label="Remove question" onClick={()=>onChange(questions.filter((_,j)=>j!==i))}>Remove question</button>}</div><input aria-label={'Question '+(i+1)} placeholder="Write your question…" required value={q.text} onChange={e=>update(i,'text',e.target.value)}/>{q.options.map((o:string,j:number)=><div className="option-edit" key={j}><input aria-label={'Correct answer '+(j+1)} type="radio" name={'correct-'+q.id} checked={q.correct===j} onChange={()=>update(i,'correct',j)}/><input aria-label={'Option '+(j+1)} placeholder={'Option '+(j+1)} required value={o} onChange={e=>update(i,'options',q.options.map((a:string,k:number)=>k===j?e.target.value:a))}/></div>)}<div className="row gap"><small>Select the correct answer using its radio button.</small><input className="marks-input" aria-label="Question marks" type="number" min="1" max="100" value={q.marks} required onChange={e=>update(i,'marks',Number(e.target.value))}/><small>marks</small></div></div>)}<button className="btn" type="button" onClick={()=>onChange([...questions,{id:clientRowId(),text:'',options:['','','',''],correct:0,marks:5}])}>Add question</button></div>;}
-function FileActions({id,compact=false}:{id:string;compact?:boolean}){const [file,setFile]=useState<{name:string;mime:string;size:number;preview:boolean}|null>(null),[error,setError]=useState('');useEffect(()=>{let active=true;fetch('/api/files/'+encodeURIComponent(id)+'?metadata=1',{cache:'no-store'}).then(async r=>{const body=await r.json();if(!r.ok)throw new Error(body.error||'File details unavailable.');if(active)setFile(body);}).catch(e=>{if(active)setError((e as Error).message);});return()=>{active=false;};},[id]);return <div className={compact?'file-actions compact':'file-actions'}>{file&&<><span className="file-label" title={file.name}>{file.name} · {Math.max(1,Math.ceil(file.size/1024))} KB</span>{file.preview&&<a className="btn" href={'/api/files/'+encodeURIComponent(id)+'?view=1'} target="_blank" rel="noreferrer">View online</a>}<a className="btn" href={'/api/files/'+encodeURIComponent(id)} download>Download</a></>}{!file&&!error&&<small>Loading file…</small>}{error&&<small role="alert" className="form-error">{error}</small>}</div>;}
-function ProfileForm({user,run}:{user:Row;run:(r:Row,m?:string)=>Promise<any>}){const [name,setName]=useState(user.name),[phone,setPhone]=useState(user.phone||''),[qualifications,setQualifications]=useState(user.qualifications||''),[err,setErr]=useState(''),[busy,setBusy]=useState(false);return <form onSubmit={async e=>{e.preventDefault();setBusy(true);setErr('');try{await run({action:'profile',record:{name,phone,...(['TEACHER','HOD'].includes(user.role)?{qualifications}:{})}},'Profile updated');}catch(e){setErr((e as Error).message);}finally{setBusy(false);}}}><div className="form-grid"><label className="field"><span>Full name</span><input value={name} onChange={e=>setName(e.target.value)} required/></label><label className="field"><span>Phone</span><input value={phone} onChange={e=>setPhone(e.target.value)} type="tel"/></label>{['TEACHER','HOD'].includes(user.role)&&<label className="field span-two"><span>Qualifications</span><textarea rows={4} maxLength={4000} value={qualifications} onChange={e=>setQualifications(e.target.value)} placeholder="Degrees, institutions and specialization"/></label>}</div>{err&&<p className="form-error">{err}</p>}<button className="btn primary" disabled={busy}>{busy?'Saving…':'Save profile'}</button></form>;}
-function SettingsForm({college,run}:{college:string;run:(r:Row,m?:string)=>Promise<any>}){const [name,setName]=useState(college),[error,setError]=useState(''),[busy,setBusy]=useState(false);return <form className="panel settings-form" onSubmit={async e=>{e.preventDefault();setBusy(true);try{await run({action:'settings',college:name});setError('');}catch(e){setError((e as Error).message);}finally{setBusy(false);}}}><label className="field"><span>College name</span><input required value={name} onChange={e=>setName(e.target.value)}/></label><button className="btn primary" disabled={busy}>Save settings</button>{error&&<p className="form-error">{error}</p>}<p className="muted">College accounts use administrator-assigned usernames and passwords. Role and class boundaries apply to every action. Accounts are managed by the college administrator. No ChatGPT account is required.</p></form>;}
-function SubmissionForm({assignment,submission,onSubmit,upload}:{assignment:Row;submission?:Row;onSubmit:(r:Row)=>Promise<void>;upload:(f:File)=>Promise<string>}){const [content,setContent]=useState(submission?.content||''),[fileId,setFileId]=useState(submission?.fileId||''),[busy,setBusy]=useState(false),[error,setError]=useState('');const locked=submission?.marks!=null,closed=Date.now()>Date.parse(assignment.dueDate);return <form className="submission-form" onSubmit={async e=>{e.preventDefault();setBusy(true);setError('');try{await onSubmit({content,fileId});}catch(e){setError((e as Error).message);}finally{setBusy(false);}}}><h3>{submission?'Your submission':'Submit your work'}</h3>{submission&&<div className="notice"><span>Submitted {date(submission.submittedAt)}{locked?` · Mark: ${submission.marks} / ${assignment.maxMarks}`:' · Awaiting feedback'}</span></div>}{submission?.feedback&&<p className="feedback"><strong>Teacher feedback</strong>{submission.feedback}</p>}{closed&&!submission&&<p className="notice">The deadline has passed. Submissions are closed.</p>}<label className="field"><span>Answer, explanation or repository link</span><textarea rows={5} required value={content} disabled={locked||closed} onChange={e=>setContent(e.target.value)}/></label><label className="field"><span>Optional PDF, Office document, spreadsheet, CSV or ZIP (up to 4 MB)</span><input type="file" accept={documentAccept} disabled={locked||closed||busy} onChange={async e=>{const f=e.target.files?.[0];e.target.value='';if(f){setBusy(true);try{setFileId(await upload(f));}catch(e){setError((e as Error).message);}finally{setBusy(false);}}}}/></label>{fileId&&<FileActions id={fileId}/ >}{error&&<p className="form-error">{error}</p>}<button className="btn primary" disabled={locked||closed||busy}>{busy?'Saving…':locked?'Graded — submission locked':closed?'Submission closed':submission?'Update submission':'Submit assignment'}</button></form>;}
-function GradeForm({submission:s,name,max,canGrade,run,gradedBy}:{submission:Row;name:string;gradedBy?:string;max:number;canGrade:boolean;run:(r:Row,m?:string)=>Promise<any>}){const [marks,setMarks]=useState(s.marks??''),[feedback,setFeedback]=useState(s.feedback||''),[error,setError]=useState(''),[busy,setBusy]=useState(false);return <form className="grade-form" onSubmit={async e=>{e.preventDefault();setBusy(true);try{await run({action:'grade',id:s.id,marks:Number(marks),feedback},'Grade saved');setError('');}catch(e){setError((e as Error).message);}finally{setBusy(false);}}}><div className="row between"><h4>{name}</h4><small>{date(s.submittedAt)}</small>{gradedBy&&<small>Graded by {gradedBy}</small>}</div><p className="preserve">{s.content}</p>{s.fileId&&<FileActions id={s.fileId}/ >}<div className="form-grid"><label className="field"><span>Marks / {max}</span><input type="number" min="0" max={max} required value={marks} disabled={!canGrade} onChange={e=>setMarks(e.target.value)}/></label><label className="field"><span>Feedback</span><input value={feedback} disabled={!canGrade} onChange={e=>setFeedback(e.target.value)}/></label></div>{error&&<p className="form-error">{error}</p>}{canGrade&&<button className="btn primary" disabled={busy}>Save grade</button>}</form>;}
-function QuizPlayer({quiz:q,attempt:a,run,onClose}:{quiz:Row;attempt?:Row;run:(r:Row,m?:string)=>Promise<any>;onClose:()=>void}){const [answers,setAnswers]=useState<Row>(()=>a?JSON.parse(a.answers):{}),[error,setError]=useState(''),[saving,setSaving]=useState(false),[seconds,setSeconds]=useState(a?Math.max(0,Math.ceil((Date.parse(a.deadline)-Date.now())/1000)):0),[done,setDone]=useState(false);
- useEffect(()=>{if(!a)return;const t=setInterval(()=>setSeconds(Math.max(0,Math.ceil((Date.parse(a.deadline)-Date.now())/1000))),1000);return()=>clearInterval(t);},[a?.deadline]);
- useEffect(()=>{if(a&&seconds===0&&!done&&!a.submittedAt){setDone(true);run({action:'quizSubmit',id:a.id,answers:{}},'Time is up. Saved answers were submitted.').then(onClose).catch(e=>{setError((e as Error).message);setDone(false);});}},[seconds]);
- if(!a)return <Modal title="Preparing quiz" onClose={onClose}><div className="modal-body">Please wait…</div></Modal>;
- const answer=async(id:string,value:number)=>{const next={...answers,[id]:value};setAnswers(next);setSaving(true);try{await run({action:'quizSave',id:a.id,answers:next},'');setError('');}catch(e){setError('Answer not saved: '+(e as Error).message);}finally{setSaving(false);}};
- return <Modal title={q.title} subtitle="Answers save after each selection. Closing this window does not pause the timer." onClose={onClose} wide><div className="modal-body"><div className="quiz-timer"><span>{Math.floor(seconds/60)}:{String(seconds%60).padStart(2,'0')} remaining</span><small>{saving?'Saving answer…':'Answers saved'} · {Object.keys(answers).length} / {q.questions.length} answered</small></div>{q.questions.map((question:Row,i:number)=><fieldset className="quiz-question" key={question.id}><legend>{i+1}. {question.text}<span>{question.marks} marks</span></legend>{question.options.map((option:string,j:number)=><label className={'quiz-option '+(answers[question.id]===j?'selected':'')} key={j}><input type="radio" name={question.id} checked={answers[question.id]===j} disabled={saving||!seconds||done} onChange={()=>answer(question.id,j)}/><span>{option}</span></label>)}</fieldset>)}{error&&<p className="form-error">{error}</p>}</div><div className="modal-foot"><button className="btn" onClick={onClose}>Close & continue later</button><button className="btn primary" disabled={saving||done} onClick={async()=>{setSaving(true);try{await run({action:'quizSubmit',id:a.id,answers},'Quiz submitted');onClose();}catch(e){setError((e as Error).message);}finally{setSaving(false);}}}>Submit final answers</button></div></Modal>;
+function Avatar({ user, size = '' }: { user: Row; size?: string }) {
+  return <ProfilePhoto user={user} size={size} />;
+}
+export default function Portal() {
+  const authState = useRef({ epoch: 0, blocked: false });
+  const [resourceOffering, setResourceOffering] = useState('');
+  const [p, setP] = useState<Payload | null>(null),
+    [page, setPage] = useState('dashboard'),
+    [loadError, setLoadError] = useState(''),
+    [busy, setBusy] = useState(false),
+    [toast, setToast] = useState(''),
+    [mobile, setMobile] = useState(false),
+    [search, setSearch] = useState(''),
+    [filter, setFilter] = useState('all'),
+    [academic, setAcademic] = useState('departments'),
+    [form, setForm] = useState<{ entity: string; record: Row } | null>(null),
+    [detail, setDetail] = useState<{ entity: string; record: Row } | null>(null),
+    [confirm, setConfirm] = useState<{ entity: string; record: Row } | null>(null),
+    [quizAttempt, setQuizAttempt] = useState<Row | null>(null),
+    [report, setReport] = useState('attendance'),
+    [attendanceOffering, setAttendanceOffering] = useState(''),
+    [attendanceMarkingOffering, setAttendanceMarkingOffering] = useState(''),
+    [tablePage, setTablePage] = useState(0),
+    [departmentTab, setDepartmentTab] = useState('subjects'),
+    [rolePrivileges, setRolePrivileges] = useState<RolePrivilegesConfig>(
+      getDefaultRolePrivileges(),
+    );
+  useEffect(() => {
+    if (p?.rolePrivileges) setRolePrivileges(p.rolePrivileges);
+  }, [p?.rolePrivileges]);
+  const refresh = useCallback(async () => {
+    if (authState.current.blocked) return;
+    const epoch = authState.current.epoch;
+    const res = await fetch('/api/lms', { cache: 'no-store' });
+    const json: any = await res.json();
+    if (epoch !== authState.current.epoch || authState.current.blocked) return;
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) setP(null);
+      throw new Error(json.error);
+    }
+    setP(json);
+    setLoadError('');
+  }, []);
+  useEffect(() => {
+    refresh().catch((e) => setLoadError(e.message));
+    const t = setInterval(() => refresh().catch(() => {}), 30000);
+    const focus = () => refresh().catch(() => {});
+    window.addEventListener('focus', focus);
+    window.addEventListener('lcps:refresh', focus);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('focus', focus);
+      window.removeEventListener('lcps:refresh', focus);
+    };
+  }, [refresh]);
+  useEffect(() => {
+    if (!mobile) return;
+    const sidebar = document.getElementById('portal-navigation'),
+      previous = document.activeElement as HTMLElement | null,
+      overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    sidebar?.querySelector<HTMLElement>('button')?.focus();
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobile(false);
+      if (e.key === 'Tab') {
+        const nodes = Array.from(
+          sidebar?.querySelectorAll<HTMLElement>('button,a[href]') || [],
+        ).filter((el) => el.offsetParent !== null);
+        const first = nodes[0],
+          last = nodes.at(-1);
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', key);
+    return () => {
+      document.body.style.overflow = overflow;
+      document.removeEventListener('keydown', key);
+      previous?.focus();
+    };
+  }, [mobile]);
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(''), 4500);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
+  useEffect(() => {
+    setSearch('');
+    setFilter('all');
+    setTablePage(0);
+  }, [page, academic, report]);
+  const navigate = (s: string) => {
+    if (['materials', 'assignments', 'quizzes'].includes(s))
+      setResourceOffering(detail?.entity === 'subject' ? detail.record.id : '');
+    if (['attendance', 'courseOutlines'].includes(s) && detail?.entity === 'subject')
+      setAttendanceOffering(detail.record.id);
+    else if (s === 'courseOutlines') setAttendanceOffering('');
+    if (s !== 'attendance') setAttendanceMarkingOffering('');
+    setPage(s);
+    setMobile(false);
+    setDetail(null);
+  };
+  async function run(body: Row, message = 'Changes saved') {
+    setBusy(true);
+    try {
+      const res = await fetch('/api/lms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json: any = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      await refresh();
+      if (message) setToast(message);
+      return json.result;
+    } finally {
+      setBusy(false);
+    }
+  }
+  function clearLogin(message = '') {
+    authState.current.epoch++;
+    authState.current.blocked = true;
+    setP(null);
+    setLoadError(message);
+    setPage('dashboard');
+    setResourceOffering('');
+    setForm(null);
+    setDetail(null);
+    setConfirm(null);
+    setMobile(false);
+  }
+  async function signOut() {
+    authState.current.epoch++;
+    authState.current.blocked = true;
+    try {
+      await authRequest({ action: 'logout' });
+      clearLogin();
+      if (typeof BroadcastChannel !== 'undefined') {
+        const channel = new BroadcastChannel('lcps-auth');
+        channel.postMessage('logout');
+        channel.close();
+      }
+    } catch (e) {
+      authState.current.blocked = false;
+      setToast((e as Error).message);
+    }
+  }
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel('lcps-auth');
+    channel.onmessage = (e) => {
+      if (e.data === 'logout') clearLogin();
+    };
+    return () => channel.close();
+  }, []);
+  const safeRun = (body: Row, msg?: string) => run(body, msg).catch((e) => setToast(e.message));
+  const loadAttendanceView = useCallback(async (request: Row) => {
+    const res = await fetch('/api/lms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      }),
+      json: any = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Attendance could not be loaded.');
+    return json.result;
+  }, []);
+  async function upload(file: File, purpose = 'academic') {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('purpose', purpose);
+    const res = await fetch('/api/files', { method: 'POST', body: form });
+    const json: any = await res.json();
+    if (!res.ok) throw new Error(json.error);
+    return json.id;
+  }
+  if (!p)
+    return (
+      <LoginForm
+        error={loadError}
+        onLogin={async () => {
+          authState.current.blocked = false;
+          authState.current.epoch++;
+          await refresh();
+        }}
+      />
+    );
+  if (p.passwordChangeRequired)
+    return (
+      <main className="password-gate">
+        <section
+          className="password-gate-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="password-gate-title"
+        >
+          <h1 id="password-gate-title">Change your password</h1>
+          <p>Welcome, {p.user.name}. Set your own password before continuing.</p>
+          <PasswordForm
+            onChanged={() => clearLogin('Password changed. Sign in with your new password.')}
+          />
+          <button className="btn" onClick={() => void signOut()}>
+            Sign out
+          </button>
+        </section>
+      </main>
+    );
+  const { data: allData } = p,
+    u: Row = { ...p.user, accessConfig: rolePrivileges },
+    manage = manager(u),
+    teacher = ['TEACHER', 'HOD'].includes(u.role),
+    student = u.role === 'STUDENT',
+    admin = u.role === 'ADMIN',
+    canManageAccounts = permitted(u, 'users', rolePrivileges);
+  const personalOfferingIds = new Set(
+    allData.offerings
+      .filter((o) => o.teacherId === u.id || (!!o.coTeacherId && o.coTeacherId === u.id))
+      .map((o) => o.id),
+  );
+  const personalAssignmentIds = new Set(
+    allData.assignments.filter((a) => personalOfferingIds.has(a.offeringId)).map((a) => a.id),
+  );
+  const personalQuizIds = new Set(
+    allData.quizzes.filter((q) => personalOfferingIds.has(q.offeringId)).map((q) => q.id),
+  );
+  const personalMaterialIds = new Set(
+    allData.materials.filter((m) => personalOfferingIds.has(m.offeringId)).map((m) => m.id),
+  );
+  const baseData =
+    u.role === 'HOD' &&
+    ![
+      'courseOutlines',
+      'deptSubjects',
+      'teachers',
+      'academic',
+      'users',
+      'results',
+      'reports',
+      'timetable',
+      'teacherTasks',
+      'responsibilities',
+    ].includes(page)
+      ? {
+          ...allData,
+          offerings: allData.offerings.filter((o) => personalOfferingIds.has(o.id)),
+          enrollments: allData.enrollments.filter((e) => personalOfferingIds.has(e.offeringId)),
+          timetable: allData.timetable.filter((t) => personalOfferingIds.has(t.offeringId)),
+          attendance: allData.attendance.filter((a) => personalOfferingIds.has(a.offeringId)),
+          assignments: allData.assignments.filter((a) => personalOfferingIds.has(a.offeringId)),
+          quizzes: allData.quizzes.filter((q) => personalOfferingIds.has(q.offeringId)),
+          results: allData.results.filter((r) => personalOfferingIds.has(r.offeringId)),
+          materials: allData.materials.filter((m) => personalOfferingIds.has(m.offeringId)),
+          resultFiles: allData.resultFiles.filter((f) => personalOfferingIds.has(f.offeringId)),
+          submissions: allData.submissions.filter((s) => personalAssignmentIds.has(s.assignmentId)),
+          attempts: allData.attempts.filter((a) => personalQuizIds.has(a.quizId)),
+          progress: allData.progress.filter((v) => personalMaterialIds.has(v.materialId)),
+        }
+      : allData;
+  const d =
+    (student || admin) && ['materials', 'assignments', 'quizzes'].includes(page) && resourceOffering
+      ? resourceScope(baseData, resourceOffering)
+      : baseData;
+  const myBatch = d.batches.find((b) => b.id === u.batchId),
+    myProgram = d.programs.find((b) => b.id === myBatch?.programId),
+    mySession = d.sessions.find((b) => b.id === myBatch?.sessionId),
+    department = d.departments.find((b) => b.id === u.departmentId);
+  const baseNav = student
+    ? [
+        'dashboard',
+        'subjects',
+        'materials',
+        'assignments',
+        'quizzes',
+        'attendance',
+        'results',
+        'timetable',
+        'announcements',
+      ]
+    : u.role === 'PRINCIPAL'
+      ? ['dashboard', 'attendance', 'results', 'timetable', 'announcements', 'academic', 'reports']
+      : u.role === 'HOD'
+        ? [
+            'dashboard',
+            'subjects',
+            'deptSubjects',
+            'assignments',
+            'quizzes',
+            'attendance',
+            'results',
+            'timetable',
+            'materials',
+            'announcements',
+            'teachers',
+            ...(canManageAccounts ? ['users'] : []),
+            'academic',
+            'reports',
+          ]
+        : [
+            'dashboard',
+            'subjects',
+            'assignments',
+            'quizzes',
+            'attendance',
+            'results',
+            'timetable',
+            'materials',
+            'announcements',
+            ...(canManageAccounts ? ['users'] : []),
+            ...(manage ? ['academic', 'reports'] : []),
+            ...['rolePrivileges', 'settings'].filter((k) => pageAllowed(u, k, rolePrivileges)),
+          ];
+  const nav = Array.from(
+    new Set([
+      ...baseNav,
+      'personal',
+      'management',
+      ...[
+        'courseOutlines',
+        'subjects',
+        'academic',
+        'users',
+        'reports',
+        'materials',
+        'assignments',
+        'quizzes',
+        'teacherTasks',
+        'responsibilities',
+        'rolePrivileges',
+        'settings',
+        'attendance',
+        'results',
+        'timetable',
+        'announcements',
+      ].filter((k) => pageAllowed(u, k, rolePrivileges)),
+    ]),
+  ).filter((k) => pageAllowed(u, k, rolePrivileges));
+  const label = (entity: string, id: any): string => {
+    if (!id) return '—';
+    if (entity === 'offerings') {
+      const o = d.offerings.find((o) => o.id === id);
+      return o ? `${label('subjects', o.subjectId)} · ${label('batches', o.batchId)}` : '—';
+    }
+    const table = ['students', 'teachers', 'hods'].includes(entity) ? 'users' : entity;
+    return String(
+      d[table]?.find((r) => r.id === id)?.name || d[table]?.find((r) => r.id === id)?.title || id,
+    );
+  };
+  const refTable: Record<string, string> = {
+    departmentId: 'departments',
+    programId: 'programs',
+    sessionId: 'sessions',
+    batchId: 'batches',
+    subjectId: 'subjects',
+    offeringId: 'offerings',
+    teacherId: 'users',
+    coTeacherId: 'users',
+    updatedBy: 'users',
+    gradedBy: 'users',
+    recordedBy: 'users',
+    studentId: 'users',
+    userId: 'users',
+    authorId: 'users',
+    actorId: 'users',
+  };
+  const display = (key: string, val: any) => {
+    if (refTable[key]) return label(refTable[key], val);
+    if (['dueDate', 'createdAt', 'date', 'submittedAt'].includes(key)) return date(val);
+    if (key === 'active') return val ? 'Active' : 'Inactive';
+    if (key === 'published') return val ? 'Published' : 'Draft';
+    if (key === 'role') return String(val).toLowerCase();
+    return val ?? '—';
+  };
+  const head = (key: string) =>
+    ({
+      departmentId: 'Department',
+      batchId: 'Batch',
+      programId: 'Program',
+      sessionId: 'Session',
+      studentId: 'Student',
+      offeringId: 'Subject & class',
+      teacherId: 'Teacher',
+      subjectId: 'Subject',
+      lectureTime: 'Lecture timetable',
+      userId: 'User',
+      maxMarks: 'Out of',
+      createdAt: 'Date',
+      actorId: 'User',
+      startTime: 'Start',
+      endTime: 'End',
+      dueDate: 'Due date',
+      published: 'Visibility',
+      identifier: 'Roll / employee ID',
+    })[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, (x) => x.toUpperCase());
+  const canEdit = (entity: string, r?: Row) => {
+    if (!permitted(u, entityPrivilege(entity), rolePrivileges) || entity === 'tasks') return false;
+    if (admin) return entity !== 'audit';
+    if (entity === 'users') return !r || accountManageAllowed(u, r);
+    if (entity === 'enrollments' || entity === 'offerings')
+      return permitted(u, 'student_enrollment', rolePrivileges);
+    if (['departments', 'programs', 'sessions'].includes(entity))
+      return permitted(u, 'college_setup', rolePrivileges);
+    if (['batches', 'subjects', 'timetable'].includes(entity)) return manage;
+    if (entity === 'hodScopes') return permitted(u, 'senior_accounts', rolePrivileges);
+    if (entity === 'announcements') return !r || broad(u) || r.authorId === u.id;
+    if (['attendance', 'assignments', 'quizzes', 'results', 'materials'].includes(entity))
+      return (
+        !r ||
+        d.offerings.some(
+          (o) =>
+            o.id === r.offeringId &&
+            (entity === 'results' ? resultsAllowed(u, o, d) : teachingAllowed(u, o)),
+        )
+      );
+    return false;
+  };
+  const openForm = (entity: string, r: Row = {}) =>
+    setForm({
+      entity,
+      record: {
+        ...(['assignments', 'quizzes', 'materials'].includes(entity) && resourceOffering
+          ? { offeringId: resourceOffering }
+          : {}),
+        ...(entity === 'users' && !admin ? { role: 'STUDENT', departmentId: u.departmentId } : {}),
+        ...r,
+      },
+    });
+  const attendance = attendancePercent(d.attendance),
+    pending = d.assignments.filter(
+      (a) => !d.submissions.some((s) => s.assignmentId === a.id && s.studentId === u.id),
+    );
+  const weekday = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    timeZone: 'Asia/Karachi',
+  });
+  const todayLabel = new Date().toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Karachi',
+  });
+  const subjectCard = (o: Row, i: number) => (
+    <SubjectCard
+      key={o.id}
+      offering={o}
+      data={d}
+      index={i}
+      onSelect={() => setDetail({ entity: 'subject', record: o })}
+    />
+  );
+  function exportCsv(entity: string, records: Row[]) {
+    if (!permitted(u, 'reports', rolePrivileges)) {
+      setToast('Report export access is disabled.');
+      return;
+    }
+    const cols = columns[entity] || Object.keys(records[0] || {}),
+      headers = cols.map(head);
+    const rows = records.map((record) =>
+      cols.map((key) => String(display(key, record[key]) ?? '—')),
+    );
+    const title = `LCPS · ${titles[entity] || entity}`,
+      filename = `LCPS-${entity}`;
+    reportOptions(title, filename, headers, rows);
+  }
+  function renderTable(entity: string, source?: Row[], readonly = false) {
+    const rows = (source || d[entity] || []).filter((r) => {
+      const match = Object.entries(r).some(([k, v]) =>
+        String(display(k, v)).toLowerCase().includes(search.toLowerCase()),
+      );
+      return (
+        match &&
+        (filter === 'all' ||
+          r.role === filter ||
+          String(r.active) === filter ||
+          r.offeringId === filter ||
+          r.departmentId === filter)
+      );
+    });
+    const cols =
+      entity === 'users'
+        ? ['identifier', ...(columns[entity] || []).filter((k) => k !== 'identifier')]
+        : columns[entity] || [];
+    const pages = Math.ceil(rows.length / 10);
+    const current = Math.min(tablePage, Math.max(0, pages - 1));
+    return (
+      <div className="panel table-panel">
+        <div className="table-tools">
+          <label className="search-box">
+            <input
+              aria-label="Search records"
+              placeholder={`Search ${titles[entity]?.toLowerCase() || 'records'}…`}
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setTablePage(0);
+              }}
+            />
+          </label>
+          <div className="row gap">
+            <select
+              className="filter-select"
+              aria-label="Filter records"
+              value={filter}
+              onChange={(e) => {
+                setFilter(e.target.value);
+                setTablePage(0);
+              }}
+            >
+              <option value="all">All records</option>
+              {entity === 'users' ? (
+                [
+                  'STUDENT',
+                  'TEACHER',
+                  'HOD',
+                  'PRINCIPAL',
+                  'ADMIN',
+                  'TREASURER',
+                  'EXAMINATION_CONTROLLER',
+                  'REGISTRAR',
+                ].map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))
+              ) : cols.includes('offeringId') ? (
+                d.offerings.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {label('offerings', o.id)}
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="1">Active</option>
+                  <option value="0">Inactive</option>
+                </>
+              )}
+            </select>
+            {permitted(u, 'reports', rolePrivileges) && (
+              <button className="btn" onClick={() => exportCsv(entity, rows)}>
+                <Download size={16} />
+                Export records
+              </button>
+            )}
+            {!readonly && canEdit(entity) && (
+              <button className="btn primary" onClick={() => openForm(entity)}>
+                <Plus size={16} />
+                {entity === 'users' ? 'Create account' : 'Add ' + (entityNames[entity] || 'record')}
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                {entity === 'users' && (
+                  <>
+                    <th>S.No.</th>
+                    <th>Photo</th>
+                  </>
+                )}
+                {cols.map((k) => (
+                  <th key={k}>{head(k)}</th>
+                ))}
+                {!readonly && <th className="right">Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.slice(current * 10, current * 10 + 10).map((r, index) => (
+                <tr key={r.id}>
+                  {entity === 'users' && (
+                    <>
+                      <td>{current * 10 + index + 1}</td>
+                      <td>
+                        <UserPhoto user={r} />
+                      </td>
+                    </>
+                  )}
+                  {cols.map((k, i) => (
+                    <td key={k}>
+                      {['active', 'published', 'status', 'role'].includes(k) ? (
+                        <Badge
+                          tone={
+                            r[k] === 0 || r[k] === 'Absent'
+                              ? 'red'
+                              : r[k] === 'Late'
+                                ? 'amber'
+                                : 'green'
+                          }
+                        >
+                          {display(k, r[k])}
+                        </Badge>
+                      ) : i === 0 ? (
+                        <strong>{display(k, r[k])}</strong>
+                      ) : (
+                        display(k, r[k])
+                      )}
+                    </td>
+                  ))}
+                  {!readonly && (
+                    <td>
+                      <div className="table-actions">
+                        {['assignments', 'quizzes'].includes(entity) && (
+                          <button
+                            className="text-btn"
+                            onClick={() => setDetail({ entity, record: r })}
+                          >
+                            Open
+                          </button>
+                        )}
+                        {canEdit(entity, r) && (
+                          <>
+                            <button
+                              className="icon-btn"
+                              aria-label={'Edit ' + (r.name || r.title || 'record')}
+                              onClick={() => openForm(entity, r)}
+                            >
+                              <Pencil size={16} />
+                              Edit
+                            </button>
+                            {entity !== 'attendance' && page !== 'reports' && (
+                              <button
+                                className="icon-btn danger"
+                                aria-label={'Archive or remove ' + (r.name || r.title || 'record')}
+                                onClick={() => setConfirm({ entity, record: r })}
+                              >
+                                <Trash2 size={16} />
+                                Delete
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!rows.length && (
+            <Empty
+              title="No records found"
+              text="Try a different search, or add your first record."
+            />
+          )}
+        </div>
+        <div className="table-foot">
+          <span>
+            {rows.length ? current * 10 + 1 : 0}–{Math.min((current + 1) * 10, rows.length)} of{' '}
+            {rows.length} records
+          </span>
+          <div className="row gap">
+            <button
+              className="icon-btn"
+              disabled={current === 0}
+              aria-label="Previous page"
+              onClick={() => setTablePage(current - 1)}
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <span>
+              Page {current + 1} of {Math.max(1, pages)}
+            </span>
+            <button
+              className="icon-btn"
+              disabled={current >= pages - 1}
+              aria-label="Next page"
+              onClick={() => setTablePage(current + 1)}
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  function renderDashboard() {
+    const stats = student
+      ? [
+          {
+            label: 'Enrolled subjects',
+            value: d.offerings.filter((o) => o.active).length,
+            note: 'Your current semester',
+            icon: BookOpen,
+            color: 'purple',
+          },
+          {
+            label: 'Pending assignments',
+            value: pending.length,
+            note: 'Keep your momentum going',
+            icon: ClipboardList,
+            color: 'peach',
+          },
+          {
+            label: 'Available quizzes',
+            value: d.quizzes.filter(
+              (q) =>
+                new Date(q.closesAt) > new Date() &&
+                !d.attempts.some((a) => a.quizId === q.id && a.submittedAt),
+            ).length,
+            note: 'A chance to test your knowledge',
+            icon: FileText,
+            color: 'blue',
+          },
+        ]
+      : [
+          {
+            label: teacher ? 'Assigned subjects' : 'Students',
+            value: teacher
+              ? d.offerings.filter(
+                  (o) => o.teacherId === u.id || (!!o.coTeacherId && o.coTeacherId === u.id),
+                ).length
+              : d.users.filter((x) => x.role === 'STUDENT' && x.active).length,
+            note: teacher ? 'Teaching this semester' : 'Active student accounts',
+            icon: teacher ? BookOpen : Users,
+            color: 'purple',
+          },
+          {
+            label: teacher ? 'Submissions to grade' : 'Teachers',
+            value: teacher
+              ? d.submissions.filter((s) => s.marks === null).length
+              : d.users.filter((x) => x.role === 'TEACHER' && x.active).length,
+            note: teacher ? 'Ready for your feedback' : 'Active teaching accounts',
+            icon: teacher ? ClipboardList : GraduationCap,
+            color: 'peach',
+          },
+          {
+            label: manage ? 'Departments' : 'Announcements',
+            value: manage ? d.departments.length : d.announcements.length,
+            note: manage ? 'Within your academic scope' : 'Latest college updates',
+            icon: manage ? Building2 : Bell,
+            color: 'blue',
+          },
+        ];
+    return (
+      <>
+        {admin && d.users.length === 1 && (
+          <div className="notice">
+            Start with Academic setup: departments → programs and sessions → batches and subjects.
+            Then create users, assign teachers and enroll students.
+          </div>
+        )}
+        <div className="greeting">
+          <div>
+            <div className="eyebrow">YOUR ACADEMIC WORKSPACE</div>
+            <h1>
+              {student
+                ? 'Welcome back, ' + u.name.split(' ')[0]
+                : u.role === 'ADMIN'
+                  ? 'Your campus, at a glance'
+                  : 'Welcome back, ' + u.name.split(' ')[0]}{' '}
+              <span className="wave">✦</span>
+            </h1>
+            <p>
+              {student
+                ? 'A little progress every day adds up. Let’s make today count.'
+                : 'Everything you need to keep your academic day moving.'}
+            </p>
+          </div>
+          <span className="date-chip">{todayLabel}</span>
+        </div>
+        <div className="stats-grid">
+          {stats.map((s, i) => (
+            <div className="stat-card" key={s.label}>
+              <div className="stat-top">
+                <span>{s.label}</span>
+                <span className={'stat-icon ' + s.color}>
+                  <s.icon size={19} />
+                </span>
+              </div>
+              <strong className="stat-value">{s.value}</strong>
+              <p>{s.note}</p>
+            </div>
+          ))}
+        </div>
+        <div className="dashboard-columns">
+          <div className="main-column">
+            <CommunityBanner data={allData} />
+            {
+              <>
+                <Section
+                  title={
+                    student
+                      ? 'My subjects'
+                      : teacher
+                        ? 'Your teaching subjects'
+                        : 'Subjects this semester'
+                  }
+                  subtitle={
+                    student
+                      ? `${myProgram?.name || ''} · ${mySession?.name || ''}`
+                      : 'Connected teaching and learning'
+                  }
+                  link="View all subjects"
+                  onClick={() => navigate('subjects')}
+                />
+                <div className="subjects-grid">
+                  {pageAllowed(u, 'subjects', rolePrivileges) &&
+                    d.offerings
+                      .filter(
+                        (o) =>
+                          o.active &&
+                          (!teacher ||
+                            o.teacherId === u.id ||
+                            (!!o.coTeacherId && o.coTeacherId === u.id)),
+                      )
+                      .slice(0, 3)
+                      .map(subjectCard)}
+                </div>
+              </>
+            }
+            <Section
+              title="Latest announcements"
+              link="View all"
+              onClick={() => navigate('announcements')}
+            />
+            <div className="panel">
+              {d.announcements
+                .slice()
+                .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+                .slice(0, 2)
+                .map((a, i) => (
+                  <button
+                    key={a.id}
+                    className="announcement-row"
+                    onClick={() => setDetail({ entity: 'announcements', record: a })}
+                  >
+                    <span className={'announcement-icon ' + colorNames[i]}>
+                      <Bell size={20} />
+                    </span>
+                    <div>
+                      <h3>{a.title}</h3>
+                      {a.updatedBy && (
+                        <small className="actor-credit">
+                          Updated by {label('users', a.updatedBy)}
+                        </small>
+                      )}
+                      <p>{a.body}</p>
+                      <small>
+                        {label('users', a.authorId)} <span>·</span> {date(a.createdAt)}
+                      </small>
+                    </div>
+                    <ChevronRight size={18} aria-hidden="true" />
+                  </button>
+                ))}
+            </div>
+          </div>
+          <aside className="right-column">
+            <div className="panel deadlines-panel">
+              <Section
+                title={student ? 'Upcoming deadlines' : 'Coursework deadlines'}
+                link="View all"
+                onClick={() => navigate('assignments')}
+              />
+              {d.assignments
+                .slice()
+                .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+                .slice(0, 3)
+                .map((a, i) => (
+                  <button
+                    className="deadline"
+                    key={a.id}
+                    onClick={() => setDetail({ entity: 'assignments', record: a })}
+                  >
+                    <span className={'deadline-icon ' + colorNames[(i + 2) % 6]}></span>
+                    <div>
+                      <h4>{a.title}</h4>
+                      <p>
+                        {label(
+                          'subjects',
+                          d.offerings.find((o) => o.id === a.offeringId)?.subjectId,
+                        )}
+                      </p>
+                      <span className="due">Due {date(a.dueDate)}</span>
+                    </div>
+                    <ChevronRight size={18} aria-hidden="true" />
+                  </button>
+                ))}
+              {!d.assignments.length && <p className="muted">You’re all caught up.</p>}
+            </div>
+            <div className="help-card">
+              <div className="help-symbol"></div>
+              <h3>Learning is a journey.</h3>
+              <p>
+                Stay curious. Ask questions.
+                <br />
+                Take one step forward, every day.
+              </p>
+              <span>LCPS · LEARN. GROW. ACHIEVE.</span>
+            </div>
+          </aside>
+        </div>
+      </>
+    );
+  }
+  function renderContent() {
+    if (page === 'password')
+      return (
+        <>
+          <PageTitle title="Change password" text="Choose a new password, then sign in again." />
+          <PasswordForm
+            onChanged={() => clearLogin('Password changed. Sign in with your new password.')}
+          />
+        </>
+      );
+    if (!pageAllowed(u, page, rolePrivileges)) return <p className="panel">Access unavailable.</p>;
+    if (
+      (student || admin) &&
+      ['materials', 'assignments', 'quizzes'].includes(page) &&
+      !allData.offerings.some((o) => o.id === resourceOffering)
+    )
+      return admin ? (
+        <AdminResourceSubjects
+          key={page}
+          data={allData}
+          title={names[page]}
+          onSelect={setResourceOffering}
+        />
+      ) : (
+        <ResourceSubjects data={allData} title={names[page]} onSelect={setResourceOffering} />
+      );
+    if (!pageAllowed(u, page, rolePrivileges))
+      return (
+        <div className="panel">
+          <h2>Access unavailable</h2>
+          <p>Your administrator has disabled this module.</p>
+        </div>
+      );
+    if (page === 'password')
+      return (
+        <>
+          <PageTitle
+            title="Change password"
+            text="Change your password and sign out of all existing sessions."
+          />
+          <PasswordForm
+            onChanged={() => clearLogin('Password changed. Sign in with your new password.')}
+          />
+        </>
+      );
+    if (page === 'dashboard') return renderDashboard();
+    if (page === 'subjects')
+      return (
+        <>
+          <PageTitle
+            title={
+              student || u.role === 'HOD'
+                ? 'My subjects'
+                : teacher
+                  ? 'Teaching & subjects'
+                  : 'Subjects & classes'
+            }
+            text="A connected view of your courses, teachers and learning resources."
+            action={
+              manage && permitted(u, 'academic', rolePrivileges) ? (
+                <button
+                  className="btn primary"
+                  onClick={() => {
+                    setAcademic('offerings');
+                    navigate('academic');
+                  }}
+                >
+                  Manage assignments
+                </button>
+              ) : undefined
+            }
+          />
+          <div className="subject-toolbar">
+            <span className="tag">{d.offerings.length} subjects</span>
+            <label className="search-box">
+              <input
+                aria-label="Search subjects"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Find a subject…"
+              />
+            </label>
+          </div>
+          <div className="subjects-grid full-grid">
+            {d.offerings
+              .filter(
+                (o) =>
+                  (u.role !== 'TEACHER' ||
+                    o.teacherId === u.id ||
+                    (!!o.coTeacherId && o.coTeacherId === u.id)) &&
+                  label('offerings', o.id).toLowerCase().includes(search.toLowerCase()),
+              )
+              .map(subjectCard)}
+          </div>
+          {!d.offerings.length && (
+            <Empty
+              title="No subjects assigned yet"
+              text="Your academic team will add your subjects here."
+            />
+          )}
+        </>
+      );
+    if (page === 'personal' || page === 'management')
+      return (
+        <RecordWorkspace
+          key={page}
+          data={allData}
+          user={u}
+          run={run}
+          personal={page === 'personal'}
+        />
+      );
+    if (page === 'courseOutlines')
+      return (
+        <>
+          <PageTitle title="Course outlines" text="Subject-wise syllabi and course plans." />
+          <CourseOutlines
+            run={run}
+            data={allData}
+            user={u}
+            initialOfferingId={attendanceOffering}
+            onEdit={(record) => openForm('materials', record)}
+          />
+        </>
+      );
+    if (page === 'deptSubjects')
+      return (
+        <>
+          <PageTitle
+            title="Department subjects"
+            text="Select a session, then a subject to explore its resources."
+          />
+          <SessionSubjects
+            data={allData}
+            renderSubject={subjectCard}
+            renderDetails={(selectedData) => {
+              const tabs = [
+                  'subjects',
+                  'assignments',
+                  'quizzes',
+                  'attendance',
+                  'materials',
+                  'results',
+                ],
+                selected = tabs.includes(departmentTab) ? departmentTab : 'subjects',
+                ids = new Set(selectedData.offerings.map((o) => o.id));
+              return (
+                <>
+                  <div className="tabs">
+                    {tabs.map((tab) => (
+                      <button
+                        key={tab}
+                        className={selected === tab ? 'active' : ''}
+                        onClick={() => setDepartmentTab(tab)}
+                      >
+                        {tab === 'subjects'
+                          ? 'Subjects'
+                          : tab === 'materials'
+                            ? 'Learning materials'
+                            : tab[0].toUpperCase() + tab.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                  {selected === 'subjects' ? (
+                    <div className="subjects-grid full-grid">
+                      {selectedData.offerings.map(subjectCard)}
+                    </div>
+                  ) : (
+                    renderTable(
+                      selected,
+                      (allData[selected] || []).filter((r) => ids.has(r.offeringId)),
+                    )
+                  )}
+                </>
+              );
+            }}
+          />
+        </>
+      );
+    if (page === 'academic') {
+      const tabs = [
+        'departments',
+        'programs',
+        'sessions',
+        'batches',
+        ...(u.role === 'PRINCIPAL' ? [] : ['subjects']),
+        'offerings',
+        ...(permitted(u, 'student_enrollment', rolePrivileges) ? ['enrollments'] : []),
+        ...(admin ? ['hodScopes'] : []),
+        ...(u.role === 'PRINCIPAL' ? ['departmentHods'] : []),
+      ];
+      const selected = tabs.includes(academic) ? academic : tabs[0];
+      return (
+        <>
+          <PageTitle
+            title="Academic setup"
+            text="Manage academic structure and semester subject assignments."
+          />
+          <div className="tabs">
+            {tabs.map((t) => (
+              <button
+                className={selected === t ? 'active' : ''}
+                key={t}
+                onClick={() => setAcademic(t)}
+              >
+                {titles[t] ||
+                  (
+                    {
+                      assessmentPolicy: 'Assessment policy',
+                      departmentHods: 'Department HODs',
+                    } as Record<string, string>
+                  )[t]}
+              </button>
+            ))}
+          </div>
+          {selected === 'departmentHods' ? (
+            permitted(u, 'academic', rolePrivileges) ? (
+              <DepartmentHodAssignments data={d} run={run} />
+            ) : (
+              <p>HOD assignment access is disabled.</p>
+            )
+          ) : (
+            <>
+              {selected === 'batches' &&
+                u.role === 'ADMIN' &&
+                permitted(u, 'academic', rolePrivileges) && (
+                  <SemesterSubjectAssignment data={d} user={u} run={run} />
+                )}
+              {selected === 'offerings' &&
+                u.role !== 'PRINCIPAL' &&
+                permitted(u, 'timetable', rolePrivileges) && (
+                  <OfferingTimetables data={d} label={label} run={run} />
+                )}
+              {renderTable(
+                selected,
+                undefined,
+                selected === 'offerings' && !permitted(u, 'student_enrollment', rolePrivileges),
+              )}
+            </>
+          )}
+        </>
+      );
+    }
+    if (page === 'teachers' && u.role === 'HOD')
+      return <DepartmentTeachers data={allData} user={u} label={label} />;
+    if (page === 'users')
+      return (
+        <>
+          <PageTitle
+            title={admin ? 'User management' : 'Department accounts'}
+            text={
+              admin
+                ? 'Create college accounts, set passwords, assign roles and control permitted actions.'
+                : 'Create and update student and teacher accounts in your department.'
+            }
+          />
+          {canEdit('users') && (
+            <button className="btn primary" onClick={() => openForm('users')}>
+              Add account
+            </button>
+          )}
+          <UserDirectory
+            data={allData}
+            user={u}
+            rows={
+              permitted(u, 'senior_accounts', rolePrivileges)
+                ? d.users
+                : d.users.filter(
+                    (x) =>
+                      ['STUDENT', 'TEACHER'].includes(x.role) && x.departmentId === u.departmentId,
+                  )
+            }
+            render={(rows) => renderTable('users', rows)}
+          />
+        </>
+      );
+    if (page === 'assignments')
+      return (
+        <>
+          <PageTitle
+            title="Assignments"
+            text={
+              student
+                ? 'Your coursework, deadlines and feedback in one place.'
+                : 'Create meaningful coursework and keep track of student submissions.'
+            }
+            action={
+              canEdit('assignments') ? (
+                <button className="btn primary" onClick={() => openForm('assignments')}>
+                  Create assignment
+                </button>
+              ) : undefined
+            }
+          />
+          <div className="assignment-list">
+            {d.assignments
+              .filter((a) => !student || a.published)
+              .map((a) => {
+                const s = d.submissions.find(
+                    (s) => s.assignmentId === a.id && s.studentId === u.id,
+                  ),
+                  closed = Date.now() > Date.parse(a.dueDate);
+                return (
+                  <div className="assignment-entry" key={a.id}>
+                    <button
+                      className="panel assignment-card"
+                      onClick={() => setDetail({ entity: 'assignments', record: a })}
+                    >
+                      <span className="assignment-icon peach"></span>
+                      <div className="grow">
+                        <small>{label('offerings', a.offeringId)}</small>
+                        <h3>{a.title}</h3>
+                        {a.updatedBy && (
+                          <small className="actor-credit">
+                            Updated by {label('users', a.updatedBy)}
+                          </small>
+                        )}
+                        <p>{a.instructions}</p>
+                        <div className="row gap">
+                          <span>
+                            {closed ? 'Closed · ' : ''}Due {date(a.dueDate)} ·{' '}
+                            {new Date(a.dueDate).toLocaleTimeString('en-GB', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                          <span>{a.maxMarks} marks</span>
+                        </div>
+                      </div>
+                      <div className="assignment-state">
+                        <Badge
+                          tone={s ? 'green' : closed ? 'red' : a.published ? 'amber' : 'neutral'}
+                        >
+                          {student
+                            ? s
+                              ? s.marks !== null
+                                ? 'Graded'
+                                : 'Submitted'
+                              : closed
+                                ? 'Closed'
+                                : 'To do'
+                            : a.published
+                              ? 'Published'
+                              : 'Draft'}
+                        </Badge>
+                        <span>
+                          {student
+                            ? s && s.marks !== null
+                              ? `${s.marks} / ${a.maxMarks}`
+                              : closed
+                                ? 'Submission closed'
+                                : 'View assignment'
+                            : `${d.submissions.filter((s) => s.assignmentId === a.id).length} submissions`}
+                        </span>
+                      </div>
+                    </button>
+                    {canEdit('assignments', a) && (
+                      <button
+                        type="button"
+                        className="icon-btn danger assignment-delete"
+                        aria-label={'Delete ' + a.title}
+                        onClick={() => setConfirm({ entity: 'assignments', record: a })}
+                      >
+                        <Trash2 size={16} />
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+          {!d.assignments.filter((a) => !student || a.published).length && (
+            <Empty
+              title="No assignments yet"
+              text="New coursework will appear here when published."
+            />
+          )}
+        </>
+      );
+    if (page === 'quizzes')
+      return (
+        <>
+          <PageTitle
+            title="Quiz topics & resources"
+            text="Teachers share topics to review and related study files here."
+            action={
+              canEdit('quizzes') ? (
+                <button className="btn primary" onClick={() => openForm('quizzes')}>
+                  <Plus size={16} />
+                  Add quiz topic
+                </button>
+              ) : undefined
+            }
+          />
+          <div className="quiz-grid">
+            {d.quizzes.map((q) => (
+              <article className="panel quiz-card" key={q.id}>
+                <div className="row between">
+                  <span className="stat-icon purple"></span>
+                  <small>{label('offerings', q.offeringId)}</small>
+                </div>
+                <h3>{q.title}</h3>
+                {q.updatedBy && (
+                  <small className="actor-credit">Updated by {label('users', q.updatedBy)}</small>
+                )}
+                {q.topic && <p className="preserve">{q.topic}</p>}
+                {q.fileId && <FileActions id={q.fileId} compact />}
+                {canEdit('quizzes', q) && (
+                  <>
+                    <button className="btn" onClick={() => openForm('quizzes', q)}>
+                      <Pencil size={16} />
+                      Edit quiz topic
+                    </button>
+                    <button
+                      className="btn destructive"
+                      onClick={() => setConfirm({ entity: 'quizzes', record: q })}
+                    >
+                      <Trash2 size={16} />
+                      Delete quiz topic
+                    </button>
+                  </>
+                )}
+              </article>
+            ))}
+          </div>
+          {!d.quizzes.length && (
+            <Empty
+              title="No topics or resources yet"
+              text="Teachers will share quiz topics and study resources here."
+            />
+          )}
+        </>
+      );
+    if (
+      u.role === 'PRINCIPAL' &&
+      ['attendance', 'results', 'timetable'].includes(page) &&
+      !permitted(u, page, rolePrivileges)
+    )
+      return (
+        <>
+          <PageTitle
+            title={names[page]}
+            text="Select a department, then a session to browse academic records."
+          />
+          <AcademicHierarchy
+            key={page}
+            data={allData}
+            user={u}
+            mode={page as 'attendance' | 'results' | 'timetable'}
+          />
+        </>
+      );
+    if (page === 'timetable' && u.role === 'HOD')
+      return (
+        <>
+          <PageTitle
+            title="Timetable"
+            text="Your teaching schedule and session-wise departmental timetable."
+          />
+          <HodTimetable
+            data={allData}
+            user={u}
+            refresh={refresh}
+            onDelete={(file) => setConfirm({ entity: 'timetableFiles', record: file })}
+            onEdit={(row) => openForm('timetable', row)}
+          />
+        </>
+      );
+    if (page === 'attendance' && admin)
+      return !allData.offerings.some((o) => o.id === attendanceOffering) ? (
+        <AdminResourceSubjects data={allData} title="Attendance" onSelect={setAttendanceOffering} />
+      ) : (
+        <>
+          <button className="btn" onClick={() => setAttendanceOffering('')}>
+            Back to sessions / subjects
+          </button>
+          <AttendanceReport
+            key={attendanceOffering}
+            data={allData}
+            user={u}
+            label={label}
+            initialOfferingId={attendanceOffering}
+            showSubjectSelect={false}
+          />
+          <AttendanceWorkflow
+            key={'mark-' + attendanceOffering}
+            data={allData}
+            user={u}
+            label={label}
+            run={run}
+            fixedOfferingId={attendanceOffering}
+          />
+        </>
+      );
+    if (page === 'attendance' && ['TEACHER', 'HOD'].includes(u.role))
+      return (
+        <>
+          <PageTitle
+            title="Attendance"
+            text={
+              u.role === 'HOD'
+                ? 'Mark your teaching classes or review departmental attendance.'
+                : 'Record attendance for your assigned classes and review previous records.'
+            }
+          />
+          <FacultyAttendance
+            data={allData}
+            user={u}
+            initialOfferingId={attendanceOffering}
+            loadView={loadAttendanceView}
+            renderMark={(id) => (
+              <AttendanceWorkflow
+                key={id}
+                data={allData}
+                user={u}
+                label={label}
+                run={run}
+                fixedOfferingId={id}
+              />
+            )}
+          />
+        </>
+      );
+    if (page === 'attendance')
+      return (
+        <>
+          <PageTitle
+            title="Attendance"
+            text={
+              student
+                ? 'Select a subject to view your summary and date-wise attendance.'
+                : u.role === 'TEACHER'
+                  ? 'Review attendance for your assigned subject/classes.'
+                  : u.role === 'HOD'
+                    ? 'Review attendance for subject/classes in your department.'
+                    : 'Select a subject to view the student-wise attendance summary.'
+            }
+          />
+          {u.role === 'HOD' ? (
+            <AcademicHierarchy data={allData} user={u} mode="attendance" />
+          ) : ['STUDENT', 'TEACHER'].includes(u.role) ? (
+            attendanceMarkingOffering ? (
+              <>
+                <button
+                  className="btn attendance-back"
+                  onClick={() => setAttendanceMarkingOffering('')}
+                >
+                  Back to attendance overview
+                </button>
+                <AttendanceWorkflow
+                  data={allData}
+                  user={u}
+                  label={label}
+                  run={run}
+                  fixedOfferingId={attendanceMarkingOffering}
+                />
+              </>
+            ) : (
+              <AttendanceBrowser
+                data={allData}
+                user={u}
+                loadView={loadAttendanceView}
+                canMark={(id) =>
+                  permitted(u, 'attendance', rolePrivileges) &&
+                  !!allData.offerings.find((o) => o.id === id && teachingAllowed(u, o))
+                }
+                onMarkAttendance={(id) => {
+                  setAttendanceOffering(id);
+                  setAttendanceMarkingOffering(id);
+                }}
+              />
+            )
+          ) : (
+            <>
+              <AttendanceReport
+                data={d}
+                user={u}
+                label={label}
+                initialOfferingId={attendanceOffering}
+              />
+              {permitted(u, 'attendance', rolePrivileges) && (
+                <AttendanceWorkflow data={d} user={u} label={label} run={run} />
+              )}
+            </>
+          )}
+        </>
+      );
+    if (page === 'results')
+      return (
+        <>
+          <PageTitle
+            title="Academic results"
+            text={
+              student
+                ? 'Your published assessments and teacher feedback.'
+                : 'Publish results for a full subject roster or share a class result sheet.'
+            }
+          />
+          {student && <AcademicSummary data={d} studentId={u.id} policy={p!.grading} />}
+          {permitted(u, 'results', rolePrivileges) && (
+            <ResultsWorkflow data={d} user={u} label={label} run={run} />
+          )}
+          <ResultFiles data={d} user={u} label={label} />
+          <div className="notice">
+            {p!.grading
+              ? 'Assessment names: ' +
+                p!.grading.assessments.map((a) => a.title + ' (' + a.weight + '%)').join(', ')
+              : 'Assessment marks can be recorded now. An approved grading policy must be configured before GPA calculation.'}
+          </div>
+          {renderTable('results', undefined, !permitted(u, 'results', rolePrivileges))}
+          {student && d.results.length > 0 && (
+            <div className="notice">
+              <span>
+                Only published results appear here. Contact your assigned teacher if a mark needs
+                review.
+              </span>
+            </div>
+          )}
+        </>
+      );
+    if (
+      page === 'timetable' &&
+      (admin || u.role === 'PRINCIPAL' || permitted(u, 'timetable_department', rolePrivileges))
+    )
+      return (
+        <TimetableManager
+          data={allData}
+          user={u}
+          refresh={refresh}
+          onDelete={(file) => setConfirm({ entity: 'timetableFiles', record: file })}
+          onEdit={(row) => openForm('timetable', row)}
+        />
+      );
+    if (page === 'timetable')
+      return (
+        <>
+          <PageTitle
+            title="Weekly timetable"
+            text="Plan your week. Times follow the college’s Asia/Karachi time zone."
+            action={
+              manage && permitted(u, 'timetable', rolePrivileges) ? (
+                <button className="btn primary" onClick={() => openForm('timetable')}>
+                  Add class
+                </button>
+              ) : undefined
+            }
+          />
+          <details>
+            <summary>Uploaded timetable reference</summary>
+            <TimetableFiles
+              data={d}
+              user={u}
+              onUploaded={refresh}
+              onDelete={(file) => setConfirm({ entity: 'timetableFiles', record: file })}
+            />
+          </details>
+          <TimetableSchedule
+            data={d}
+            user={u}
+            onEdit={canEdit('timetable') ? (row) => openForm('timetable', row) : undefined}
+          />
+          {manage && (
+            <>
+              <Section title="Manage timetable entries" />
+              {renderTable('timetable')}
+            </>
+          )}
+        </>
+      );
+    if (page === 'announcements')
+      return (
+        <>
+          <PageTitle
+            title="Announcements"
+            text="Stay connected with the latest from your college and classes."
+            action={
+              canEdit('announcements') ? (
+                <button className="btn primary" onClick={() => openForm('announcements')}>
+                  New announcement
+                </button>
+              ) : undefined
+            }
+          />
+          <div className="announcements-grid">
+            {d.announcements
+              .slice()
+              .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+              .map((a) => (
+                <article className="panel announcement-full" key={a.id}>
+                  <div className="row between">
+                    <Badge tone={a.departmentId ? 'purple' : 'green'}>
+                      {a.offeringId
+                        ? 'Subject update'
+                        : a.departmentId
+                          ? label('departments', a.departmentId)
+                          : 'College update'}
+                    </Badge>
+                    <small>{date(a.createdAt)}</small>
+                  </div>
+                  <h2>{a.title}</h2>
+                  <p>{a.body}</p>
+                  <div className="row between">
+                    <span className="muted">{label('users', a.authorId)}</span>
+                    {canDeleteAnnouncement(u, a, allData) && (
+                      <button
+                        className="btn danger"
+                        onClick={() => setConfirm({ entity: 'announcements', record: a })}
+                      >
+                        Delete
+                      </button>
+                    )}
+                    {canEdit('announcements', a) && (
+                      <button className="btn" onClick={() => openForm('announcements', a)}>
+                        <Pencil size={16} />
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                </article>
+              ))}
+          </div>
+        </>
+      );
+    if (page === 'materials')
+      return (
+        <>
+          <PageTitle
+            title="Learning materials"
+            text="Open course resources and track your own learning progress."
+            action={
+              canEdit('materials') ? (
+                <button className="btn primary" onClick={() => openForm('materials')}>
+                  Add resource
+                </button>
+              ) : undefined
+            }
+          />
+          <div className="panel">
+            {d.materials.map((m) => {
+              const done = d.progress.some(
+                (pr) => pr.studentId === u.id && pr.materialId === m.id && pr.completed,
+              );
+              return (
+                <div className="material-row" key={m.id}>
+                  <span className={'stat-icon ' + (m.kind === 'Video' ? 'purple' : 'blue')}></span>
+                  <div className="grow">
+                    <h3>{m.title}</h3>
+                    {m.updatedBy && (
+                      <small className="actor-credit">
+                        Updated by {label('users', m.updatedBy)}
+                      </small>
+                    )}
+                    <p>{label('offerings', m.offeringId)}</p>
+                  </div>
+                  {m.url && (
+                    <a className="btn" href={m.url} target="_blank" rel="noreferrer">
+                      Open{' '}
+                    </a>
+                  )}
+                  {m.fileId && <FileActions id={m.fileId} />}
+                  {student ? (
+                    <button
+                      className={'btn ' + (done ? 'soft-green' : '')}
+                      disabled={busy}
+                      onClick={() =>
+                        safeRun(
+                          { action: 'progress', id: m.id, completed: !done },
+                          done ? 'Marked as incomplete' : 'Learning progress updated',
+                        )
+                      }
+                    >
+                      {done ? 'Completed' : 'Mark complete'}
+                    </button>
+                  ) : (
+                    canEdit('materials', m) && (
+                      <button
+                        className="icon-btn"
+                        aria-label="Edit resource"
+                        onClick={() => openForm('materials', m)}
+                      >
+                        <Pencil size={16} />
+                        <span className="sr-only">Edit resource</span>
+                      </button>
+                    )
+                  )}
+                </div>
+              );
+            })}
+            {!d.materials.length && (
+              <Empty
+                title="Your resource shelf is empty"
+                text="Published learning resources will appear here."
+              />
+            )}
+          </div>
+        </>
+      );
+    if (page === 'reports' && ['PRINCIPAL', 'HOD', 'ADMIN'].includes(u.role))
+      return (
+        <>
+          <PageTitle
+            title="Academic reports"
+            text={
+              u.role === 'PRINCIPAL'
+                ? 'Choose a report, department and session.'
+                : 'Choose a report and a session within your department.'
+            }
+          />
+          <div className="tabs">
+            {['attendance', 'results', 'enrollments', 'offerings', 'users', 'timetable'].map(
+              (t) => (
+                <button
+                  key={t}
+                  className={report === t ? 'active' : ''}
+                  onClick={() => setReport(t)}
+                >
+                  {titles[t] || t}
+                </button>
+              ),
+            )}
+          </div>
+          <AcademicHierarchy
+            key={report}
+            data={allData}
+            user={u}
+            mode={
+              report as
+                | 'attendance'
+                | 'results'
+                | 'enrollments'
+                | 'offerings'
+                | 'users'
+                | 'timetable'
+            }
+          />
+        </>
+      );
+    if (page === 'reports')
+      return (
+        <>
+          <PageTitle
+            title="Academic reports"
+            text="Search, filter and export the academic data within your permission scope."
+          />
+          <div className="tabs">
+            {['attendance', 'results', 'enrollments', 'offerings', 'users'].map((t) => (
+              <button key={t} className={report === t ? 'active' : ''} onClick={() => setReport(t)}>
+                {titles[t]}
+              </button>
+            ))}
+          </div>
+          {report === 'users' ? (
+            <UserDirectory
+              data={allData}
+              user={u}
+              rows={d.users}
+              render={(rows) => renderTable('users', rows, true)}
+            />
+          ) : (
+            renderTable(report, undefined, true)
+          )}
+        </>
+      );
+    if (page === 'teacherTasks')
+      return <FacultyTasks data={allData} user={u} run={run} upload={upload} />;
+    if (page === 'responsibilities')
+      return <DepartmentResponsibilities data={allData} user={u} run={run} />;
+    if (page === 'rolePrivileges' && permitted(u, 'manage_access', rolePrivileges))
+      return (
+        <>
+          <PageTitle
+            title="Role Privileges"
+            text="Manage role defaults and individual user access."
+          />
+          <RolePrivilegesWorkflow
+            users={allData.users}
+            rolePrivileges={rolePrivileges}
+            onUpdate={setRolePrivileges}
+            run={run}
+            setToast={setToast}
+          />
+        </>
+      );
+    if (page === 'settings')
+      return (
+        <>
+          <PageTitle
+            title="System settings"
+            text="College information and a record of sensitive administrative actions."
+          />
+          {permitted(u, 'system_settings', rolePrivileges) && (
+            <>
+              <SettingsForm college={p!.college} run={run} />
+              {admin && (
+                <>
+                  <BrandSettings />
+                  <SocialAccountSettings data={allData} run={run} />
+                </>
+              )}
+              <GradingSettings policy={p!.grading} run={run} />
+            </>
+          )}
+          {permitted(u, 'manage_backups', rolePrivileges) && (
+            <BackupSettings
+              onRestored={() => {
+                setP(null);
+                setLoadError('Backup restored. Sign in again.');
+              }}
+            />
+          )}
+          <Section title="Activity log" subtitle="Recorded account changes and academic updates" />
+          {renderTable('audit', undefined, true)}
+        </>
+      );
+    if (page === 'profile')
+      return (
+        <>
+          <PageTitle
+            title="My profile"
+            text="Your college identity and personal contact details."
+          />
+          <div className="profile-layout">
+            <div className="panel profile-card">
+              <Avatar user={u} size="large" />
+              <h2>{u.name}</h2>
+              <ProfileDetails user={u} />
+              <Badge tone="green">{u.role}</Badge>
+              {u.role === 'TEACHER' && (
+                <Badge>{u.employmentType || 'Employment not specified'}</Badge>
+              )}
+              {responsibilityKeys(u).map((k) => (
+                <Badge key={k}>{responsibilityTemplates[k].label}</Badge>
+              ))}
+              <p>{u.identifier || 'College administrator'}</p>
+              <label className="btn upload-label">
+                {busy ? 'Uploading photo…' : 'Change photo'}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (f) {
+                      setBusy(true);
+                      try {
+                        await upload(f, 'avatar');
+                        await refresh();
+                        setToast('Profile picture updated');
+                      } catch (e) {
+                        setToast((e as Error).message);
+                      } finally {
+                        setBusy(false);
+                      }
+                    }
+                  }}
+                  disabled={busy}
+                />
+              </label>
+              <small>PNG, JPG or WebP · up to 4 MB</small>
+              {u.role === 'HOD' && (
+                <button className="btn" onClick={() => navigate('teachers')}>
+                  Department teachers
+                </button>
+              )}
+            </div>
+            <div className="panel profile-info">
+              <h3>Personal information</h3>
+              <ExtendedProfileForm user={u} run={run} />
+              <div className="profile-details">
+                {[
+                  ['Department', department?.name],
+                  ['Program', myProgram?.name],
+                  ['Session', mySession?.name],
+                  ['Semester', myBatch?.semester],
+                  ['Batch', myBatch?.name],
+                  ['Email', u.email],
+                  ['Appointment', u.employmentType],
+                ]
+                  .filter((x) => x[1])
+                  .map(([k, v]) => (
+                    <div key={k}>
+                      <small>{k}</small>
+                      <strong>{v}</strong>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+        </>
+      );
+    return null;
+  }
+  return (
+    <div className="app-shell">
+      <LoginNotices
+        visible={!!p.loginReminder}
+        items={p.reminders || []}
+        acknowledge={() => run({ action: 'ackLoginReminder' }, '')}
+        navigate={navigate}
+      />
+      {mobile && <div className="sidebar-backdrop" onClick={() => setMobile(false)} />}
+      <aside id="portal-navigation" className={'sidebar ' + (mobile ? 'open' : '')}>
+        <button
+          className="icon-btn sidebar-close"
+          aria-label="Close navigation"
+          onClick={() => setMobile(false)}
+        >
+          <X size={22} />
+        </button>
+        <a
+          className="brand"
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate('dashboard');
+          }}
+        >
+          <img
+            className="college-logo"
+            src="/api/branding/logo"
+            alt="Lahore College of Pharmaceutical Sciences"
+          />
+        </a>
+        <div className="workspace-label">
+          {['TREASURER', 'EXAMINATION_CONTROLLER', 'REGISTRAR'].includes(u.role)
+            ? 'MANAGEMENT · ' + u.role.replaceAll('_', ' ')
+            : u.role === 'STUDENT'
+              ? 'STUDENT WORKSPACE'
+              : u.role === 'TEACHER'
+                ? 'TEACHING WORKSPACE'
+                : u.role + ' WORKSPACE'}
+        </div>
+        <nav aria-label="Main navigation">
+          {nav.map((n) => {
+            const NavIcon = icons[n] || FileText;
+            return (
+              <button
+                key={n}
+                className={'nav-item ' + (page === n ? 'active' : '')}
+                aria-current={page === n ? 'page' : undefined}
+                onClick={() => navigate(n)}
+              >
+                <span>
+                  {n === 'teacherTasks' &&
+                  u.role !== 'TEACHER' &&
+                  permitted(u, 'task_assign', rolePrivileges)
+                    ? 'Faculty tasks'
+                    : n === 'subjects' && u.role === 'HOD'
+                      ? 'My Subjects'
+                      : n === 'subjects' && !student
+                        ? 'Subjects'
+                        : n === 'users' && u.role === 'HOD'
+                          ? 'Department accounts'
+                          : names[n]}
+                </span>
+                {n === 'assignments' && student && pending.length > 0 && <b>{pending.length}</b>}
+              </button>
+            );
+          })}
+        </nav>
+        <div className="sidebar-bottom">
+          <button
+            className={'nav-item ' + (page === 'profile' ? 'active' : '')}
+            onClick={() => navigate('profile')}
+          >
+            <span>My profile</span>
+          </button>
+          <button className="nav-item" onClick={() => navigate('password')}>
+            <span>Change password</span>
+          </button>
+          <button className="nav-item" onClick={() => void signOut()}>
+            <span>Sign out</span>
+          </button>
+          <div className="college-caption">
+            Lahore College of
+            <br />
+            Pharmaceutical Sciences<span>Knowledge with purpose.</span>
+          </div>
+        </div>
+      </aside>
+      <div className="main-shell">
+        <header className="topbar">
+          <div className="row gap">
+            <button
+              className="icon-btn mobile-menu"
+              aria-label="Open navigation"
+              aria-controls="portal-navigation"
+              aria-expanded={mobile}
+              onClick={() => setMobile(true)}
+            >
+              <Menu size={21} />
+              <span className="sr-only">Open navigation</span>
+            </button>
+            <span className="breadcrumb">
+              Workspace <strong>{names[page]}</strong>
+            </span>
+          </div>
+          <div className="top-actions">
+            <button className="btn top-signout" onClick={() => void signOut()}>
+              <LogOut size={18} />
+              <span>Sign out</span>
+            </button>
+            <button
+              hidden={!pageAllowed(u, 'announcements', rolePrivileges)}
+              className="notification-btn"
+              aria-label="View announcements"
+              onClick={() => navigate('announcements')}
+              title="Announcements"
+            >
+              <Bell size={21} />
+              <span className="sr-only">Announcements</span>
+              {d.announcements.length > 0 && <i />}
+            </button>
+            <span className="top-divider" />
+            <div className="profile-control">
+              <Avatar user={u} />
+              <button
+                className="profile-button"
+                aria-label="Open my profile"
+                title="My profile"
+                onClick={() => navigate('profile')}
+              >
+                <span>
+                  <strong>{u.name}</strong>
+                  <small>{u.role.toLowerCase().replaceAll('_', ' ')} portal</small>
+                </span>
+                <span className="profile-short">Profile</span>
+              </button>
+            </div>
+          </div>
+        </header>
+        <main className="content">
+          {(student || admin) &&
+            resourceOffering &&
+            ['materials', 'assignments', 'quizzes'].includes(page) && (
+              <div className="panel resource-navigation">
+                <button className="btn" onClick={() => setResourceOffering('')}>
+                  <ChevronLeft size={16} />
+                  Back to subjects
+                </button>
+                <strong>{label('offerings', resourceOffering)}</strong>
+                <div className="row gap">
+                  {['materials', 'assignments', 'quizzes']
+                    .filter((k) => pageAllowed(u, k, rolePrivileges))
+                    .map((k) => (
+                      <button
+                        className={'btn ' + (page === k ? 'primary' : '')}
+                        key={k}
+                        onClick={() => {
+                          setPage(k);
+                          setDetail(null);
+                        }}
+                      >
+                        {names[k]}
+                        <ChevronRight size={16} />
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+          {page === 'users' &&
+            permitted(u, 'users', rolePrivileges) &&
+            permitted(u, 'student_enrollment', rolePrivileges) && (
+              <BulkStudents data={allData} user={u} refresh={refresh} />
+            )}
+          {renderContent()}
+          <footer className="footer">
+            <span>© {new Date().getFullYear()} LCPS · Academic Portal · Powered by A &amp; U</span>
+            <span>
+              <span className="live-dot" />
+              Connected workspace · refreshes every 30s
+            </span>
+          </footer>
+        </main>
+      </div>
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
+          <button aria-label="Dismiss notification" onClick={() => setToast('')}>
+            <X size={18} />
+          </button>
+        </div>
+      )}
+      {form && (
+        <EntityForm
+          entity={form.entity}
+          record={form.record}
+          data={d}
+          user={u}
+          label={label}
+          onClose={() => setForm(null)}
+          onSave={async (record) => {
+            await run({ action: 'save', entity: form.entity, record });
+            setForm(null);
+          }}
+          upload={upload}
+          rolePrivileges={rolePrivileges}
+        />
+      )}
+      {confirm && (
+        <Modal
+          title={
+            'active' in confirm.record
+              ? 'Archive this record?'
+              : confirm.entity === 'timetableFiles'
+                ? 'Delete this timetable?'
+                : 'Remove this record?'
+          }
+          onClose={() => setConfirm(null)}
+        >
+          <div className="modal-body">
+            <p>
+              {'active' in confirm.record
+                ? 'This will deactivate the record while preserving its academic history.'
+                : confirm.entity === 'timetableFiles'
+                  ? 'This permanently deletes the uploaded timetable page and its file.'
+                  : 'This removes the selected record. Records required by academic history cannot be removed.'}
+            </p>
+            <h3>
+              {confirm.record.name ||
+                confirm.record.title ||
+                label('offerings', confirm.record.offeringId)}
+            </h3>
+          </div>
+          <div className="modal-foot">
+            <button className="btn" onClick={() => setConfirm(null)}>
+              Cancel
+            </button>
+            <button
+              className="btn destructive"
+              disabled={busy}
+              onClick={async () => {
+                try {
+                  await run({ action: 'remove', entity: confirm.entity, id: confirm.record.id });
+                  setConfirm(null);
+                } catch (e) {
+                  setToast((e as Error).message);
+                }
+              }}
+            >
+              Confirm
+            </button>
+          </div>
+        </Modal>
+      )}
+      {detail && (
+        <Modal
+          title={
+            detail.entity === 'subject'
+              ? label('subjects', detail.record.subjectId)
+              : detail.entity === 'class'
+                ? 'Class details'
+                : detail.record.title || 'Details'
+          }
+          subtitle={
+            detail.record.offeringId ? label('offerings', detail.record.offeringId) : undefined
+          }
+          onClose={() => setDetail(null)}
+          wide={detail.entity === 'assignments' || detail.entity === 'quizzes'}
+        >
+          <div className="modal-body">
+            {detail.entity === 'teacherProfile' ? (
+              <TeacherProfile teacher={detail.record} />
+            ) : detail.entity === 'announcements' ? (
+              <>
+                <p className="preserve">{detail.record.body}</p>
+                <small>{date(detail.record.createdAt)}</small>
+              </>
+            ) : detail.entity === 'class' ? (
+              <>
+                <p>{label('offerings', detail.record.offeringId)}</p>
+                <p>
+                  {detail.record.day} · {detail.record.startTime}–{detail.record.endTime}
+                </p>
+                <p>Room: {detail.record.room}</p>
+              </>
+            ) : detail.entity === 'subject' ? (
+              <>
+                {detail.record.coTeacherId && (
+                  <TeacherProfile
+                    teacher={d.users.find((t) => t.id === detail.record.coTeacherId)}
+                    compact
+                  />
+                )}
+                <TeacherProfile
+                  teacher={d.users.find((t) => t.id === detail.record.teacherId)}
+                  compact
+                  onView={() =>
+                    setDetail({
+                      entity: 'teacherProfile',
+                      record: d.users.find((t) => t.id === detail.record.teacherId) || {},
+                    })
+                  }
+                />
+                <p>
+                  <strong>Course code:</strong>{' '}
+                  {d.subjects.find((s) => s.id === detail.record.subjectId)?.code || '—'}
+                </p>
+                <div className="profile-details">
+                  <div>
+                    <small>Teacher</small>
+                    <strong>
+                      {[detail.record.teacherId, detail.record.coTeacherId]
+                        .filter(Boolean)
+                        .map((id) => label('users', id))
+                        .join(' / ')}
+                    </strong>
+                  </div>
+                  <div>
+                    <small>Class</small>
+                    <strong>{label('batches', detail.record.batchId)}</strong>
+                  </div>
+                  <div>
+                    <small>Enrolled students</small>
+                    <strong>
+                      {
+                        d.enrollments.filter((e) => e.offeringId === detail.record.id && e.active)
+                          .length
+                      }
+                    </strong>
+                  </div>
+                </div>
+                <div className="subject-links">
+                  {[
+                    'courseOutlines',
+                    'materials',
+                    'assignments',
+                    'quizzes',
+                    'attendance',
+                    'timetable',
+                  ]
+                    .filter((s) => pageAllowed(u, s, rolePrivileges))
+                    .map((s) => {
+                      const Icon = icons[s];
+                      return (
+                        <button className="btn" key={s} onClick={() => navigate(s)}>
+                          <Icon size={18} />
+                          <span>{names[s]}</span>
+                          <ChevronRight size={17} />
+                        </button>
+                      );
+                    })}
+                </div>
+              </>
+            ) : detail.entity === 'assignments' ? (
+              <>
+                <div className="row gap">
+                  <Badge tone="purple">{detail.record.maxMarks} marks</Badge>
+                  <Badge tone="amber">Due {date(detail.record.dueDate)}</Badge>
+                  <Badge>
+                    {detail.record.allowLate ? 'Late submissions accepted' : 'Deadline enforced'}
+                  </Badge>
+                </div>
+                <p className="preserve">{detail.record.instructions}</p>
+                {detail.record.fileId && <FileActions id={detail.record.fileId} />}
+                {student ? (
+                  permitted(u, 'submit_assignments', rolePrivileges) ? (
+                    <SubmissionForm
+                      assignment={detail.record}
+                      submission={d.submissions.find(
+                        (s) => s.assignmentId === detail.record.id && s.studentId === u.id,
+                      )}
+                      onSubmit={async (r) => {
+                        await run(
+                          { action: 'submit', assignmentId: detail.record.id, ...r },
+                          'Assignment submitted',
+                        );
+                      }}
+                      upload={upload}
+                    />
+                  ) : (
+                    <p>Assignment submission access is disabled.</p>
+                  )
+                ) : (
+                  <>
+                    <div className="row between">
+                      <h3>Student submissions</h3>
+                      {canEdit('assignments', detail.record) && (
+                        <button
+                          className="btn"
+                          onClick={() => {
+                            openForm('assignments', detail.record);
+                            setDetail(null);
+                          }}
+                        >
+                          Edit assignment
+                        </button>
+                      )}
+                    </div>
+                    {d.submissions
+                      .filter((s) => s.assignmentId === detail.record.id)
+                      .map((s) => (
+                        <GradeForm
+                          key={s.id}
+                          submission={s}
+                          name={label('users', s.studentId)}
+                          gradedBy={s.gradedBy ? label('users', s.gradedBy) : undefined}
+                          max={detail.record.maxMarks}
+                          canGrade={canEdit('assignments', detail.record)}
+                          run={run}
+                        />
+                      ))}
+                    {!d.submissions.some((s) => s.assignmentId === detail.record.id) && (
+                      <Empty
+                        title="No submissions yet"
+                        text="Student work will appear here after submission."
+                      />
+                    )}
+                  </>
+                )}
+              </>
+            ) : detail.entity === 'quizzes' ? (
+              <>
+                <p>
+                  {detail.record.questions.length} questions · {detail.record.duration} minutes
+                </p>
+                {detail.record.fileId && <FileActions id={detail.record.fileId} />}
+                <h3>Attempts</h3>
+                {d.attempts
+                  .filter((a) => a.quizId === detail.record.id)
+                  .map((a) => (
+                    <div className="material-row" key={a.id}>
+                      <strong className="grow">{label('users', a.studentId)}</strong>
+                      <Badge>{a.submittedAt ? 'Submitted' : 'In progress'}</Badge>
+                      <span>{a.score ?? '—'} marks</span>
+                    </div>
+                  ))}
+                {!d.attempts.some((a) => a.quizId === detail.record.id) && (
+                  <Empty
+                    title="No attempts yet"
+                    text="Published quizzes become available during their scheduled window."
+                  />
+                )}
+              </>
+            ) : null}
+          </div>
+        </Modal>
+      )}
+      {quizAttempt && (
+        <QuizPlayer
+          quiz={quizAttempt}
+          attempt={d.attempts.find((a) => a.quizId === quizAttempt.id && a.studentId === u.id)}
+          run={run}
+          onClose={() => setQuizAttempt(null)}
+        />
+      )}
+    </div>
+  );
+}
+export function AttendanceWorkflow({
+  data,
+  user,
+  label,
+  run,
+  fixedOfferingId,
+}: {
+  data: Data;
+  user: Row;
+  label: (t: string, id: any) => string;
+  run: (body: Row, message?: string) => Promise<any>;
+  fixedOfferingId?: string;
+}) {
+  const options = data.offerings.filter(
+    (o) => canRecordAttendance(user, o) && (!fixedOfferingId || o.id === fixedOfferingId),
+  );
+  const [offeringId, setOfferingId] = useState(() => fixedOfferingId || options[0]?.id || ''),
+    [date, setDate] = useState(() => new Date().toISOString().slice(0, 10)),
+    [marks, setMarks] = useState<Record<string, string>>({}),
+    [remarks, setRemarks] = useState<Record<string, string>>({}),
+    [reason, setReason] = useState(''),
+    [preview, setPreview] = useState(false),
+    [submitted, setSubmitted] = useState(false),
+    [error, setError] = useState(''),
+    [saving, setSaving] = useState(false);
+  const offering = options.find((o) => o.id === offeringId) || options[0];
+  const roster = offering
+    ? data.enrollments
+        .filter((e) => e.offeringId === offering.id && e.active)
+        .map((e) => data.users.find((s) => s.id === e.studentId))
+        .filter((s): s is Row => !!s)
+        .sort(rollOrder)
+    : [];
+  const rosterKey = roster.map((s) => s.id).join('|');
+  const existing = offering
+    ? data.attendance.filter((a) => a.offeringId === offering.id && a.date === date)
+    : [];
+  const corrections = roster.filter((s) => {
+    const old = existing.find((a) => a.studentId === s.id);
+    return old && marks[s.id] && old.status !== marks[s.id];
+  });
+  const counts = Object.fromEntries(
+    ['Present', 'Absent', 'Late', 'Excused'].map((status) => [
+      status,
+      roster.filter((s) => marks[s.id] === status).length,
+    ]),
+  );
+  useEffect(() => {
+    const current = offering
+      ? data.attendance.filter((a) => a.offeringId === offering.id && a.date === date)
+      : [];
+    setMarks(
+      Object.fromEntries(
+        roster.map((s) => {
+          const status = current.find((a) => a.studentId === s.id)?.status;
+          return [
+            s.id,
+            ['Present', 'Absent', 'Late', 'Excused'].includes(status) ? status : 'Present',
+          ];
+        }),
+      ),
+    );
+    setRemarks(Object.fromEntries(current.map((a) => [a.studentId, a.remarks || ''])));
+    setPreview(false);
+    setSubmitted(false);
+    setReason('');
+    setError('');
+  }, [offeringId, date, rosterKey]);
+  if (!options.length)
+    return (
+      <p className="panel directory-empty">
+        No active classes are available for attendance marking with your current access.
+      </p>
+    );
+  return (
+    <section className="panel operations-panel">
+      <h2>Mark attendance</h2>
+      <p>
+        Select a subject and class date, mark every enrolled student, then review and submit the
+        report. Choose Present, Absent or Late. Remarks are enabled for Late. Historical excused
+        records remain unchanged until explicitly corrected.
+      </p>
+      <div className="form-grid">
+        {!fixedOfferingId && (
+          <label className="field">
+            <span>Subject & class</span>
+            <select
+              value={offering?.id || ''}
+              onChange={(e) => {
+                setOfferingId(e.target.value);
+                setPreview(false);
+                setSubmitted(false);
+              }}
+            >
+              {options.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {label('offerings', o.id)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label className="field">
+          <span>Attendance date</span>
+          <input
+            type="date"
+            max={new Date().toISOString().slice(0, 10)}
+            value={date}
+            onChange={(e) => {
+              setDate(e.target.value);
+              setPreview(false);
+              setSubmitted(false);
+            }}
+          />
+        </label>
+      </div>
+      {existing.length > 0 && (
+        <p className="attendance-authors">
+          Recorded by:{' '}
+          {[...new Set(existing.map((a) => a.recordedBy).filter(Boolean))]
+            .map((id) => data.users.find((person) => person.id === id)?.name || 'Previous teacher')
+            .join(', ')}
+        </p>
+      )}
+      <div className="table-scroll attendance-register">
+        <table>
+          <thead>
+            <tr>
+              <th>S.No.</th>
+              <th>Photo</th>
+              <th>Roll number</th>
+              <th>Student</th>
+              <th>Attendance</th>
+              <th>Remarks (Late)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {roster.map((s, index) => (
+              <tr key={s.id}>
+                <td className="register-number">{index + 1}</td>
+                <td className="register-photo">
+                  <UserPhoto user={s} />
+                </td>
+                <td className="register-roll">{s.identifier || '—'}</td>
+                <td className="register-name">{s.name}</td>
+                <td className="register-status" data-label="Attendance">
+                  <select
+                    className={
+                      'attendance-status status-' + (marks[s.id] || 'Present').toLowerCase()
+                    }
+                    aria-label={'Attendance for ' + s.name}
+                    value={marks[s.id] || 'Present'}
+                    onChange={(e) => {
+                      setMarks((previous) => ({ ...previous, [s.id]: e.target.value }));
+                      setPreview(false);
+                      setSubmitted(false);
+                    }}
+                  >
+                    <option value="Present">Present</option>
+                    <option value="Absent">Absent</option>
+                    <option value="Late">Late</option>
+                    {marks[s.id] === 'Excused' && (
+                      <option value="Excused" disabled>
+                        Historical excused
+                      </option>
+                    )}
+                  </select>
+                </td>
+                <td className="register-remarks" data-label="Remarks (Late)">
+                  <input
+                    aria-label={'Late remarks for ' + s.name}
+                    disabled={marks[s.id] !== 'Late'}
+                    maxLength={1000}
+                    value={marks[s.id] === 'Late' ? remarks[s.id] || '' : ''}
+                    onChange={(e) => {
+                      setRemarks((prev) => ({ ...prev, [s.id]: e.target.value }));
+                      setPreview(false);
+                      setSubmitted(false);
+                    }}
+                    placeholder={
+                      marks[s.id] === 'Late' ? 'Reason for arriving late' : 'Available for Late'
+                    }
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!roster.length && (
+          <Empty
+            title="No enrolled students"
+            text="Enroll students in this subject before marking attendance."
+          />
+        )}
+      </div>
+      {corrections.length > 0 && (
+        <label className="field">
+          <span>Reason for correcting existing attendance</span>
+          <textarea
+            rows={3}
+            maxLength={1000}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Explain the correction (at least 5 characters)."
+          />
+        </label>
+      )}
+      {error && (
+        <p role="alert" className="form-error">
+          {error}
+        </p>
+      )}
+      {!preview ? (
+        <button
+          className="btn primary"
+          disabled={!roster.length}
+          onClick={() => {
+            setError('');
+            setPreview(true);
+          }}
+        >
+          <CheckCheck size={16} />
+          Review attendance
+        </button>
+      ) : (
+        <div className="restore-box">
+          <div className="row between">
+            <h3>{submitted ? 'Attendance saved' : 'Review attendance'}</h3>
+            {!submitted && (
+              <button
+                className="btn"
+                disabled={saving}
+                onClick={() => {
+                  setPreview(false);
+                  setError('');
+                }}
+              >
+                <Pencil size={16} />
+                Edit attendance
+              </button>
+            )}
+          </div>
+          <p>
+            {label('offerings', offering.id)} · {date} · {counts.Present} present · {counts.Absent}{' '}
+            absent · {counts.Late} late
+          </p>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>S.No.</th>
+                  <th>Photo</th>
+                  <th>Roll number</th>
+                  <th>Student</th>
+                  <th>Attendance</th>
+                  <th>Remarks</th>
+                </tr>
+              </thead>
+              <tbody>
+                {roster.map((s, index) => (
+                  <tr key={s.id}>
+                    <td>{index + 1}</td>
+                    <td>
+                      <UserPhoto user={s} />
+                    </td>
+                    <td>{s.identifier || '—'}</td>
+                    <td>{s.name}</td>
+                    <td>{marks[s.id] || 'Present'}</td>
+                    <td>{marks[s.id] === 'Late' ? remarks[s.id] || '—' : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!submitted && (
+            <button
+              className="btn primary"
+              disabled={saving || (corrections.length > 0 && reason.trim().length < 5)}
+              onClick={async () => {
+                if (saving) return;
+                setSaving(true);
+                setError('');
+                try {
+                  await run(
+                    {
+                      action: 'attendanceSubmit',
+                      offeringId: offering.id,
+                      date,
+                      reason,
+                      records: roster.map((s) => ({
+                        studentId: s.id,
+                        status: marks[s.id] || 'Present',
+                        remarks: marks[s.id] === 'Late' ? remarks[s.id] || '' : '',
+                      })),
+                    },
+                    'Attendance report submitted and records updated',
+                  );
+                  setSubmitted(true);
+                } catch (e) {
+                  setError((e as Error).message);
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              {saving ? 'Saving attendance…' : 'Save attendance'}
+            </button>
+          )}
+          {submitted && (
+            <p role="status">
+              The database is updated. Student attendance reports now show these results.
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+function EntityForm({
+  entity,
+  record,
+  data: d,
+  user: u,
+  label,
+  onClose,
+  onSave,
+  upload,
+  rolePrivileges,
+}: {
+  entity: string;
+  record: Row;
+  data: Data;
+  user: Row;
+  label: (t: string, id: any) => string;
+  onClose: () => void;
+  onSave: (r: Row) => Promise<void>;
+  upload: (file: File) => Promise<string>;
+  rolePrivileges?: RolePrivilegesConfig;
+}) {
+  const fields = forms[entity] || [];
+  const [v, setV] = useState<Row>(() => {
+      const r: Row = {
+        active: 1,
+        published: entity === 'assignments' ? 1 : 0,
+        allowLate: 0,
+        release: 0,
+        credits: 3,
+        semester: 4,
+        maxMarks: 20,
+        duration: 15,
+        status: entity === 'attendance' ? 'Present' : 'Pending',
+        date: new Date().toISOString().slice(0, 10),
+        departmentId: u.departmentId || '',
+        questions: [
+          { id: clientRowId(), text: '', options: ['', '', '', ''], correct: 0, marks: 5 },
+        ],
+        ...record,
+      };
+      for (const f of fields) {
+        if (f.type === 'datetime-local' && r[f.key]) r[f.key] = localInput(r[f.key]);
+        if (f.type === 'questions' && typeof r[f.key] === 'string') r[f.key] = JSON.parse(r[f.key]);
+      }
+      return r;
+    }),
+    [error, setError] = useState(''),
+    [saving, setSaving] = useState(false),
+    [fileName, setFileName] = useState('');
+  const set = (key: string, value: any) => setV((prev) => ({ ...prev, [key]: value }));
+  const options = (f: Field): Row[] => {
+    let rows = d[f.ref!] || [];
+    if (
+      entity === 'timetable' &&
+      f.ref === 'offerings' &&
+      Array.isArray(record._allowedOfferingIds)
+    )
+      rows = rows.filter((o) => record._allowedOfferingIds.includes(o.id));
+    if (['students', 'teachers', 'hods'].includes(f.ref!))
+      rows = d.users.filter((r) =>
+        f.ref === 'students'
+          ? r.role === 'STUDENT'
+          : f.ref === 'teachers'
+            ? ['TEACHER', 'HOD'].includes(r.role)
+            : r.role === 'HOD',
+      );
+    rows = rows.filter((r) => r.active !== 0 || r.id === v[f.key]);
+    if (f.ref === 'programs' && v.departmentId)
+      rows = rows.filter((r) => r.departmentId === v.departmentId);
+    if (f.ref === 'batches' && v.departmentId)
+      rows = rows.filter((r) => r.departmentId === v.departmentId);
+    if (f.ref === 'subjects' && v.batchId) {
+      const b = d.batches.find((b) => b.id === v.batchId);
+      rows = rows.filter((r) => r.departmentId === b?.departmentId);
+    }
+    if (f.ref === 'teachers' && v.batchId) {
+      const b = d.batches.find((b) => b.id === v.batchId);
+      rows = rows.filter((r) => r.departmentId === b?.departmentId);
+    }
+    if (f.ref === 'students' && v.offeringId) {
+      const o = d.offerings.find((o) => o.id === v.offeringId);
+      rows = rows.filter(
+        (r) =>
+          r.batchId === o?.batchId &&
+          (entity === 'enrollments' ||
+            d.enrollments.some((e) => e.studentId === r.id && e.offeringId === o?.id && e.active)),
+      );
+    }
+    if (
+      f.ref === 'offerings' &&
+      ['attendance', 'assignments', 'quizzes', 'results', 'materials'].includes(entity)
+    )
+      rows = rows.filter((r) =>
+        entity === 'results' ? resultsAllowed(u, r, d) : teachingAllowed(u, r),
+      );
+    if (entity === 'announcements' && u.role === 'TEACHER' && f.ref === 'offerings')
+      rows = rows.filter(
+        (r) => r.teacherId === u.id || (!!r.coTeacherId && r.coTeacherId === u.id),
+      );
+    return rows;
+  };
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const out = { ...v };
+      for (const f of fields) {
+        if (f.type === 'datetime-local' && out[f.key])
+          out[f.key] = new Date(out[f.key]).toISOString();
+        if (f.type === 'number' && out[f.key] !== '' && out[f.key] != null)
+          out[f.key] = Number(out[f.key]);
+      }
+      await onSave(out);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <Modal
+      title={(record.id ? 'Edit ' : 'Create ') + (entityNames[entity] || entity)}
+      subtitle="Changes are saved to the college database."
+      onClose={onClose}
+      wide={entity === 'quizzes' || entity === 'users'}
+    >
+      <form onSubmit={submit}>
+        <div className="modal-body form-grid">
+          {fields.map((f) => {
+            if (entity === 'results' && f.key === 'correctionReason' && !record.published)
+              return null;
+            if (
+              entity === 'users' &&
+              f.key === 'password' &&
+              record.id &&
+              (record.id === u.id || !permitted(u, 'reset_passwords', rolePrivileges))
+            )
+              return null;
+            if (entity === 'users' && v.role !== 'TEACHER' && f.key === 'employmentType')
+              return null;
+            if (entity === 'users' && v.role !== 'STUDENT' && f.key === 'batchId') return null;
+            const choices =
+              f.key === 'role' && !permitted(u, 'senior_accounts', rolePrivileges)
+                ? ['STUDENT', 'TEACHER']
+                : f.options;
+            return (
+              <label
+                className={
+                  'field ' +
+                  (['textarea', 'questions', 'file'].includes(f.type || '') ? 'span-two' : '') +
+                  (f.type === 'checkbox' ? ' checkbox-field' : '')
+                }
+                key={f.key}
+              >
+                <span>
+                  {f.label}
+                  {f.required && <em>*</em>}
+                </span>
+                {f.type === 'select' ? (
+                  <select
+                    value={v[f.key] || ''}
+                    required={f.required}
+                    onChange={(e) => set(f.key, e.target.value)}
+                  >
+                    <option value="">{f.required ? 'Select…' : 'All / not specified'}</option>
+                    {f.ref
+                      ? options(f).map((o) => (
+                          <option key={o.id} value={o.id}>
+                            {label(f.ref!, o.id)}
+                          </option>
+                        ))
+                      : choices?.map((o) => (
+                          <option key={o} value={o}>
+                            {o}
+                          </option>
+                        ))}
+                  </select>
+                ) : f.type === 'textarea' ? (
+                  <textarea
+                    value={v[f.key] || ''}
+                    required={f.required}
+                    rows={4}
+                    onChange={(e) => set(f.key, e.target.value)}
+                  />
+                ) : f.type === 'checkbox' ? (
+                  <input
+                    type="checkbox"
+                    checked={!!v[f.key]}
+                    onChange={(e) => set(f.key, e.target.checked ? 1 : 0)}
+                  />
+                ) : f.type === 'file' ? (
+                  <>
+                    <input
+                      type="file"
+                      accept={f.accept || documentAccept}
+                      disabled={saving}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (file) {
+                          setSaving(true);
+                          setError('');
+                          try {
+                            const id = await upload(file);
+                            set(f.key, id);
+                            setFileName(file.name);
+                          } catch (e) {
+                            setError((e as Error).message);
+                          } finally {
+                            setSaving(false);
+                          }
+                        }
+                      }}
+                    />
+                    {v[f.key] && (
+                      <small>
+                        {fileName || 'An attachment is already saved. Choose a file to replace it.'}
+                      </small>
+                    )}
+                    {f.help && <small>{f.help}</small>}
+                  </>
+                ) : f.type === 'questions' ? (
+                  <QuestionEditor questions={v.questions} onChange={(qs) => set('questions', qs)} />
+                ) : f.type === 'password' ? (
+                  <PasswordInput
+                    required={f.key === 'password' ? !record.id : f.required}
+                    autoComplete={f.key === 'password' ? 'new-password' : undefined}
+                    value={v[f.key] ?? ''}
+                    onChange={(e) => set(f.key, e.target.value)}
+                  />
+                ) : (
+                  <input
+                    type={f.type || 'text'}
+                    required={f.key === 'password' ? !record.id : f.required}
+                    autoComplete={f.key === 'password' ? 'new-password' : undefined}
+                    value={v[f.key] ?? ''}
+                    min={f.type === 'number' ? 0 : undefined}
+                    step={f.type === 'number' ? 'any' : undefined}
+                    onChange={(e) => set(f.key, e.target.value)}
+                  />
+                )}{' '}
+                {f.type !== 'file' && f.help && <small>{f.help}</small>}
+              </label>
+            );
+          })}
+          {entity === 'users' &&
+            permitted(u, 'manage_access', rolePrivileges) &&
+            v.role !== 'ADMIN' && (
+              <fieldset className="span-two permission-box">
+                <legend>Individual access overrides</legend>
+                <UserPermissionFields
+                  user={v}
+                  config={rolePrivileges || getDefaultRolePrivileges()}
+                  onChange={(value) => set('permissions', JSON.stringify(value))}
+                />
+              </fieldset>
+            )}
+          {error && (
+            <div className="form-error span-two" role="alert">
+              {error}
+            </div>
+          )}
+        </div>
+        <div className="modal-foot">
+          <button className="btn" type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn primary" disabled={saving}>
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+function QuestionEditor({
+  questions,
+  onChange,
+}: {
+  questions: Row[];
+  onChange: (q: Row[]) => void;
+}) {
+  const update = (i: number, key: string, v: any) =>
+    onChange(questions.map((q, j) => (j === i ? { ...q, [key]: v } : q)));
+  return (
+    <div className="questions-editor">
+      {questions.map((q, i) => (
+        <div className="question-edit" key={q.id}>
+          <div className="row between">
+            <strong>Question {i + 1}</strong>
+            {questions.length > 1 && (
+              <button
+                className="icon-btn danger"
+                type="button"
+                aria-label="Remove question"
+                onClick={() => onChange(questions.filter((_, j) => j !== i))}
+              >
+                Remove question
+              </button>
+            )}
+          </div>
+          <input
+            aria-label={'Question ' + (i + 1)}
+            placeholder="Write your question…"
+            required
+            value={q.text}
+            onChange={(e) => update(i, 'text', e.target.value)}
+          />
+          {q.options.map((o: string, j: number) => (
+            <div className="option-edit" key={j}>
+              <input
+                aria-label={'Correct answer ' + (j + 1)}
+                type="radio"
+                name={'correct-' + q.id}
+                checked={q.correct === j}
+                onChange={() => update(i, 'correct', j)}
+              />
+              <input
+                aria-label={'Option ' + (j + 1)}
+                placeholder={'Option ' + (j + 1)}
+                required
+                value={o}
+                onChange={(e) =>
+                  update(
+                    i,
+                    'options',
+                    q.options.map((a: string, k: number) => (k === j ? e.target.value : a)),
+                  )
+                }
+              />
+            </div>
+          ))}
+          <div className="row gap">
+            <small>Select the correct answer using its radio button.</small>
+            <input
+              className="marks-input"
+              aria-label="Question marks"
+              type="number"
+              min="1"
+              max="100"
+              value={q.marks}
+              required
+              onChange={(e) => update(i, 'marks', Number(e.target.value))}
+            />
+            <small>marks</small>
+          </div>
+        </div>
+      ))}
+      <button
+        className="btn"
+        type="button"
+        onClick={() =>
+          onChange([
+            ...questions,
+            { id: clientRowId(), text: '', options: ['', '', '', ''], correct: 0, marks: 5 },
+          ])
+        }
+      >
+        Add question
+      </button>
+    </div>
+  );
+}
+function FileActions({ id, compact = false }: { id: string; compact?: boolean }) {
+  const [file, setFile] = useState<{
+      name: string;
+      mime: string;
+      size: number;
+      preview: boolean;
+    } | null>(null),
+    [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    fetch('/api/files/' + encodeURIComponent(id) + '?metadata=1', { cache: 'no-store' })
+      .then(async (r) => {
+        const body = await r.json();
+        if (!r.ok) throw new Error(body.error || 'File details unavailable.');
+        if (active) setFile(body);
+      })
+      .catch((e) => {
+        if (active) setError((e as Error).message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [id]);
+  return (
+    <div className={compact ? 'file-actions compact' : 'file-actions'}>
+      {file && (
+        <>
+          <span className="file-label" title={file.name}>
+            {file.name} · {Math.max(1, Math.ceil(file.size / 1024))} KB
+          </span>
+          {file.preview && (
+            <a
+              className="btn"
+              href={'/api/files/' + encodeURIComponent(id) + '?view=1'}
+              target="_blank"
+              rel="noreferrer"
+            >
+              View online
+            </a>
+          )}
+          <a className="btn" href={'/api/files/' + encodeURIComponent(id)} download>
+            Download
+          </a>
+        </>
+      )}
+      {!file && !error && <small>Loading file…</small>}
+      {error && (
+        <small role="alert" className="form-error">
+          {error}
+        </small>
+      )}
+    </div>
+  );
+}
+function ProfileForm({ user, run }: { user: Row; run: (r: Row, m?: string) => Promise<any> }) {
+  const [name, setName] = useState(user.name),
+    [phone, setPhone] = useState(user.phone || ''),
+    [qualifications, setQualifications] = useState(user.qualifications || ''),
+    [err, setErr] = useState(''),
+    [busy, setBusy] = useState(false);
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setErr('');
+        try {
+          await run(
+            {
+              action: 'profile',
+              record: {
+                name,
+                phone,
+                ...(['TEACHER', 'HOD'].includes(user.role) ? { qualifications } : {}),
+              },
+            },
+            'Profile updated',
+          );
+        } catch (e) {
+          setErr((e as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <div className="form-grid">
+        <label className="field">
+          <span>Full name</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} required />
+        </label>
+        <label className="field">
+          <span>Phone</span>
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" />
+        </label>
+        {['TEACHER', 'HOD'].includes(user.role) && (
+          <label className="field span-two">
+            <span>Qualifications</span>
+            <textarea
+              rows={4}
+              maxLength={4000}
+              value={qualifications}
+              onChange={(e) => setQualifications(e.target.value)}
+              placeholder="Degrees, institutions and specialization"
+            />
+          </label>
+        )}
+      </div>
+      {err && <p className="form-error">{err}</p>}
+      <button className="btn primary" disabled={busy}>
+        {busy ? 'Saving…' : 'Save profile'}
+      </button>
+    </form>
+  );
+}
+function SettingsForm({
+  college,
+  run,
+}: {
+  college: string;
+  run: (r: Row, m?: string) => Promise<any>;
+}) {
+  const [name, setName] = useState(college),
+    [error, setError] = useState(''),
+    [busy, setBusy] = useState(false);
+  return (
+    <form
+      className="panel settings-form"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        try {
+          await run({ action: 'settings', college: name });
+          setError('');
+        } catch (e) {
+          setError((e as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <label className="field">
+        <span>College name</span>
+        <input required value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <button className="btn primary" disabled={busy}>
+        Save settings
+      </button>
+      {error && <p className="form-error">{error}</p>}
+      <p className="muted">
+        College accounts use administrator-assigned usernames and passwords. Role and class
+        boundaries apply to every action. Accounts are managed by the college administrator. No
+        ChatGPT account is required.
+      </p>
+    </form>
+  );
+}
+function SubmissionForm({
+  assignment,
+  submission,
+  onSubmit,
+  upload,
+}: {
+  assignment: Row;
+  submission?: Row;
+  onSubmit: (r: Row) => Promise<void>;
+  upload: (f: File) => Promise<string>;
+}) {
+  const [content, setContent] = useState(submission?.content || ''),
+    [fileId, setFileId] = useState(submission?.fileId || ''),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState('');
+  const locked = submission?.marks != null,
+    closed = Date.now() > Date.parse(assignment.dueDate);
+  return (
+    <form
+      className="submission-form"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setError('');
+        try {
+          await onSubmit({ content, fileId });
+        } catch (e) {
+          setError((e as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <h3>{submission ? 'Your submission' : 'Submit your work'}</h3>
+      {submission && (
+        <div className="notice">
+          <span>
+            Submitted {date(submission.submittedAt)}
+            {locked
+              ? ` · Mark: ${submission.marks} / ${assignment.maxMarks}`
+              : ' · Awaiting feedback'}
+          </span>
+        </div>
+      )}
+      {submission?.feedback && (
+        <p className="feedback">
+          <strong>Teacher feedback</strong>
+          {submission.feedback}
+        </p>
+      )}
+      {closed && !submission && (
+        <p className="notice">The deadline has passed. Submissions are closed.</p>
+      )}
+      <label className="field">
+        <span>Answer, explanation or repository link</span>
+        <textarea
+          rows={5}
+          required
+          value={content}
+          disabled={locked || closed}
+          onChange={(e) => setContent(e.target.value)}
+        />
+      </label>
+      <label className="field">
+        <span>Optional PDF, Office document, spreadsheet, CSV or ZIP (up to 4 MB)</span>
+        <input
+          type="file"
+          accept={documentAccept}
+          disabled={locked || closed || busy}
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            if (f) {
+              setBusy(true);
+              try {
+                setFileId(await upload(f));
+              } catch (e) {
+                setError((e as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            }
+          }}
+        />
+      </label>
+      {fileId && <FileActions id={fileId} />}
+      {error && <p className="form-error">{error}</p>}
+      <button className="btn primary" disabled={locked || closed || busy}>
+        {busy
+          ? 'Saving…'
+          : locked
+            ? 'Graded — submission locked'
+            : closed
+              ? 'Submission closed'
+              : submission
+                ? 'Update submission'
+                : 'Submit assignment'}
+      </button>
+    </form>
+  );
+}
+function GradeForm({
+  submission: s,
+  name,
+  max,
+  canGrade,
+  run,
+  gradedBy,
+}: {
+  submission: Row;
+  name: string;
+  gradedBy?: string;
+  max: number;
+  canGrade: boolean;
+  run: (r: Row, m?: string) => Promise<any>;
+}) {
+  const [marks, setMarks] = useState(s.marks ?? ''),
+    [feedback, setFeedback] = useState(s.feedback || ''),
+    [error, setError] = useState(''),
+    [busy, setBusy] = useState(false);
+  return (
+    <form
+      className="grade-form"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        try {
+          await run({ action: 'grade', id: s.id, marks: Number(marks), feedback }, 'Grade saved');
+          setError('');
+        } catch (e) {
+          setError((e as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <div className="row between">
+        <h4>{name}</h4>
+        <small>{date(s.submittedAt)}</small>
+        {gradedBy && <small>Graded by {gradedBy}</small>}
+      </div>
+      <p className="preserve">{s.content}</p>
+      {s.fileId && <FileActions id={s.fileId} />}
+      <div className="form-grid">
+        <label className="field">
+          <span>Marks / {max}</span>
+          <input
+            type="number"
+            min="0"
+            max={max}
+            required
+            value={marks}
+            disabled={!canGrade}
+            onChange={(e) => setMarks(e.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span>Feedback</span>
+          <input
+            value={feedback}
+            disabled={!canGrade}
+            onChange={(e) => setFeedback(e.target.value)}
+          />
+        </label>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      {canGrade && (
+        <button className="btn primary" disabled={busy}>
+          Save grade
+        </button>
+      )}
+    </form>
+  );
+}
+function QuizPlayer({
+  quiz: q,
+  attempt: a,
+  run,
+  onClose,
+}: {
+  quiz: Row;
+  attempt?: Row;
+  run: (r: Row, m?: string) => Promise<any>;
+  onClose: () => void;
+}) {
+  const [answers, setAnswers] = useState<Row>(() => (a ? JSON.parse(a.answers) : {})),
+    [error, setError] = useState(''),
+    [saving, setSaving] = useState(false),
+    [seconds, setSeconds] = useState(
+      a ? Math.max(0, Math.ceil((Date.parse(a.deadline) - Date.now()) / 1000)) : 0,
+    ),
+    [done, setDone] = useState(false);
+  useEffect(() => {
+    if (!a) return;
+    const t = setInterval(
+      () => setSeconds(Math.max(0, Math.ceil((Date.parse(a.deadline) - Date.now()) / 1000))),
+      1000,
+    );
+    return () => clearInterval(t);
+  }, [a?.deadline]);
+  useEffect(() => {
+    if (a && seconds === 0 && !done && !a.submittedAt) {
+      setDone(true);
+      run(
+        { action: 'quizSubmit', id: a.id, answers: {} },
+        'Time is up. Saved answers were submitted.',
+      )
+        .then(onClose)
+        .catch((e) => {
+          setError((e as Error).message);
+          setDone(false);
+        });
+    }
+  }, [seconds]);
+  if (!a)
+    return (
+      <Modal title="Preparing quiz" onClose={onClose}>
+        <div className="modal-body">Please wait…</div>
+      </Modal>
+    );
+  const answer = async (id: string, value: number) => {
+    const next = { ...answers, [id]: value };
+    setAnswers(next);
+    setSaving(true);
+    try {
+      await run({ action: 'quizSave', id: a.id, answers: next }, '');
+      setError('');
+    } catch (e) {
+      setError('Answer not saved: ' + (e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Modal
+      title={q.title}
+      subtitle="Answers save after each selection. Closing this window does not pause the timer."
+      onClose={onClose}
+      wide
+    >
+      <div className="modal-body">
+        <div className="quiz-timer">
+          <span>
+            {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')} remaining
+          </span>
+          <small>
+            {saving ? 'Saving answer…' : 'Answers saved'} · {Object.keys(answers).length} /{' '}
+            {q.questions.length} answered
+          </small>
+        </div>
+        {q.questions.map((question: Row, i: number) => (
+          <fieldset className="quiz-question" key={question.id}>
+            <legend>
+              {i + 1}. {question.text}
+              <span>{question.marks} marks</span>
+            </legend>
+            {question.options.map((option: string, j: number) => (
+              <label
+                className={'quiz-option ' + (answers[question.id] === j ? 'selected' : '')}
+                key={j}
+              >
+                <input
+                  type="radio"
+                  name={question.id}
+                  checked={answers[question.id] === j}
+                  disabled={saving || !seconds || done}
+                  onChange={() => answer(question.id, j)}
+                />
+                <span>{option}</span>
+              </label>
+            ))}
+          </fieldset>
+        ))}
+        {error && <p className="form-error">{error}</p>}
+      </div>
+      <div className="modal-foot">
+        <button className="btn" onClick={onClose}>
+          Close & continue later
+        </button>
+        <button
+          className="btn primary"
+          disabled={saving || done}
+          onClick={async () => {
+            setSaving(true);
+            try {
+              await run({ action: 'quizSubmit', id: a.id, answers }, 'Quiz submitted');
+              onClose();
+            } catch (e) {
+              setError((e as Error).message);
+            } finally {
+              setSaving(false);
+            }
+          }}
+        >
+          Submit final answers
+        </button>
+      </div>
+    </Modal>
+  );
 }

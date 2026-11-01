@@ -1,45 +1,322 @@
-import {pgTable,text,integer,bigint,doublePrecision} from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, bigint, doublePrecision } from 'drizzle-orm/pg-core';
 
-export const departments=pgTable('departments',{id:text('id').primaryKey(),name:text('name').notNull(),code:text('code').notNull(),active:integer('active').notNull().default(1)});
-export const programs=pgTable('programs',{id:text('id').primaryKey(),name:text('name').notNull(),departmentId:text('departmentId').notNull(),active:integer('active').notNull().default(1)});
-export const sessions=pgTable('sessions',{id:text('id').primaryKey(),name:text('name').notNull(),active:integer('active').notNull().default(1)});
-export const batches=pgTable('batches',{id:text('id').primaryKey(),name:text('name').notNull(),departmentId:text('departmentId').notNull(),programId:text('programId').notNull(),sessionId:text('sessionId').notNull(),semester:integer('semester').notNull(),active:integer('active').notNull().default(1)});
-export const users=pgTable('users',{bio:text('bio'),profileLinks:text('profileLinks'),profileNote:text('profileNote'),id:text('id').primaryKey(),name:text('name').notNull(),username:text('username').notNull(),email:text('email'),role:text('role').notNull(),departmentId:text('departmentId'),batchId:text('batchId'),identifier:text('identifier'),phone:text('phone'),responsibilities: text('responsibilities').notNull().default('[]'),
- passwordPolicyVersion:integer('passwordPolicyVersion').notNull().default(0),passwordChangeRequired:integer('passwordChangeRequired').notNull().default(0),employmentType:text('employmentType'),qualifications:text('qualifications'),designation:text('designation'),office:text('office'),schedule:text('schedule'),avatar:text('avatar'),active:integer('active').notNull().default(1),permissions:text('permissions').notNull().default('{}'),demo:integer('demo').notNull().default(0),createdAt:text('createdAt').notNull()});
-export const subjects=pgTable('subjects',{id:text('id').primaryKey(),name:text('name').notNull(),code:text('code').notNull(),departmentId:text('departmentId').notNull(),credits:integer('credits').notNull().default(3),active:integer('active').notNull().default(1)});
-export const offerings=pgTable('offerings',{coTeacherId:text('coTeacherId'),id:text('id').primaryKey(),subjectId:text('subjectId').notNull(),batchId:text('batchId').notNull(),teacherId:text('teacherId').notNull(),active:integer('active').notNull().default(1)});
-export const enrollments=pgTable('enrollments',{id:text('id').primaryKey(),studentId:text('studentId').notNull(),offeringId:text('offeringId').notNull(),active:integer('active').notNull().default(1)});
-export const hodScopes=pgTable('hodScopes',{id:text('id').primaryKey(),userId:text('userId').notNull(),batchId:text('batchId').notNull()});
-export const timetable=pgTable('timetable',{updatedBy:text('updatedBy'),id:text('id').primaryKey(),offeringId:text('offeringId').notNull(),day:text('day').notNull(),startTime:text('startTime').notNull(),endTime:text('endTime').notNull(),room:text('room').notNull()});
-export const timetableFiles=pgTable('timetableFiles',{id:text('id').primaryKey(),batchId:text('batchId').notNull(),fileId:text('fileId').notNull(),mime:text('mime').notNull(),createdAt:text('createdAt').notNull()});
-export const resultFiles=pgTable('resultFiles',{id:text('id').primaryKey(),offeringId:text('offeringId').notNull(),fileId:text('fileId').notNull(),createdAt:text('createdAt').notNull()});
-export const assessmentPolicies=pgTable('assessmentPolicies',{id:text('id').primaryKey(),departmentId:text('departmentId').notNull(),fileId:text('fileId').notNull(),createdAt:text('createdAt').notNull()});
-export const attendance=pgTable('attendance',{id:text('id').primaryKey(),offeringId:text('offeringId').notNull(),studentId:text('studentId').notNull(),date:text('date').notNull(),status:text('status').notNull(),remarks:text('remarks'),reason:text('reason'),recordedBy:text('recordedBy').notNull()});
-export const assignments=pgTable('assignments',{updatedBy:text('updatedBy'),id:text('id').primaryKey(),offeringId:text('offeringId').notNull(),title:text('title').notNull(),instructions:text('instructions').notNull(),dueDate:text('dueDate').notNull(),maxMarks:doublePrecision('maxMarks').notNull(),allowLate:integer('allowLate').notNull().default(0),published:integer('published').notNull().default(0),fileId:text('fileId')});
-export const submissions=pgTable('submissions',{gradedBy:text('gradedBy'),id:text('id').primaryKey(),assignmentId:text('assignmentId').notNull(),studentId:text('studentId').notNull(),content:text('content').notNull(),fileId:text('fileId'),submittedAt:text('submittedAt').notNull(),marks:doublePrecision('marks'),feedback:text('feedback')});
-export const quizzes=pgTable('quizzes',{updatedBy:text('updatedBy'),id:text('id').primaryKey(),offeringId:text('offeringId').notNull(),title:text('title').notNull(),topic:text('topic'),opensAt:text('opensAt').notNull(),closesAt:text('closesAt').notNull(),duration:integer('duration').notNull(),questions:text('questions').notNull(),published:integer('published').notNull().default(0),release:integer('release').notNull().default(0),fileId:text('fileId')});
-export const attempts=pgTable('attempts',{id:text('id').primaryKey(),quizId:text('quizId').notNull(),studentId:text('studentId').notNull(),startedAt:text('startedAt').notNull(),deadline:text('deadline').notNull(),submittedAt:text('submittedAt'),answers:text('answers').notNull().default('{}'),score:doublePrecision('score')});
-export const results=pgTable('results',{updatedBy:text('updatedBy'),id:text('id').primaryKey(),offeringId:text('offeringId').notNull(),studentId:text('studentId').notNull(),title:text('title').notNull(),marks:doublePrecision('marks').notNull(),maxMarks:doublePrecision('maxMarks').notNull(),published:integer('published').notNull().default(0),feedback:text('feedback')});
-export const announcements=pgTable('announcements',{id:text('id').primaryKey(),title:text('title').notNull(),body:text('body').notNull(),departmentId:text('departmentId'),batchId:text('batchId'),offeringId:text('offeringId'),targetRole:text('targetRole'),authorId:text('authorId').notNull(),createdAt:text('createdAt').notNull()});
-export const materials=pgTable('materials',{updatedBy:text('updatedBy'),id:text('id').primaryKey(),offeringId:text('offeringId').notNull(),title:text('title').notNull(),kind:text('kind').notNull(),url:text('url'),fileId:text('fileId')});
-export const progress=pgTable('progress',{id:text('id').primaryKey(),materialId:text('materialId').notNull(),studentId:text('studentId').notNull(),completed:integer('completed').notNull().default(0)});
-export const files=pgTable('files',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),name:text('name').notNull(),mime:text('mime').notNull(),size:integer('size').notNull(),purpose:text('purpose').notNull(),createdAt:text('createdAt').notNull(),storageProvider:text('storageProvider').notNull().default('legacy'),storageKey:text('storageKey'),checksum:text('checksum')});
-export const tasks=pgTable('tasks',{id:text('id').primaryKey(),userId:text('userId').notNull(),title:text('title').notNull(),dueDate:text('dueDate').notNull(),status:text('status').notNull().default('Pending'),notes:text('notes')});
-export const audit=pgTable('audit',{id:text('id').primaryKey(),actorId:text('actorId').notNull(),action:text('action').notNull(),entity:text('entity').notNull(),recordId:text('recordId'),detail:text('detail'),createdAt:text('createdAt').notNull()});
-export const settings=pgTable('settings',{key:text('key').primaryKey(),value:text('value').notNull()});
-export const previews=pgTable('previews',{authId:text('authId').primaryKey(),userId:text('userId').notNull()});
-export const credentials=pgTable('credentials',{userId:text('userId').primaryKey(),hash:text('hash').notNull()});
-export const loginSessions=pgTable('loginSessions',{tokenHash:text('tokenHash').primaryKey(),remindersSeen:integer('remindersSeen').notNull().default(0),userId:text('userId').notNull(),expires:bigint('expires',{mode:'number'}).notNull()});
-export const loginLimits=pgTable('loginLimits',{key:text('key').primaryKey(),count:integer('count').notNull(),expires:bigint('expires',{mode:'number'}).notNull()});
-
-export const facultyTasks=pgTable('facultyTasks',{
- id:text('id').primaryKey(),userId:text('userId').notNull().references(()=>users.id),departmentId:text('departmentId').notNull().references(()=>departments.id),assignedBy:text('assignedBy').notNull().references(()=>users.id),title:text('title').notNull(),instructions:text('instructions').notNull(),dueAt:text('dueAt').notNull(),createdAt:text('createdAt').notNull(),status:text('status').notNull().default('Pending'),submittedAt:text('submittedAt'),response:text('response'),fileId:text('fileId').references(()=>files.id)
+export const departments = pgTable('departments', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  code: text('code').notNull(),
+  active: integer('active').notNull().default(1),
+});
+export const programs = pgTable('programs', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  departmentId: text('departmentId').notNull(),
+  active: integer('active').notNull().default(1),
+});
+export const sessions = pgTable('sessions', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  active: integer('active').notNull().default(1),
+});
+export const batches = pgTable('batches', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  departmentId: text('departmentId').notNull(),
+  programId: text('programId').notNull(),
+  sessionId: text('sessionId').notNull(),
+  semester: integer('semester').notNull(),
+  active: integer('active').notNull().default(1),
+});
+export const users = pgTable('users', {
+  bio: text('bio'),
+  profileLinks: text('profileLinks'),
+  profileNote: text('profileNote'),
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  username: text('username').notNull(),
+  email: text('email'),
+  role: text('role').notNull(),
+  departmentId: text('departmentId'),
+  batchId: text('batchId'),
+  identifier: text('identifier'),
+  phone: text('phone'),
+  responsibilities: text('responsibilities').notNull().default('[]'),
+  passwordPolicyVersion: integer('passwordPolicyVersion').notNull().default(0),
+  passwordChangeRequired: integer('passwordChangeRequired').notNull().default(0),
+  employmentType: text('employmentType'),
+  qualifications: text('qualifications'),
+  designation: text('designation'),
+  office: text('office'),
+  schedule: text('schedule'),
+  avatar: text('avatar'),
+  active: integer('active').notNull().default(1),
+  permissions: text('permissions').notNull().default('{}'),
+  demo: integer('demo').notNull().default(0),
+  createdAt: text('createdAt').notNull(),
+});
+export const subjects = pgTable('subjects', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  code: text('code').notNull(),
+  departmentId: text('departmentId').notNull(),
+  credits: integer('credits').notNull().default(3),
+  active: integer('active').notNull().default(1),
+});
+export const offerings = pgTable('offerings', {
+  coTeacherId: text('coTeacherId'),
+  id: text('id').primaryKey(),
+  subjectId: text('subjectId').notNull(),
+  batchId: text('batchId').notNull(),
+  teacherId: text('teacherId').notNull(),
+  active: integer('active').notNull().default(1),
+});
+export const enrollments = pgTable('enrollments', {
+  id: text('id').primaryKey(),
+  studentId: text('studentId').notNull(),
+  offeringId: text('offeringId').notNull(),
+  active: integer('active').notNull().default(1),
+});
+export const hodScopes = pgTable('hodScopes', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  batchId: text('batchId').notNull(),
+});
+export const timetable = pgTable('timetable', {
+  updatedBy: text('updatedBy'),
+  id: text('id').primaryKey(),
+  offeringId: text('offeringId').notNull(),
+  day: text('day').notNull(),
+  startTime: text('startTime').notNull(),
+  endTime: text('endTime').notNull(),
+  room: text('room').notNull(),
+});
+export const timetableFiles = pgTable('timetableFiles', {
+  id: text('id').primaryKey(),
+  batchId: text('batchId').notNull(),
+  fileId: text('fileId').notNull(),
+  mime: text('mime').notNull(),
+  createdAt: text('createdAt').notNull(),
+});
+export const resultFiles = pgTable('resultFiles', {
+  id: text('id').primaryKey(),
+  offeringId: text('offeringId').notNull(),
+  fileId: text('fileId').notNull(),
+  createdAt: text('createdAt').notNull(),
+});
+export const assessmentPolicies = pgTable('assessmentPolicies', {
+  id: text('id').primaryKey(),
+  departmentId: text('departmentId').notNull(),
+  fileId: text('fileId').notNull(),
+  createdAt: text('createdAt').notNull(),
+});
+export const attendance = pgTable('attendance', {
+  id: text('id').primaryKey(),
+  offeringId: text('offeringId').notNull(),
+  studentId: text('studentId').notNull(),
+  date: text('date').notNull(),
+  status: text('status').notNull(),
+  remarks: text('remarks'),
+  reason: text('reason'),
+  recordedBy: text('recordedBy').notNull(),
+});
+export const assignments = pgTable('assignments', {
+  updatedBy: text('updatedBy'),
+  id: text('id').primaryKey(),
+  offeringId: text('offeringId').notNull(),
+  title: text('title').notNull(),
+  instructions: text('instructions').notNull(),
+  dueDate: text('dueDate').notNull(),
+  maxMarks: doublePrecision('maxMarks').notNull(),
+  allowLate: integer('allowLate').notNull().default(0),
+  published: integer('published').notNull().default(0),
+  fileId: text('fileId'),
+});
+export const submissions = pgTable('submissions', {
+  gradedBy: text('gradedBy'),
+  id: text('id').primaryKey(),
+  assignmentId: text('assignmentId').notNull(),
+  studentId: text('studentId').notNull(),
+  content: text('content').notNull(),
+  fileId: text('fileId'),
+  submittedAt: text('submittedAt').notNull(),
+  marks: doublePrecision('marks'),
+  feedback: text('feedback'),
+});
+export const quizzes = pgTable('quizzes', {
+  updatedBy: text('updatedBy'),
+  id: text('id').primaryKey(),
+  offeringId: text('offeringId').notNull(),
+  title: text('title').notNull(),
+  topic: text('topic'),
+  opensAt: text('opensAt').notNull(),
+  closesAt: text('closesAt').notNull(),
+  duration: integer('duration').notNull(),
+  questions: text('questions').notNull(),
+  published: integer('published').notNull().default(0),
+  release: integer('release').notNull().default(0),
+  fileId: text('fileId'),
+});
+export const attempts = pgTable('attempts', {
+  id: text('id').primaryKey(),
+  quizId: text('quizId').notNull(),
+  studentId: text('studentId').notNull(),
+  startedAt: text('startedAt').notNull(),
+  deadline: text('deadline').notNull(),
+  submittedAt: text('submittedAt'),
+  answers: text('answers').notNull().default('{}'),
+  score: doublePrecision('score'),
+});
+export const results = pgTable('results', {
+  updatedBy: text('updatedBy'),
+  id: text('id').primaryKey(),
+  offeringId: text('offeringId').notNull(),
+  studentId: text('studentId').notNull(),
+  title: text('title').notNull(),
+  marks: doublePrecision('marks').notNull(),
+  maxMarks: doublePrecision('maxMarks').notNull(),
+  published: integer('published').notNull().default(0),
+  feedback: text('feedback'),
+});
+export const announcements = pgTable('announcements', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  departmentId: text('departmentId'),
+  batchId: text('batchId'),
+  offeringId: text('offeringId'),
+  targetRole: text('targetRole'),
+  authorId: text('authorId').notNull(),
+  createdAt: text('createdAt').notNull(),
+});
+export const materials = pgTable('materials', {
+  updatedBy: text('updatedBy'),
+  id: text('id').primaryKey(),
+  offeringId: text('offeringId').notNull(),
+  title: text('title').notNull(),
+  kind: text('kind').notNull(),
+  url: text('url'),
+  fileId: text('fileId'),
+});
+export const progress = pgTable('progress', {
+  id: text('id').primaryKey(),
+  materialId: text('materialId').notNull(),
+  studentId: text('studentId').notNull(),
+  completed: integer('completed').notNull().default(0),
+});
+export const files = pgTable('files', {
+  id: text('id').primaryKey(),
+  ownerId: text('ownerId').notNull(),
+  name: text('name').notNull(),
+  mime: text('mime').notNull(),
+  size: integer('size').notNull(),
+  purpose: text('purpose').notNull(),
+  createdAt: text('createdAt').notNull(),
+  storageProvider: text('storageProvider').notNull().default('legacy'),
+  storageKey: text('storageKey'),
+  checksum: text('checksum'),
+});
+export const tasks = pgTable('tasks', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  title: text('title').notNull(),
+  dueDate: text('dueDate').notNull(),
+  status: text('status').notNull().default('Pending'),
+  notes: text('notes'),
+});
+export const audit = pgTable('audit', {
+  id: text('id').primaryKey(),
+  actorId: text('actorId').notNull(),
+  action: text('action').notNull(),
+  entity: text('entity').notNull(),
+  recordId: text('recordId'),
+  detail: text('detail'),
+  createdAt: text('createdAt').notNull(),
+});
+export const settings = pgTable('settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+});
+export const previews = pgTable('previews', {
+  authId: text('authId').primaryKey(),
+  userId: text('userId').notNull(),
+});
+export const credentials = pgTable('credentials', {
+  userId: text('userId').primaryKey(),
+  hash: text('hash').notNull(),
+});
+export const loginSessions = pgTable('loginSessions', {
+  tokenHash: text('tokenHash').primaryKey(),
+  remindersSeen: integer('remindersSeen').notNull().default(0),
+  userId: text('userId').notNull(),
+  expires: bigint('expires', { mode: 'number' }).notNull(),
+});
+export const loginLimits = pgTable('loginLimits', {
+  key: text('key').primaryKey(),
+  count: integer('count').notNull(),
+  expires: bigint('expires', { mode: 'number' }).notNull(),
 });
 
-export const personalEntries=pgTable('personalEntries',{id:text('id').primaryKey(),userId:text('userId'),kind:text('kind'),title:text('title'),body:text('body'),dueDate:text('dueDate'),status:text('status'),createdAt:text('createdAt'),updatedAt:text('updatedAt')});
+export const facultyTasks = pgTable('facultyTasks', {
+  id: text('id').primaryKey(),
+  userId: text('userId')
+    .notNull()
+    .references(() => users.id),
+  departmentId: text('departmentId')
+    .notNull()
+    .references(() => departments.id),
+  assignedBy: text('assignedBy')
+    .notNull()
+    .references(() => users.id),
+  title: text('title').notNull(),
+  instructions: text('instructions').notNull(),
+  dueAt: text('dueAt').notNull(),
+  createdAt: text('createdAt').notNull(),
+  status: text('status').notNull().default('Pending'),
+  submittedAt: text('submittedAt'),
+  response: text('response'),
+  fileId: text('fileId').references(() => files.id),
+});
 
-export const coursePolicies=pgTable('coursePolicies',{id:text('id').primaryKey(),offeringId:text('offeringId'),policy:text('policy'),updatedBy:text('updatedBy'),updatedAt:text('updatedAt')});
+export const personalEntries = pgTable('personalEntries', {
+  id: text('id').primaryKey(),
+  userId: text('userId'),
+  kind: text('kind'),
+  title: text('title'),
+  body: text('body'),
+  dueDate: text('dueDate'),
+  status: text('status'),
+  createdAt: text('createdAt'),
+  updatedAt: text('updatedAt'),
+});
 
-export const managementRecords=pgTable('managementRecords',{id:text('id').primaryKey(),kind:text('kind'),title:text('title'),body:text('body'),status:text('status'),amount:doublePrecision('amount'),eventDate:text('eventDate'),createdBy:text('createdBy'),createdAt:text('createdAt'),updatedAt:text('updatedAt')});
+export const coursePolicies = pgTable('coursePolicies', {
+  id: text('id').primaryKey(),
+  offeringId: text('offeringId'),
+  policy: text('policy'),
+  updatedBy: text('updatedBy'),
+  updatedAt: text('updatedAt'),
+});
 
-export const scheduleEvents=pgTable('scheduleEvents',{id:text('id').primaryKey(),batchId:text('batchId').notNull(),kind:text('kind').notNull(),title:text('title').notNull(),day:text('day').notNull(),startTime:text('startTime').notNull(),endTime:text('endTime').notNull(),room:text('room'),updatedBy:text('updatedBy').notNull()});
+export const managementRecords = pgTable('managementRecords', {
+  id: text('id').primaryKey(),
+  kind: text('kind'),
+  title: text('title'),
+  body: text('body'),
+  status: text('status'),
+  amount: doublePrecision('amount'),
+  eventDate: text('eventDate'),
+  createdBy: text('createdBy'),
+  createdAt: text('createdAt'),
+  updatedAt: text('updatedAt'),
+});
+
+export const scheduleEvents = pgTable('scheduleEvents', {
+  id: text('id').primaryKey(),
+  batchId: text('batchId').notNull(),
+  kind: text('kind').notNull(),
+  title: text('title').notNull(),
+  day: text('day').notNull(),
+  startTime: text('startTime').notNull(),
+  endTime: text('endTime').notNull(),
+  room: text('room'),
+  updatedBy: text('updatedBy').notNull(),
+});

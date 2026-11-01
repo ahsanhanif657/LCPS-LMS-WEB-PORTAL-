@@ -1,15 +1,123 @@
 'use client';
-import {ProfilePhoto} from './profile-extras';
-import {useState,ReactNode} from 'react';
-import {Data,Row} from '@/lib/lms/types';
-import {sortUsers} from '@/lib/lms/ordering';
-export function UserDirectory({data,user,rows,render}:{data:Data;user:Row;rows:Row[];render:(rows:Row[])=>ReactNode}){
- const [session,setSession]=useState(''),[batch,setBatch]=useState(''),[subject,setSubject]=useState(''),[sort,setSort]=useState('id');
- const teacher=user.role==='TEACHER';const offers=data.offerings.filter(o=>!teacher||(o.teacherId===user.id||!!o.coTeacherId&&o.coTeacherId===user.id));
- const batches=data.batches.filter(b=>(session==='all'||b.sessionId===session));
- const scopedOffers=offers.filter(o=>teacher?o.id===subject:(session==='all'||batches.some(b=>b.id===o.batchId))&&(!batch||o.batchId===batch));
- const ids=new Set(data.enrollments.filter(e=>e.active&&scopedOffers.some(o=>o.id===e.offeringId)).map(e=>e.studentId));
- const visible=teacher?rows.filter(r=>ids.has(r.id)):rows.filter(r=>session==='all'&&!batch||r.role==='STUDENT'&&(batches.some(b=>b.id===r.batchId)&&(!batch||r.batchId===batch))||['TEACHER','HOD'].includes(r.role)&&scopedOffers.some(o=>(o.teacherId===r.id||!!o.coTeacherId&&o.coTeacherId===r.id)));
- return <><div className="panel directory-filters form-grid">{teacher?<label className="field"><span>Subject / class</span><select value={subject} onChange={e=>setSubject(e.target.value)}><option value="">Select subject</option>{offers.map(o=><option key={o.id} value={o.id}>{data.subjects.find(s=>s.id===o.subjectId)?.name} · {data.batches.find(b=>b.id===o.batchId)?.name}</option>)}</select></label>:<><label className="field"><span>Academic session</span><select value={session} onChange={e=>{setSession(e.target.value);setBatch('');}}><option value="">Select session</option><option value="all">All / unassigned accounts</option>{data.sessions.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>{session&&<label className="field"><span>Class / semester</span><select value={batch} onChange={e=>setBatch(e.target.value)}><option value="">All classes in selection</option>{batches.map(b=><option key={b.id} value={b.id}>{b.name} · Semester {b.semester}</option>)}</select></label>}</>}<label className="field"><span>Sort users</span><select value={sort} onChange={e=>setSort(e.target.value)}><option value="id">Roll / employee ID: ascending</option><option value="id-desc">Roll / employee ID: descending</option><option value="name">Name: A–Z</option></select></label></div>{(teacher?subject:session)?render(sortUsers(visible,sort)):<p className="panel directory-empty">Select {teacher?'a subject':'an academic session'} to view users. Accounts without a class are available under All / unassigned accounts.</p>}</>;
+import { ProfilePhoto } from './profile-extras';
+import { useState, ReactNode } from 'react';
+import { Data, Row } from '@/lib/lms/types';
+import { sortUsers } from '@/lib/lms/ordering';
+export function UserDirectory({
+  data,
+  user,
+  rows,
+  render,
+}: {
+  data: Data;
+  user: Row;
+  rows: Row[];
+  render: (rows: Row[]) => ReactNode;
+}) {
+  const [session, setSession] = useState(''),
+    [batch, setBatch] = useState(''),
+    [subject, setSubject] = useState(''),
+    [sort, setSort] = useState('id');
+  const teacher = user.role === 'TEACHER';
+  const offers = data.offerings.filter(
+    (o) => !teacher || o.teacherId === user.id || (!!o.coTeacherId && o.coTeacherId === user.id),
+  );
+  const batches = data.batches.filter((b) => session === 'all' || b.sessionId === session);
+  const scopedOffers = offers.filter((o) =>
+    teacher
+      ? o.id === subject
+      : (session === 'all' || batches.some((b) => b.id === o.batchId)) &&
+        (!batch || o.batchId === batch),
+  );
+  const ids = new Set(
+    data.enrollments
+      .filter((e) => e.active && scopedOffers.some((o) => o.id === e.offeringId))
+      .map((e) => e.studentId),
+  );
+  const visible = teacher
+    ? rows.filter((r) => ids.has(r.id))
+    : rows.filter(
+        (r) =>
+          (session === 'all' && !batch) ||
+          (r.role === 'STUDENT' &&
+            batches.some((b) => b.id === r.batchId) &&
+            (!batch || r.batchId === batch)) ||
+          (['TEACHER', 'HOD'].includes(r.role) &&
+            scopedOffers.some(
+              (o) => o.teacherId === r.id || (!!o.coTeacherId && o.coTeacherId === r.id),
+            )),
+      );
+  return (
+    <>
+      <div className="panel directory-filters form-grid">
+        {teacher ? (
+          <label className="field">
+            <span>Subject / class</span>
+            <select value={subject} onChange={(e) => setSubject(e.target.value)}>
+              <option value="">Select subject</option>
+              {offers.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {data.subjects.find((s) => s.id === o.subjectId)?.name} ·{' '}
+                  {data.batches.find((b) => b.id === o.batchId)?.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <>
+            <label className="field">
+              <span>Academic session</span>
+              <select
+                value={session}
+                onChange={(e) => {
+                  setSession(e.target.value);
+                  setBatch('');
+                }}
+              >
+                <option value="">Select session</option>
+                <option value="all">All / unassigned accounts</option>
+                {data.sessions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {session && (
+              <label className="field">
+                <span>Class / semester</span>
+                <select value={batch} onChange={(e) => setBatch(e.target.value)}>
+                  <option value="">All classes in selection</option>
+                  {batches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} · Semester {b.semester}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </>
+        )}
+        <label className="field">
+          <span>Sort users</span>
+          <select value={sort} onChange={(e) => setSort(e.target.value)}>
+            <option value="id">Roll / employee ID: ascending</option>
+            <option value="id-desc">Roll / employee ID: descending</option>
+            <option value="name">Name: A–Z</option>
+          </select>
+        </label>
+      </div>
+      {(teacher ? subject : session) ? (
+        render(sortUsers(visible, sort))
+      ) : (
+        <p className="panel directory-empty">
+          Select {teacher ? 'a subject' : 'an academic session'} to view users. Accounts without a
+          class are available under All / unassigned accounts.
+        </p>
+      )}
+    </>
+  );
 }
-export function UserPhoto({user}:{user:Row}){return <ProfilePhoto user={user}/>;}
+export function UserPhoto({ user }: { user: Row }) {
+  return <ProfilePhoto user={user} />;
+}

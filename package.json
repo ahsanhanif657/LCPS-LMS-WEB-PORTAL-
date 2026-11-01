@@ -13,6 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node tests/run.mjs",
     "check": "npm run typecheck && npm test",
+    "format": "prettier --write \"app/**/*.{ts,tsx,js,mjs,css}\" \"lib/**/*.{ts,tsx,js,mjs}\" \"db/**/*.{ts,tsx,js,mjs,json}\" \"security/**/*.{ts,tsx,js,mjs}\" \"scripts/**/*.{ts,tsx,js,mjs}\" \"tests/**/*.{ts,tsx,js,mjs}\" \"*.{ts,tsx,js,mjs,json}\"",
+    "format:check": "prettier --check \"app/**/*.{ts,tsx,js,mjs,css}\" \"lib/**/*.{ts,tsx,js,mjs}\" \"db/**/*.{ts,tsx,js,mjs,json}\" \"security/**/*.{ts,tsx,js,mjs}\" \"scripts/**/*.{ts,tsx,js,mjs}\" \"tests/**/*.{ts,tsx,js,mjs}\" \"*.{ts,tsx,js,mjs,json}\"",
     "setup-key": "node scripts/setup-key.mjs",
     "db:migrate": "node scripts/migrate-sqlite.mjs",
     "db:import:dry-run": "node scripts/migrate-turso-to-postgres.mjs --dry-run",
@@ -36,6 +38,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "esbuild": "0.27.4",
+    "prettier": "3.6.2",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3"
   }

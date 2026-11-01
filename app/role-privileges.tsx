@@ -1,38 +1,391 @@
 'use client';
-import {useEffect,useState} from 'react';
-import {RolePrivilegesConfig,defaultPrivileges,permitted,privileges,supportsPrivilege} from '@/security/privileges';
-import {Row} from '@/lib/lms/types';
-import {roles} from '@/lib/lms/types';
-const builtIn=new Set(defaultPrivileges.map(p=>p.key));
+import { useEffect, useState } from 'react';
+import {
+  RolePrivilegesConfig,
+  defaultPrivileges,
+  permitted,
+  privileges,
+  supportsPrivilege,
+} from '@/security/privileges';
+import { Row } from '@/lib/lms/types';
+import { roles } from '@/lib/lms/types';
+const builtIn = new Set(defaultPrivileges.map((p) => p.key));
 
-export function UserPermissionFields({user,config,onChange,search='',disabled=false}:{user:Row;config:RolePrivilegesConfig;onChange:(value:Record<string,boolean>)=>void;search?:string;disabled?:boolean}){
- const overrides=privileges(user);
- return <div className="table-wrap"><table><thead><tr><th>Permission</th><th>Role default</th><th>User setting</th><th>Effective access</th></tr></thead><tbody>{config.privileges.filter(p=>(p.label+' '+p.key).toLowerCase().includes(search.toLowerCase())).map(p=>{
- const supported=supportsPrivilege(user.role,p.key),connected=builtIn.has(p.key),locked=user.role==='ADMIN';
- const inherited=permitted({...user,permissions:'{}',responsibilities:'[]'},p.key,config),effective=permitted(user,p.key,config);
- return <tr key={p.key}><td><strong>{p.label}</strong><small style={{display:'block',maxWidth:340}}>{p.description}</small></td><td>{inherited?'Allowed':'Denied'}</td><td><select aria-label={p.label+' user setting'} disabled={disabled||locked||!supported||!connected} value={Object.hasOwn(overrides,p.key)?String(overrides[p.key]):'inherit'} onChange={e=>{const next={...overrides};if(e.target.value==='inherit')delete next[p.key];else next[p.key]=e.target.value==='true';onChange(next);}}><option value="inherit">Use role default</option><option value="true">Allow</option><option value="false">Deny</option></select></td><td><strong>{locked?'Protected':!connected?'Not connected':!supported?'Outside role scope':effective?user.active===0?'Allowed (account inactive)':'Allowed':'Denied'}</strong>{supported&&connected&&!effective&&overrides[p.key]===true&&<small style={{display:'block'}}>Requires module view access.</small>}</td></tr>;
- })}</tbody></table></div>;
+export function UserPermissionFields({
+  user,
+  config,
+  onChange,
+  search = '',
+  disabled = false,
+}: {
+  user: Row;
+  config: RolePrivilegesConfig;
+  onChange: (value: Record<string, boolean>) => void;
+  search?: string;
+  disabled?: boolean;
+}) {
+  const overrides = privileges(user);
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Permission</th>
+            <th>Role default</th>
+            <th>User setting</th>
+            <th>Effective access</th>
+          </tr>
+        </thead>
+        <tbody>
+          {config.privileges
+            .filter((p) => (p.label + ' ' + p.key).toLowerCase().includes(search.toLowerCase()))
+            .map((p) => {
+              const supported = supportsPrivilege(user.role, p.key),
+                connected = builtIn.has(p.key),
+                locked = user.role === 'ADMIN';
+              const inherited = permitted(
+                  { ...user, permissions: '{}', responsibilities: '[]' },
+                  p.key,
+                  config,
+                ),
+                effective = permitted(user, p.key, config);
+              return (
+                <tr key={p.key}>
+                  <td>
+                    <strong>{p.label}</strong>
+                    <small style={{ display: 'block', maxWidth: 340 }}>{p.description}</small>
+                  </td>
+                  <td>{inherited ? 'Allowed' : 'Denied'}</td>
+                  <td>
+                    <select
+                      aria-label={p.label + ' user setting'}
+                      disabled={disabled || locked || !supported || !connected}
+                      value={Object.hasOwn(overrides, p.key) ? String(overrides[p.key]) : 'inherit'}
+                      onChange={(e) => {
+                        const next = { ...overrides };
+                        if (e.target.value === 'inherit') delete next[p.key];
+                        else next[p.key] = e.target.value === 'true';
+                        onChange(next);
+                      }}
+                    >
+                      <option value="inherit">Use role default</option>
+                      <option value="true">Allow</option>
+                      <option value="false">Deny</option>
+                    </select>
+                  </td>
+                  <td>
+                    <strong>
+                      {locked
+                        ? 'Protected'
+                        : !connected
+                          ? 'Not connected'
+                          : !supported
+                            ? 'Outside role scope'
+                            : effective
+                              ? user.active === 0
+                                ? 'Allowed (account inactive)'
+                                : 'Allowed'
+                              : 'Denied'}
+                    </strong>
+                    {supported && connected && !effective && overrides[p.key] === true && (
+                      <small style={{ display: 'block' }}>Requires module view access.</small>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
-export function RolePrivilegesWorkflow({rolePrivileges,users,onUpdate,run,setToast}:{rolePrivileges:RolePrivilegesConfig;users:Row[];onUpdate:(next:RolePrivilegesConfig)=>void;run:(body:Row,message?:string)=>Promise<any>;setToast:(msg:string)=>void}){
- const [tab,setTab]=useState('roles'),[config,setConfig]=useState(rolePrivileges),[base,setBase]=useState(JSON.stringify(rolePrivileges)),[dirty,setDirty]=useState(false),[query,setQuery]=useState(''),[permissionSearch,setPermissionSearch]=useState(''),[selected,setSelected]=useState(''),[draft,setDraft]=useState<Record<string,boolean>>({}),[userBase,setUserBase]=useState('{}'),[userDirty,setUserDirty]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState('');
- const user=users.find(u=>u.id===selected);
- useEffect(()=>{if(!dirty){setConfig(rolePrivileges);setBase(JSON.stringify(rolePrivileges));}},[rolePrivileges,dirty]);
- useEffect(()=>{if(!userDirty){setDraft(user?privileges(user):{});setUserBase(user?.permissions||'{}');}},[user?.id,user?.permissions,userDirty]);
- const changedElsewhere=dirty&&base!==JSON.stringify(rolePrivileges)||userDirty&&userBase!==(user?.permissions||'{}');
- async function save(){setSaving(true);setError('');try{
- if(tab==='roles'){const result=await run({action:'saveRolePrivileges',privileges:config.privileges,rolePermissions:config.rolePermissions,expectedConfig:base});onUpdate(result.rolePrivileges);setConfig(result.rolePrivileges);setBase(JSON.stringify(result.rolePrivileges));setDirty(false);}
- else if(user){await run({action:'saveUserPrivileges',userId:user.id,permissions:draft,expectedPermissions:userBase});setUserBase(JSON.stringify(draft));setUserDirty(false);}
- setToast('Access saved. New requests use the updated permissions.');
- }catch(e){setError((e as Error).message);}finally{setSaving(false);}}
- function discard(){setConfig(rolePrivileges);setBase(JSON.stringify(rolePrivileges));setDirty(false);setDraft(user?privileges(user):{});setUserBase(user?.permissions||'{}');setUserDirty(false);setError('');}
- return <section className="panel operations-panel">
- <div className="row gap" role="tablist" aria-label="Access configuration"><button role="tab" aria-selected={tab==='roles'} className={'btn '+(tab==='roles'?'primary':'')} disabled={saving||userDirty} onClick={()=>{setTab('roles');setError('');}}>Role Defaults</button><button role="tab" aria-selected={tab==='users'} className={'btn '+(tab==='users'?'primary':'')} disabled={saving||dirty} onClick={()=>{setTab('users');setError('');}}>Individual User Access</button></div>
- <p>Role defaults apply to everyone with that role. Individual Allow or Deny overrides the default. Denying a module’s view permission also blocks its write actions.</p>
- <p>All implemented privileges can be assigned to any active role. Scope permissions explicitly expand access to the user’s department. Administrator access is protected. “Not connected” identifies old custom labels without a working feature; these are not editable here.</p>
- <div className="row gap" style={{flexWrap:'wrap',marginBottom:16}}>{tab==='users'&&<><label className="field"><span>Find user</span><input placeholder="Name, username or role" value={query} disabled={userDirty||saving} onChange={e=>setQuery(e.target.value)}/></label><label className="field"><span>Select user</span><select value={selected} disabled={userDirty||saving} onChange={e=>{setSelected(e.target.value);setError('');}}><option value="">Select a user</option>{users.filter(u=>u.id===selected||`${u.name} ${u.username} ${u.role}`.toLowerCase().includes(query.toLowerCase())).map(u=><option key={u.id} value={u.id}>{u.name} · {u.username} · {u.role}{u.active?'':' · Inactive'}</option>)}</select></label></>}<label className="field"><span>Find permission</span><input placeholder="Search permissions" value={permissionSearch} onChange={e=>setPermissionSearch(e.target.value)}/></label></div>
- {tab==='roles'?<div className="table-wrap"><table><thead><tr><th>Permission</th>{roles.map(r=><th key={r}>{r}</th>)}</tr></thead><tbody>{config.privileges.filter(p=>(p.label+' '+p.key).toLowerCase().includes(permissionSearch.toLowerCase())).map(p=><tr key={p.key}><td><strong>{p.label}</strong><small style={{display:'block'}}>{p.description}</small>{!builtIn.has(p.key)&&<small>Not connected to a feature</small>}</td>{roles.map(role=><td key={role}>{!supportsPrivilege(role,p.key)?<span title="Outside this role’s existing scope">—</span>:<input type="checkbox" aria-label={role+' '+p.label} disabled={saving||role==='ADMIN'||!builtIn.has(p.key)} checked={role==='ADMIN'||(config.rolePermissions[role]||[]).includes(p.key)} onChange={e=>{const keys=config.rolePermissions[role]||[];setConfig({...config,rolePermissions:{...config.rolePermissions,[role]:e.target.checked?[...keys,p.key]:keys.filter(k=>k!==p.key)}});setDirty(true);}}/>}</td>)}</tr>)}</tbody></table></div>:user?<><h3>{user.name} — {user.role}</h3><p>{user.role==='ADMIN'?'Administrator access cannot be revoked.':'Allowed means within the current role and data scope. Save or discard before selecting another user.'}</p><UserPermissionFields user={{...user,permissions:JSON.stringify(draft)}} config={rolePrivileges} disabled={saving} search={permissionSearch} onChange={value=>{setDraft(value);setUserDirty(true);}}/>{user.role!=='ADMIN'&&<button className="btn" disabled={saving} onClick={()=>{setDraft({});setUserDirty(true);}}>Use role defaults for all permissions</button>}</>:<p>Select a user to see their inherited permissions and individual exceptions.</p>}
- {changedElsewhere&&<p role="alert">Saved permissions changed elsewhere. Discard your draft to reload before saving.</p>}{error&&<p className="form-error" role="alert">{error}</p>}
- <div className="modal-foot"><span role="status">{dirty||userDirty?'Unsaved changes':'All changes saved'}</span><button className="btn" disabled={saving||!(dirty||userDirty)} onClick={discard}>Discard / reload</button><button className="btn primary" disabled={saving||changedElsewhere||!(tab==='roles'?dirty:userDirty)} onClick={save}>{saving?'Saving…':'Save access'}</button></div>
- </section>;
+export function RolePrivilegesWorkflow({
+  rolePrivileges,
+  users,
+  onUpdate,
+  run,
+  setToast,
+}: {
+  rolePrivileges: RolePrivilegesConfig;
+  users: Row[];
+  onUpdate: (next: RolePrivilegesConfig) => void;
+  run: (body: Row, message?: string) => Promise<any>;
+  setToast: (msg: string) => void;
+}) {
+  const [tab, setTab] = useState('roles'),
+    [config, setConfig] = useState(rolePrivileges),
+    [base, setBase] = useState(JSON.stringify(rolePrivileges)),
+    [dirty, setDirty] = useState(false),
+    [query, setQuery] = useState(''),
+    [permissionSearch, setPermissionSearch] = useState(''),
+    [selected, setSelected] = useState(''),
+    [draft, setDraft] = useState<Record<string, boolean>>({}),
+    [userBase, setUserBase] = useState('{}'),
+    [userDirty, setUserDirty] = useState(false),
+    [saving, setSaving] = useState(false),
+    [error, setError] = useState('');
+  const user = users.find((u) => u.id === selected);
+  useEffect(() => {
+    if (!dirty) {
+      setConfig(rolePrivileges);
+      setBase(JSON.stringify(rolePrivileges));
+    }
+  }, [rolePrivileges, dirty]);
+  useEffect(() => {
+    if (!userDirty) {
+      setDraft(user ? privileges(user) : {});
+      setUserBase(user?.permissions || '{}');
+    }
+  }, [user?.id, user?.permissions, userDirty]);
+  const changedElsewhere =
+    (dirty && base !== JSON.stringify(rolePrivileges)) ||
+    (userDirty && userBase !== (user?.permissions || '{}'));
+  async function save() {
+    setSaving(true);
+    setError('');
+    try {
+      if (tab === 'roles') {
+        const result = await run({
+          action: 'saveRolePrivileges',
+          privileges: config.privileges,
+          rolePermissions: config.rolePermissions,
+          expectedConfig: base,
+        });
+        onUpdate(result.rolePrivileges);
+        setConfig(result.rolePrivileges);
+        setBase(JSON.stringify(result.rolePrivileges));
+        setDirty(false);
+      } else if (user) {
+        await run({
+          action: 'saveUserPrivileges',
+          userId: user.id,
+          permissions: draft,
+          expectedPermissions: userBase,
+        });
+        setUserBase(JSON.stringify(draft));
+        setUserDirty(false);
+      }
+      setToast('Access saved. New requests use the updated permissions.');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+  function discard() {
+    setConfig(rolePrivileges);
+    setBase(JSON.stringify(rolePrivileges));
+    setDirty(false);
+    setDraft(user ? privileges(user) : {});
+    setUserBase(user?.permissions || '{}');
+    setUserDirty(false);
+    setError('');
+  }
+  return (
+    <section className="panel operations-panel">
+      <div className="row gap" role="tablist" aria-label="Access configuration">
+        <button
+          role="tab"
+          aria-selected={tab === 'roles'}
+          className={'btn ' + (tab === 'roles' ? 'primary' : '')}
+          disabled={saving || userDirty}
+          onClick={() => {
+            setTab('roles');
+            setError('');
+          }}
+        >
+          Role Defaults
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === 'users'}
+          className={'btn ' + (tab === 'users' ? 'primary' : '')}
+          disabled={saving || dirty}
+          onClick={() => {
+            setTab('users');
+            setError('');
+          }}
+        >
+          Individual User Access
+        </button>
+      </div>
+      <p>
+        Role defaults apply to everyone with that role. Individual Allow or Deny overrides the
+        default. Denying a module’s view permission also blocks its write actions.
+      </p>
+      <p>
+        All implemented privileges can be assigned to any active role. Scope permissions explicitly
+        expand access to the user’s department. Administrator access is protected. “Not connected”
+        identifies old custom labels without a working feature; these are not editable here.
+      </p>
+      <div className="row gap" style={{ flexWrap: 'wrap', marginBottom: 16 }}>
+        {tab === 'users' && (
+          <>
+            <label className="field">
+              <span>Find user</span>
+              <input
+                placeholder="Name, username or role"
+                value={query}
+                disabled={userDirty || saving}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>Select user</span>
+              <select
+                value={selected}
+                disabled={userDirty || saving}
+                onChange={(e) => {
+                  setSelected(e.target.value);
+                  setError('');
+                }}
+              >
+                <option value="">Select a user</option>
+                {users
+                  .filter(
+                    (u) =>
+                      u.id === selected ||
+                      `${u.name} ${u.username} ${u.role}`
+                        .toLowerCase()
+                        .includes(query.toLowerCase()),
+                  )
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} · {u.username} · {u.role}
+                      {u.active ? '' : ' · Inactive'}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          </>
+        )}
+        <label className="field">
+          <span>Find permission</span>
+          <input
+            placeholder="Search permissions"
+            value={permissionSearch}
+            onChange={(e) => setPermissionSearch(e.target.value)}
+          />
+        </label>
+      </div>
+      {tab === 'roles' ? (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Permission</th>
+                {roles.map((r) => (
+                  <th key={r}>{r}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {config.privileges
+                .filter((p) =>
+                  (p.label + ' ' + p.key).toLowerCase().includes(permissionSearch.toLowerCase()),
+                )
+                .map((p) => (
+                  <tr key={p.key}>
+                    <td>
+                      <strong>{p.label}</strong>
+                      <small style={{ display: 'block' }}>{p.description}</small>
+                      {!builtIn.has(p.key) && <small>Not connected to a feature</small>}
+                    </td>
+                    {roles.map((role) => (
+                      <td key={role}>
+                        {!supportsPrivilege(role, p.key) ? (
+                          <span title="Outside this role’s existing scope">—</span>
+                        ) : (
+                          <input
+                            type="checkbox"
+                            aria-label={role + ' ' + p.label}
+                            disabled={saving || role === 'ADMIN' || !builtIn.has(p.key)}
+                            checked={
+                              role === 'ADMIN' ||
+                              (config.rolePermissions[role] || []).includes(p.key)
+                            }
+                            onChange={(e) => {
+                              const keys = config.rolePermissions[role] || [];
+                              setConfig({
+                                ...config,
+                                rolePermissions: {
+                                  ...config.rolePermissions,
+                                  [role]: e.target.checked
+                                    ? [...keys, p.key]
+                                    : keys.filter((k) => k !== p.key),
+                                },
+                              });
+                              setDirty(true);
+                            }}
+                          />
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      ) : user ? (
+        <>
+          <h3>
+            {user.name} — {user.role}
+          </h3>
+          <p>
+            {user.role === 'ADMIN'
+              ? 'Administrator access cannot be revoked.'
+              : 'Allowed means within the current role and data scope. Save or discard before selecting another user.'}
+          </p>
+          <UserPermissionFields
+            user={{ ...user, permissions: JSON.stringify(draft) }}
+            config={rolePrivileges}
+            disabled={saving}
+            search={permissionSearch}
+            onChange={(value) => {
+              setDraft(value);
+              setUserDirty(true);
+            }}
+          />
+          {user.role !== 'ADMIN' && (
+            <button
+              className="btn"
+              disabled={saving}
+              onClick={() => {
+                setDraft({});
+                setUserDirty(true);
+              }}
+            >
+              Use role defaults for all permissions
+            </button>
+          )}
+        </>
+      ) : (
+        <p>Select a user to see their inherited permissions and individual exceptions.</p>
+      )}
+      {changedElsewhere && (
+        <p role="alert">
+          Saved permissions changed elsewhere. Discard your draft to reload before saving.
+        </p>
+      )}
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="modal-foot">
+        <span role="status">{dirty || userDirty ? 'Unsaved changes' : 'All changes saved'}</span>
+        <button className="btn" disabled={saving || !(dirty || userDirty)} onClick={discard}>
+          Discard / reload
+        </button>
+        <button
+          className="btn primary"
+          disabled={saving || changedElsewhere || !(tab === 'roles' ? dirty : userDirty)}
+          onClick={save}
+        >
+          {saving ? 'Saving…' : 'Save access'}
+        </button>
+      </div>
+    </section>
+  );
 }
