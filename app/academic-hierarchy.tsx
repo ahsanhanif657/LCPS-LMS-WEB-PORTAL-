@@ -46,7 +46,9 @@ export function TimetableSchedule({
       {grids.map((grid) => (
         <section className="panel operations-panel" key={grid.id}>
           <h3>{grid.title}</h3>
-          <div className="table-wrap">
+
+          {/* Desktop / tablet: horizontal scrollable table */}
+          <div className="table-wrap weekly-schedule-wrap">
             <table className="weekly-schedule">
               <thead>
                 <tr>
@@ -100,6 +102,59 @@ export function TimetableSchedule({
               </tbody>
             </table>
             {!grid.days.length && <p>No scheduled classes for this batch.</p>}
+          </div>
+
+          {/* Mobile: vertical day-by-day card layout */}
+          <div className="weekly-schedule-mobile" aria-label={grid.title + ' mobile timetable'}>
+            {grid.days.length === 0 && <p>No scheduled classes for this batch.</p>}
+            {grid.days.map((day) => (
+              <div className="wm-day" key={day.day}>
+                <h4 className="wm-day-name">{day.day}</h4>
+                <div className="wm-periods">
+                  {grid.slots.map((slot, index) => {
+                    const cell = day.cells[index];
+                    if (!cell?.length) return null;
+                    return (
+                      <div className="wm-period" key={slot}>
+                        <div className="wm-time">{slot.replace('|', ' – ')}</div>
+                        <div className="wm-classes">
+                          {cell.map((c) => (
+                            <div className="wm-class" key={c.record.id}>
+                              <strong className="wm-subject">{c.subject}</strong>
+                              {c.teacher && <span className="wm-teacher">{c.teacher}</span>}
+                              {c.room && <span className="wm-room">{c.room}</span>}
+                              {c.record.updatedBy && (
+                                <span className="wm-updated">
+                                  Updated by{' '}
+                                  {data.users.find((u) => u.id === c.record.updatedBy)?.name ||
+                                    'Staff'}
+                                </span>
+                              )}
+                              <div className="wm-actions">
+                                {!c.record.isActivity && onEdit && permitted(user, 'timetable') && (
+                                  <button className="text-btn" onClick={() => onEdit(c.record)}>
+                                    Edit class
+                                  </button>
+                                )}
+                                {permitted(user, 'timetable') && (
+                                  <DeleteScheduledClass
+                                    record={c.record}
+                                    event={!!c.record.isActivity}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {day.cells.every((cell) => !cell?.length) && (
+                    <p className="wm-empty">No classes scheduled</p>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </section>
       ))}

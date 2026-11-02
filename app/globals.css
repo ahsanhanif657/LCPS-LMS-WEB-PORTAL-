@@ -6946,3 +6946,195 @@ td .profile-note {
   font-weight: 700;
   line-height: 1.55;
 }
+
+/* ── Timetable responsive: mobile card view ─────────────────────────────── */
+
+/* Hide mobile view on all screen sizes by default; show table */
+.weekly-schedule-mobile {
+  display: none;
+}
+.weekly-schedule-wrap {
+  display: block;
+}
+
+/* Tablet (≤900px): tighten the table but keep it scrollable */
+@media (max-width: 900px) {
+  .weekly-schedule {
+    min-width: 560px;
+  }
+  .weekly-schedule th,
+  .weekly-schedule td {
+    padding: 9px 6px !important;
+    font-size: 12px;
+  }
+  .weekly-schedule thead th {
+    font-size: 12px !important;
+    padding: 10px 6px !important;
+    white-space: normal;
+    word-break: keep-all;
+  }
+  .weekly-schedule tbody th {
+    width: 80px;
+    font-size: 12px !important;
+  }
+  .weekly-class {
+    font-size: 11px;
+    padding: 4px 2px;
+    gap: 3px;
+  }
+  .weekly-class strong {
+    font-size: 11px;
+  }
+  .weekly-class small {
+    font-size: 10px;
+  }
+}
+
+/* Mobile (≤600px): hide table, show card layout */
+@media (max-width: 600px) {
+  .weekly-schedule-wrap {
+    display: none;
+  }
+  .weekly-schedule-mobile {
+    display: block;
+    margin-top: 12px;
+  }
+
+  /* Day section */
+  .wm-day {
+    margin-bottom: 18px;
+  }
+  .wm-day-name {
+    font-family: 'Manrope', 'DM Sans', Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 750;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--green);
+    background: #e8ede8;
+    border-radius: 7px 7px 0 0;
+    padding: 8px 14px;
+    margin: 0;
+    border: 1px solid #cdd7ce;
+    border-bottom: none;
+  }
+
+  /* Periods grid for this day */
+  .wm-periods {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px;
+    background: #f0f3ee;
+    border: 1px solid #cdd7ce;
+    border-radius: 0 0 7px 7px;
+  }
+
+  /* Empty state inside a day */
+  .wm-empty {
+    grid-column: 1 / -1;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+    padding: 4px 0;
+    margin: 0;
+  }
+
+  /* Individual period card */
+  .wm-period {
+    background: #fff;
+    border: 1px solid #cdd7ce;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  /* Time slot header inside card */
+  .wm-time {
+    background: #e8ede8;
+    color: var(--green);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    padding: 5px 10px;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.4;
+    border-bottom: 1px solid #cdd7ce;
+  }
+
+  /* Classes inside a period card */
+  .wm-classes {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+  }
+
+  /* Individual class entry */
+  .wm-class {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+  .wm-class + .wm-class {
+    border-top: 1px dashed #cdd7ce;
+    padding-top: 8px;
+  }
+
+  .wm-subject {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    display: block;
+  }
+  .wm-teacher {
+    font-size: 11px;
+    color: #6b786d;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    display: block;
+  }
+  .wm-room {
+    font-size: 10px;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    display: block;
+  }
+  .wm-updated {
+    font-size: 10px;
+    color: var(--muted);
+    display: block;
+    overflow-wrap: anywhere;
+  }
+  .wm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .wm-actions .text-btn {
+    font-size: 11px;
+    min-height: 32px;
+    padding: 0;
+  }
+  .wm-actions button.danger,
+  .wm-actions .weekly-class .danger {
+    font-size: 11px;
+  }
+}
+
+/* Extra-small (≤400px): single column periods */
+@media (max-width: 400px) {
+  .wm-periods {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
