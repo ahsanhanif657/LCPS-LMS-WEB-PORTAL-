@@ -6959,8 +6959,14 @@ td .profile-note {
 
 /* Tablet (≤900px): tighten the table but keep it scrollable */
 @media (max-width: 900px) {
-  .weekly-schedule {
-    min-width: 560px;
+  .weekly-schedule-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+  }
+  .weekly-schedule-wrap .weekly-schedule {
+    min-width: 760px;
+    table-layout: auto;
   }
   .weekly-schedule th,
   .weekly-schedule td {
@@ -6970,12 +6976,13 @@ td .profile-note {
   .weekly-schedule thead th {
     font-size: 12px !important;
     padding: 10px 6px !important;
-    white-space: normal;
-    word-break: keep-all;
+    white-space: nowrap;
+    word-break: normal;
   }
   .weekly-schedule tbody th {
     width: 80px;
     font-size: 12px !important;
+    white-space: nowrap;
   }
   .weekly-class {
     font-size: 11px;
@@ -6988,6 +6995,11 @@ td .profile-note {
   .weekly-class small {
     font-size: 10px;
   }
+  .weekly-schedule-wrap .weekly-class strong,
+  .weekly-schedule-wrap .weekly-class small {
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
 }
 
 /* Mobile (≤600px): hide table, show card layout */
@@ -6998,11 +7010,14 @@ td .profile-note {
   .weekly-schedule-mobile {
     display: block;
     margin-top: 12px;
+    min-width: 0;
+    max-width: 100%;
   }
 
   /* Day section */
   .wm-day {
     margin-bottom: 18px;
+    min-width: 0;
   }
   .wm-day-name {
     font-family: 'Manrope', 'DM Sans', Arial, sans-serif;
@@ -7023,6 +7038,7 @@ td .profile-note {
   .wm-periods {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
     gap: 8px;
     padding: 10px;
     background: #f0f3ee;
@@ -7059,8 +7075,8 @@ td .profile-note {
     font-weight: 700;
     letter-spacing: 0.2px;
     padding: 5px 10px;
-    white-space: normal;
-    word-break: break-word;
+    white-space: nowrap;
+    word-break: normal;
     line-height: 1.4;
     border-bottom: 1px solid #cdd7ce;
   }
@@ -7091,29 +7107,32 @@ td .profile-note {
     font-weight: 700;
     color: var(--ink);
     line-height: 1.4;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    overflow-wrap: break-word;
+    word-break: normal;
     display: block;
   }
   .wm-teacher {
     font-size: 11px;
     color: #6b786d;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    line-height: 1.4;
+    overflow-wrap: break-word;
+    word-break: normal;
     display: block;
   }
   .wm-room {
     font-size: 10px;
     color: var(--muted);
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    line-height: 1.4;
+    overflow-wrap: break-word;
+    word-break: normal;
     display: block;
   }
   .wm-updated {
     font-size: 10px;
     color: var(--muted);
     display: block;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
+    word-break: normal;
   }
   .wm-actions {
     display: flex;
