@@ -2,7 +2,7 @@
 import { ReactNode, useState } from 'react';
 import { CheckCheck, ClipboardList } from 'lucide-react';
 import { Data, Row } from '@/lib/lms/types';
-import { canRecordAttendance } from '@/security/authorization';
+import { canCorrectAttendance, canRecordAttendance } from '@/security/authorization';
 import { permitted } from '@/security/privileges';
 import { AttendanceBrowser } from './portal-workflows';
 import { AcademicHierarchy } from './academic-hierarchy';
@@ -20,11 +20,15 @@ export function FacultyAttendance({
   loadView: (request: Row) => Promise<any>;
   renderMark: (id: string) => ReactNode;
 }) {
-  const options = data.offerings.filter((o) => canRecordAttendance(user, o));
+  const options = data.offerings.filter(
+    (o) => canRecordAttendance(user, o) || canCorrectAttendance(user, o),
+  );
   const [tab, setTab] = useState(options.length ? 'mark' : 'records');
   const [selected, setSelected] = useState(initialOfferingId);
   const offering = options.find((o) => o.id === selected) || options[0];
-  const canMark = permitted(user, 'attendance');
+  const canRecord = permitted(user, 'attendance_record'),
+    canCorrect = permitted(user, 'attendance_correct'),
+    canMark = canRecord || canCorrect;
   const openMark = (id: string) => {
     if (!options.some((o) => o.id === id)) return;
     setSelected(id);
@@ -41,7 +45,11 @@ export function FacultyAttendance({
             onClick={() => setTab('mark')}
           >
             <CheckCheck size={18} />
-            Mark attendance
+            {canRecord && canCorrect
+              ? 'Record / correct attendance'
+              : canCorrect
+                ? 'Correct submitted attendance'
+                : 'Record attendance'}
           </button>
         )}
         <button

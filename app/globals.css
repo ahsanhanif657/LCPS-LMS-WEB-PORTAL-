@@ -6392,6 +6392,36 @@ td .profile-note {
   position: sticky;
   top: 0;
 }
+.account-import {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+.account-import h3,
+.account-import h4,
+.account-import p {
+  margin: 0;
+}
+.account-import-mappings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 12px;
+}
+.account-import-mappings .field,
+.account-import .field {
+  min-width: 0;
+  max-width: 100%;
+}
+.account-import-actions {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.import-row-error {
+  display: block;
+  max-width: 360px;
+  color: #a52b36;
+  overflow-wrap: anywhere;
+}
 .social-links {
   align-items: stretch;
 }
@@ -6590,6 +6620,12 @@ td .profile-note {
   }
   .bulk-students .field {
     min-width: 0;
+  }
+  .account-import-mappings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .account-import-actions > .btn {
+    width: 100%;
   }
   .subject-heading h3 {
     font-size: 16px;

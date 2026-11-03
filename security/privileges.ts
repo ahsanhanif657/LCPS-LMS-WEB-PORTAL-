@@ -69,6 +69,8 @@ const actionPrivileges: PrivilegeDefinition[] = [
     description: 'Mark daily registers and submit correction reasons',
     builtIn: true,
   },
+  { key: 'attendance_record', label: 'Record attendance', builtIn: true },
+  { key: 'attendance_correct', label: 'Correct submitted attendance', builtIn: true },
   {
     key: 'assignments',
     label: 'Create / grade assignments',
@@ -94,6 +96,12 @@ const actionPrivileges: PrivilegeDefinition[] = [
     builtIn: true,
   },
   {
+    key: 'materials_delete',
+    label: 'Delete own learning materials',
+    description: 'Administrators can delete any resource; uploaders can delete their own.',
+    builtIn: true,
+  },
+  {
     key: 'announcements',
     label: 'Publish announcements',
     description: 'Post messages to classes or college-wide notice board',
@@ -113,10 +121,13 @@ const actionRolePermissions: Record<string, string[]> = {
     'academic',
     'timetable',
     'attendance',
+    'attendance_record',
+    'attendance_correct',
     'assignments',
     'quizzes',
     'results',
     'materials',
+    'materials_delete',
     'announcements',
     'reports',
   ],
@@ -130,10 +141,13 @@ const actionRolePermissions: Record<string, string[]> = {
     'academic',
     'timetable',
     'attendance',
+    'attendance_record',
+    'attendance_correct',
     'assignments',
     'quizzes',
     'results',
     'materials',
+    'materials_delete',
     'announcements',
     'reports',
   ],
@@ -141,10 +155,12 @@ const actionRolePermissions: Record<string, string[]> = {
     'view_teacherTasks',
     'task_submit',
     'attendance',
+    'attendance_record',
     'assignments',
     'quizzes',
     'results',
     'materials',
+    'materials_delete',
     'announcements',
   ],
   TREASURER: ['finance', 'announcements'],
@@ -331,7 +347,13 @@ export function permitted(u: Row, key: string, roleConfig?: RolePrivilegesConfig
   roleConfig = roleConfig || u.accessConfig;
   if (!supportsPrivilege(u.role, key)) return false;
   const parent =
-    key === 'submit_assignments' ? 'assignments' : key === 'learning_progress' ? 'materials' : key;
+    key === 'submit_assignments'
+      ? 'assignments'
+      : key === 'learning_progress' || key === 'materials_delete'
+        ? 'materials'
+        : key === 'attendance_record' || key === 'attendance_correct'
+          ? 'attendance'
+          : key;
   if (
     !key.startsWith('view_') &&
     modules.includes(parent) &&

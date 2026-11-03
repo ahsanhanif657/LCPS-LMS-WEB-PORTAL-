@@ -3,7 +3,7 @@ CREATE TABLE sessions (id text PRIMARY KEY, name text NOT NULL UNIQUE, active in
 CREATE TABLE settings (key text PRIMARY KEY, value text NOT NULL);
 CREATE TABLE users (
  id text PRIMARY KEY, name text NOT NULL, username text NOT NULL, email text, role text NOT NULL,
- "departmentId" text, "batchId" text, identifier text, phone text, designation text, office text,
+ "departmentId" text, "programId" text, "sessionId" text, "batchId" text, identifier text, phone text, designation text, office text,
  schedule text, avatar text, active integer NOT NULL DEFAULT 1, demo integer NOT NULL DEFAULT 0,
  "createdAt" text NOT NULL, permissions text NOT NULL DEFAULT '{}'
 );

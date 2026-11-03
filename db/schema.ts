@@ -36,6 +36,8 @@ export const users = pgTable('users', {
   email: text('email'),
   role: text('role').notNull(),
   departmentId: text('departmentId'),
+  programId: text('programId'),
+  sessionId: text('sessionId'),
   batchId: text('batchId'),
   identifier: text('identifier'),
   phone: text('phone'),

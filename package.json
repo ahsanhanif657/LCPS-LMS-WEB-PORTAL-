@@ -28,9 +28,11 @@
     "drizzle-orm": "0.45.2",
     "lucide-react": "1.31.0",
     "next": "16.4.2",
+    "pdfjs-dist": "^6.5.438",
     "postgres": "^3.4.9",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "read-excel-file": "^9.3.14"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.2.1",

@@ -28,6 +28,10 @@ export function dataQueries(user: Row) {
       return stmt(
         'SELECT o.*,(SELECT count(*) FROM enrollments e WHERE e.offeringId=o.id AND e.active=1) AS enrollmentCount FROM offerings o',
       );
+    if (table === 'users')
+      return stmt(
+        'SELECT u.*,COALESCE(u.programId,b.programId) AS programId,COALESCE(u.sessionId,b.sessionId) AS sessionId FROM users u LEFT JOIN batches b ON b.id=u.batchId',
+      );
     if (table === 'personalEntries')
       return stmt('SELECT * FROM personalEntries WHERE userId=?', [user.id]);
     if (table === 'managementRecords')
@@ -36,8 +40,20 @@ export function dataQueries(user: Row) {
         ['finance', 'exams', 'events', 'transport'].map((k) => (permitted(user, k) ? k : '')),
       );
     if (table === 'coursePolicies') return stmt('SELECT * FROM coursePolicies');
-    if (table === 'materials' && ['TREASURER', 'REGISTRAR'].includes(user.role))
-      return stmt("SELECT * FROM materials WHERE kind='Course outline'");
+    if (table === 'materials') {
+      const query = `SELECT m.*,
+        COALESCE(
+          (SELECT actorId FROM audit WHERE entity='materials' AND recordId=m.id AND action='create' ORDER BY createdAt LIMIT 1),
+          f.ownerId,
+          m.updatedBy
+        ) AS uploadedBy
+        FROM materials m LEFT JOIN files f ON f.id=m.fileId`;
+      return stmt(
+        ['TREASURER', 'REGISTRAR'].includes(user.role)
+          ? `${query} WHERE m.kind='Course outline'`
+          : query,
+      );
+    }
     if (table === 'audit')
       return stmt(
         user.role === 'ADMIN'

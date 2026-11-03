@@ -162,3 +162,11 @@ supplementalMigrations.push({
     "CREATE TRIGGER co_teacher_reassignment_conflict BEFORE UPDATE OF teacherId,coTeacherId ON offerings WHEN EXISTS (SELECT 1 FROM timetable a JOIN timetable b ON a.day=b.day AND a.startTime<b.endTime AND b.startTime<a.endTime JOIN offerings other ON other.id=b.offeringId WHERE a.offeringId=OLD.id AND b.offeringId!=OLD.id AND (other.teacherId=NEW.teacherId OR other.coTeacherId=NEW.teacherId OR other.teacherId=NEW.coTeacherId OR other.coTeacherId=NEW.coTeacherId)) BEGIN SELECT RAISE(ABORT,'Teacher reassignment creates a timetable conflict.'); END",
   ],
 });
+
+supplementalMigrations.push({
+  name: '0012_user_program.sql',
+  statements: [
+    'ALTER TABLE "users" ADD COLUMN "programId" TEXT',
+    'ALTER TABLE "users" ADD COLUMN "sessionId" TEXT',
+  ],
+});

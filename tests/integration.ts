@@ -42,6 +42,10 @@ import { scopedData, attendancePercent, overlap } from '../lib/lms/policy';
 import { POST as uploadFile } from '../app/api/files/route';
 import { GET as getFile } from '../app/api/files/[id]/route';
 import { POST as postApi } from '../app/api/lms/route';
+import {
+  guessAccountImportMappings,
+  parseAccountImportFile,
+} from '../lib/lms/account-import-files';
 let passed = 0;
 async function test(name: string, fn: () => Promise<void> | void) {
   await fn();
@@ -201,6 +205,39 @@ await test('HOD cannot access another department or edit out of scope students',
   );
   await rejects(() =>
     save(c, 'subjects', { name: 'No', code: 'INVALID', departmentId: 'cs', credits: 3 }),
+  );
+});
+await test('student account stores department, program, session and batch consistently', async () => {
+  const c = await ctx();
+  const id = await save(c, 'users', {
+    name: 'Program import test',
+    username: 'program-import-test',
+    password: 'program-test-password',
+    role: 'STUDENT',
+    departmentId: 'cs',
+    programId: 'bscs',
+    sessionId: 's24',
+    batchId: 'cs4',
+    identifier: 'PROGRAM-TEST-1',
+  });
+  const stored = (await all('users')).find((user) => user.id === id);
+  assert.equal(stored?.programId, 'bscs');
+  assert.equal(stored?.sessionId, 's24');
+  assert.equal(payload(await ctx()).data.users.find((user) => user.id === id)?.programId, 'bscs');
+  await rejects(
+    () =>
+      save(c, 'users', {
+        name: 'Invalid program test',
+        username: 'invalid-program-test',
+        password: 'program-test-password',
+        role: 'STUDENT',
+        departmentId: 'cs',
+        programId: 'pharmd',
+        sessionId: 's24',
+        batchId: 'cs4',
+        identifier: 'PROGRAM-TEST-2',
+      }),
+    /program, department and batch do not match/,
   );
 });
 await test('different subjects may share a subject code and admins can remove subjects', async () => {
@@ -414,9 +451,10 @@ await test('new attendance persists and correction requires a reason', async () 
   );
   await rejects(
     async () => save(await ctx('teacher'), 'attendance', { id, status: 'Absent' }),
-    /reason/,
+    /Correcting submitted attendance is disabled/,
   );
-  await save(await ctx('teacher'), 'attendance', {
+  await rejects(async () => save(await ctx(), 'attendance', { id, status: 'Absent' }), /reason/);
+  await save(await ctx(), 'attendance', {
     id,
     status: 'Late',
     reason: 'Student arrived after register',
@@ -464,10 +502,21 @@ await test('attendance report validates the full roster and persists atomically 
         offeringId: 'off-mobile',
         date,
         records: corrected,
+        reason: 'Register checked',
+      }),
+    /Correcting submitted attendance is disabled/,
+  );
+  await rejects(
+    async () =>
+      action(await ctx(), {
+        action: 'attendanceSubmit',
+        offeringId: 'off-mobile',
+        date,
+        records: corrected,
       }),
     /Explain attendance corrections/,
   );
-  await action(await ctx('teacher'), {
+  await action(await ctx(), {
     action: 'attendanceSubmit',
     offeringId: 'off-mobile',
     date,
@@ -2108,6 +2157,28 @@ await test('course outlines persist and enforce subject scope and independent vi
   );
   await save(await ctx(), 'users', { id: 'teacher', permissions: {} });
 });
+await test('material deletion is restricted to uploader and administrator', async () => {
+  const teacher = await ctx('teacher');
+  const ownId = await save(teacher, 'materials', {
+    offeringId: 'off-mobile',
+    title: 'Uploader-owned material',
+    kind: 'Document',
+    url: 'https://example.org/owned.pdf',
+  });
+  await rejects(async () => remove(await ctx('hod_cs'), 'materials', ownId), /uploader/);
+  await remove(await ctx('teacher'), 'materials', ownId);
+  assert(!(await all('materials')).some((material) => material.id === ownId));
+
+  const adminOnlyId = await save(await ctx(), 'materials', {
+    offeringId: 'off-mobile',
+    title: 'Administrator-only material',
+    kind: 'Document',
+    url: 'https://example.org/admin.pdf',
+  });
+  await rejects(async () => remove(await ctx('teacher'), 'materials', adminOnlyId), /uploader/);
+  await remove(await ctx(), 'materials', adminOnlyId);
+  assert(!(await all('materials')).some((material) => material.id === adminOnlyId));
+});
 await test('backup restore preserves qualifications and course outlines', async () => {
   const c = await ctx(),
     id = await createBackup(c);
@@ -2704,6 +2775,68 @@ await test('105-student bulk import validates duplicates and enrolls every accou
     (await action(c, { action: 'validateStudentImport', batchId: 'cs4', rows: rows.slice(0, 1) }))
       .valid,
     false,
+  );
+});
+await test('CSV account import recognizes mappings and preserves text values', async () => {
+  const file = new File(
+    ['Full Name,Login Username,Account Type,Department\n"Test Student",test-student,STUDENT,cs'],
+    'accounts.csv',
+    { type: 'text/csv' },
+  );
+  const parsed = await parseAccountImportFile(file);
+  const mappings = guessAccountImportMappings(parsed.headers);
+  assert.equal(mappings.name, 'Full Name');
+  assert.equal(mappings.username, 'Login Username');
+  assert.equal(mappings.role, 'Account Type');
+  assert.equal(parsed.rows[0][0], 'Test Student');
+});
+await test('user import validates mixed roles and reports duplicate and invalid rows', async () => {
+  const rows = [
+    {
+      _rowNumber: 2,
+      name: 'Imported Teacher',
+      username: 'imported-teacher',
+      role: 'TEACHER',
+      department: 'cs',
+      employmentType: 'Permanent',
+      password: 'imported-teacher-password',
+    },
+    {
+      _rowNumber: 3,
+      name: 'Duplicate Teacher',
+      username: 'imported-teacher',
+      role: 'TEACHER',
+      department: 'cs',
+      employmentType: 'Visiting',
+      password: 'duplicate-teacher-password',
+    },
+    {
+      _rowNumber: 4,
+      name: 'Invalid student',
+      username: 'invalid-student',
+      role: 'STUDENT',
+      department: 'cs',
+      program: 'pharmd',
+      session: '2024–2028',
+      batch: 'BSCS-4A',
+      password: 'invalid-student-password',
+    },
+  ];
+  const validation = await action(await ctx(), { action: 'validateUserImport', rows });
+  assert.equal(validation.valid, false);
+  assert(
+    validation.rows
+      .find((row: Row) => row.rowNumber === 3)
+      ?.errors.join(' ')
+      .includes('Duplicate'),
+  );
+  assert(validation.rows.find((row: Row) => row.rowNumber === 4)?.errors.length);
+  const imported = await action(await ctx(), { action: 'importUsers', rows });
+  assert.equal(imported.created.length, 1);
+  assert.equal(imported.rejected.length, 2);
+  assert.equal(
+    (await all('users')).find((user) => user.id === imported.created[0].id)?.employmentType,
+    'Permanent',
   );
 });
 await test('personal profile supports safe links and social labels remain admin-only', async () => {

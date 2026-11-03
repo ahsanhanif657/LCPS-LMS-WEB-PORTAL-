@@ -15,6 +15,7 @@ export function UserDirectory({
   render: (rows: Row[]) => ReactNode;
 }) {
   const [session, setSession] = useState(''),
+    [program, setProgram] = useState(''),
     [batch, setBatch] = useState(''),
     [subject, setSubject] = useState(''),
     [sort, setSort] = useState('id');
@@ -22,11 +23,17 @@ export function UserDirectory({
   const offers = data.offerings.filter(
     (o) => !teacher || o.teacherId === user.id || (!!o.coTeacherId && o.coTeacherId === user.id),
   );
-  const batches = data.batches.filter((b) => session === 'all' || b.sessionId === session);
+  const batches = data.batches.filter(
+    (b) => (session === 'all' || b.sessionId === session) && (!program || b.programId === program),
+  );
+  const programs = data.programs.filter(
+    (p) => batches.some((batch) => batch.programId === p.id) || !session,
+  );
   const scopedOffers = offers.filter((o) =>
     teacher
       ? o.id === subject
       : (session === 'all' || batches.some((b) => b.id === o.batchId)) &&
+        (!program || batches.some((b) => b.id === o.batchId && b.programId === program)) &&
         (!batch || o.batchId === batch),
   );
   const ids = new Set(
@@ -38,7 +45,7 @@ export function UserDirectory({
     ? rows.filter((r) => ids.has(r.id))
     : rows.filter(
         (r) =>
-          (session === 'all' && !batch) ||
+          (session === 'all' && !batch && !program) ||
           (r.role === 'STUDENT' &&
             batches.some((b) => b.id === r.batchId) &&
             (!batch || r.batchId === batch)) ||
@@ -71,6 +78,7 @@ export function UserDirectory({
                 value={session}
                 onChange={(e) => {
                   setSession(e.target.value);
+                  setProgram('');
                   setBatch('');
                 }}
               >
@@ -84,17 +92,37 @@ export function UserDirectory({
               </select>
             </label>
             {session && (
-              <label className="field">
-                <span>Class / semester</span>
-                <select value={batch} onChange={(e) => setBatch(e.target.value)}>
-                  <option value="">All classes in selection</option>
-                  {batches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} · Semester {b.semester}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <>
+                <label className="field">
+                  <span>Program</span>
+                  <select
+                    value={program}
+                    onChange={(e) => {
+                      setProgram(e.target.value);
+                      setBatch('');
+                    }}
+                  >
+                    <option value="">All programs in session</option>
+                    {programs.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Class / semester</span>
+                  <select value={batch} onChange={(e) => setBatch(e.target.value)}>
+                    <option value="">All classes in selection</option>
+                    {batches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {data.programs.find((p) => p.id === b.programId)?.name} · {b.name} ·
+                        Semester {b.semester}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
             )}
           </>
         )}

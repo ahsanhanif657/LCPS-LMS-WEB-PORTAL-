@@ -166,6 +166,11 @@ export function ensureDatabase() {
         await ensureColumn('files', 'storageKey', 'text');
         await ensureColumn('files', 'checksum', 'text');
         await ensureColumn('quizzes', 'fileId', 'text');
+        await ensureColumn('users', 'programId', 'text');
+        await ensureColumn('users', 'sessionId', 'text');
+        await sqlClient().execute(
+          'UPDATE users SET programId=COALESCE(programId,(SELECT programId FROM batches WHERE id=users.batchId)),sessionId=COALESCE(sessionId,(SELECT sessionId FROM batches WHERE id=users.batchId)) WHERE batchId IS NOT NULL AND (programId IS NULL OR sessionId IS NULL)',
+        );
         await sqlClient().execute('UPDATE files SET storageKey=id WHERE storageKey IS NULL');
         await sqlClient().execute(
           "CREATE TABLE IF NOT EXISTS privateFileObjects (key text PRIMARY KEY, contents blob NOT NULL, metadata text NOT NULL DEFAULT '{}')",

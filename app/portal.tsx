@@ -7,7 +7,7 @@ import { canDeleteAnnouncement } from '@/security/announcement-access';
 import { SubjectArt } from './subject-art';
 import { clientRowId } from '@/lib/lms/client-id';
 import { FacultyAttendance } from './attendance-workspace';
-import { canRecordAttendance } from '@/security/authorization';
+import { canCorrectAttendance, canRecordAttendance } from '@/security/authorization';
 import { TimetableManager } from './timetable-manager';
 import { ResourceSubjects, AdminResourceSubjects } from './resource-subjects';
 import { resourceScope } from '@/lib/lms/resource-scope';
@@ -463,8 +463,8 @@ export default function Portal() {
       ? resourceScope(baseData, resourceOffering)
       : baseData;
   const myBatch = d.batches.find((b) => b.id === u.batchId),
-    myProgram = d.programs.find((b) => b.id === myBatch?.programId),
-    mySession = d.sessions.find((b) => b.id === myBatch?.sessionId),
+    myProgram = d.programs.find((b) => b.id === (u.programId || myBatch?.programId)),
+    mySession = d.sessions.find((b) => b.id === (u.sessionId || myBatch?.sessionId)),
     department = d.departments.find((b) => b.id === u.departmentId);
   const baseNav = student
     ? [
@@ -595,6 +595,8 @@ export default function Portal() {
     })[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, (x) => x.toUpperCase());
   const canEdit = (entity: string, r?: Row) => {
     if (!permitted(u, entityPrivilege(entity), rolePrivileges) || entity === 'tasks') return false;
+    if (entity === 'attendance')
+      return permitted(u, r ? 'attendance_correct' : 'attendance_record', rolePrivileges);
     if (admin) return entity !== 'audit';
     if (entity === 'users') return !r || accountManageAllowed(u, r);
     if (entity === 'enrollments' || entity === 'offerings')
@@ -1837,14 +1839,17 @@ export default function Portal() {
               const done = d.progress.some(
                 (pr) => pr.studentId === u.id && pr.materialId === m.id && pr.completed,
               );
+              const canDeleteMaterial =
+                permitted(u, 'materials_delete', rolePrivileges) &&
+                (admin || (m.uploadedBy || m.updatedBy) === u.id);
               return (
                 <div className="material-row" key={m.id}>
                   <span className={'stat-icon ' + (m.kind === 'Video' ? 'purple' : 'blue')}></span>
                   <div className="grow">
                     <h3>{m.title}</h3>
-                    {m.updatedBy && (
+                    {(m.uploadedBy || m.updatedBy) && (
                       <small className="actor-credit">
-                        Updated by {label('users', m.updatedBy)}
+                        Uploaded by {label('users', m.uploadedBy || m.updatedBy)}
                       </small>
                     )}
                     <p>{label('offerings', m.offeringId)}</p>
@@ -1855,6 +1860,17 @@ export default function Portal() {
                     </a>
                   )}
                   {m.fileId && <FileActions id={m.fileId} />}
+                  {canDeleteMaterial && (
+                    <button
+                      className="icon-btn danger"
+                      aria-label={'Delete learning material ' + m.title}
+                      disabled={busy}
+                      onClick={() => setConfirm({ entity: 'materials', record: m })}
+                    >
+                      <Trash2 size={16} />
+                      Delete
+                    </button>
+                  )}
                   {student ? (
                     <button
                       className={'btn ' + (done ? 'soft-green' : '')}
@@ -2255,11 +2271,9 @@ export default function Portal() {
                 </div>
               </div>
             )}
-          {page === 'users' &&
-            permitted(u, 'users', rolePrivileges) &&
-            permitted(u, 'student_enrollment', rolePrivileges) && (
-              <BulkStudents data={allData} user={u} refresh={refresh} />
-            )}
+          {page === 'users' && permitted(u, 'users', rolePrivileges) && (
+            <BulkStudents data={allData} user={u} refresh={refresh} />
+          )}
           {renderContent()}
           <footer className="footer">
             <span>© {new Date().getFullYear()} LCPS · Academic Portal · Powered by A &amp; U</span>
@@ -2558,8 +2572,12 @@ export function AttendanceWorkflow({
   fixedOfferingId?: string;
 }) {
   const options = data.offerings.filter(
-    (o) => canRecordAttendance(user, o) && (!fixedOfferingId || o.id === fixedOfferingId),
+    (o) =>
+      (canRecordAttendance(user, o) || canCorrectAttendance(user, o)) &&
+      (!fixedOfferingId || o.id === fixedOfferingId),
   );
+  const canRecord = permitted(user, 'attendance_record'),
+    canCorrect = permitted(user, 'attendance_correct');
   const [offeringId, setOfferingId] = useState(() => fixedOfferingId || options[0]?.id || ''),
     [date, setDate] = useState(() => new Date().toISOString().slice(0, 10)),
     [marks, setMarks] = useState<Record<string, string>>({}),
@@ -2583,8 +2601,14 @@ export function AttendanceWorkflow({
     : [];
   const corrections = roster.filter((s) => {
     const old = existing.find((a) => a.studentId === s.id);
-    return old && marks[s.id] && old.status !== marks[s.id];
+    return (
+      old &&
+      marks[s.id] &&
+      (old.status !== marks[s.id] ||
+        (old.remarks || '') !== (marks[s.id] === 'Late' ? remarks[s.id] || '' : ''))
+    );
   });
+  const canSubmit = existing.length ? canCorrect : canRecord;
   const counts = Object.fromEntries(
     ['Present', 'Absent', 'Late', 'Excused'].map((status) => [
       status,
@@ -2608,10 +2632,10 @@ export function AttendanceWorkflow({
     );
     setRemarks(Object.fromEntries(current.map((a) => [a.studentId, a.remarks || ''])));
     setPreview(false);
-    setSubmitted(false);
+    setSubmitted(current.length > 0 && !canCorrect);
     setReason('');
     setError('');
-  }, [offeringId, date, rosterKey]);
+  }, [offeringId, date, rosterKey, canCorrect]);
   if (!options.length)
     return (
       <p className="panel directory-empty">
@@ -2620,7 +2644,13 @@ export function AttendanceWorkflow({
     );
   return (
     <section className="panel operations-panel">
-      <h2>Mark attendance</h2>
+      <h2>
+        {canRecord && canCorrect
+          ? 'Record / correct attendance'
+          : canCorrect
+            ? 'Correct submitted attendance'
+            : 'Record attendance'}
+      </h2>
       <p>
         Select a subject and class date, mark every enrolled student, then review and submit the
         report. Choose Present, Absent or Late. Remarks are enabled for Late. Historical excused
@@ -2668,6 +2698,11 @@ export function AttendanceWorkflow({
             .join(', ')}
         </p>
       )}
+      {existing.length > 0 && !canCorrect && (
+        <p className="notice" role="status">
+          This attendance register has already been submitted and is read-only for your account.
+        </p>
+      )}
       <div className="table-scroll attendance-register">
         <table>
           <thead>
@@ -2691,6 +2726,7 @@ export function AttendanceWorkflow({
                 <td className="register-name">{s.name}</td>
                 <td className="register-status" data-label="Attendance">
                   <select
+                    disabled={!canSubmit || submitted}
                     className={
                       'attendance-status status-' + (marks[s.id] || 'Present').toLowerCase()
                     }
@@ -2715,7 +2751,7 @@ export function AttendanceWorkflow({
                 <td className="register-remarks" data-label="Remarks (Late)">
                   <input
                     aria-label={'Late remarks for ' + s.name}
-                    disabled={marks[s.id] !== 'Late'}
+                    disabled={!canSubmit || submitted || marks[s.id] !== 'Late'}
                     maxLength={1000}
                     value={marks[s.id] === 'Late' ? remarks[s.id] || '' : ''}
                     onChange={(e) => {
@@ -2759,7 +2795,7 @@ export function AttendanceWorkflow({
       {!preview ? (
         <button
           className="btn primary"
-          disabled={!roster.length}
+          disabled={!roster.length || !canSubmit || submitted}
           onClick={() => {
             setError('');
             setPreview(true);
@@ -2849,7 +2885,11 @@ export function AttendanceWorkflow({
                 }
               }}
             >
-              {saving ? 'Saving attendance…' : 'Save attendance'}
+              {saving
+                ? 'Saving attendance…'
+                : existing.length
+                  ? 'Save attendance correction'
+                  : 'Submit attendance'}
             </button>
           )}
           {submitted && (
@@ -2933,6 +2973,8 @@ function EntityForm({
       rows = rows.filter((r) => r.departmentId === v.departmentId);
     if (f.ref === 'batches' && v.departmentId)
       rows = rows.filter((r) => r.departmentId === v.departmentId);
+    if (f.ref === 'batches' && v.programId) rows = rows.filter((r) => r.programId === v.programId);
+    if (f.ref === 'batches' && v.sessionId) rows = rows.filter((r) => r.sessionId === v.sessionId);
     if (f.ref === 'subjects' && v.batchId) {
       const b = d.batches.find((b) => b.id === v.batchId);
       rows = rows.filter((r) => r.departmentId === b?.departmentId);
@@ -3003,7 +3045,17 @@ function EntityForm({
               return null;
             if (entity === 'users' && v.role !== 'TEACHER' && f.key === 'employmentType')
               return null;
-            if (entity === 'users' && v.role !== 'STUDENT' && f.key === 'batchId') return null;
+            if (
+              entity === 'users' &&
+              v.role !== 'STUDENT' &&
+              ['batchId', 'programId', 'sessionId'].includes(f.key)
+            )
+              return null;
+            const required =
+              f.required ||
+              (entity === 'users' &&
+                v.role === 'STUDENT' &&
+                ['departmentId', 'programId', 'sessionId', 'batchId'].includes(f.key));
             const choices =
               f.key === 'role' && !permitted(u, 'senior_accounts', rolePrivileges)
                 ? ['STUDENT', 'TEACHER']
@@ -3019,15 +3071,36 @@ function EntityForm({
               >
                 <span>
                   {f.label}
-                  {f.required && <em>*</em>}
+                  {required && <em>*</em>}
                 </span>
                 {f.type === 'select' ? (
                   <select
                     value={v[f.key] || ''}
-                    required={f.required}
-                    onChange={(e) => set(f.key, e.target.value)}
+                    required={required}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (entity === 'users' && f.key === 'departmentId')
+                        setV((previous) => ({
+                          ...previous,
+                          departmentId: value,
+                          programId: '',
+                          sessionId: '',
+                          batchId: '',
+                        }));
+                      else if (entity === 'users' && ['programId', 'sessionId'].includes(f.key))
+                        setV((previous) => ({ ...previous, [f.key]: value, batchId: '' }));
+                      else if (entity === 'users' && f.key === 'role')
+                        setV((previous) => ({
+                          ...previous,
+                          role: value,
+                          ...(value === 'STUDENT'
+                            ? {}
+                            : { programId: '', sessionId: '', batchId: '' }),
+                        }));
+                      else set(f.key, value);
+                    }}
                   >
-                    <option value="">{f.required ? 'Select…' : 'All / not specified'}</option>
+                    <option value="">{required ? 'Select…' : 'All / not specified'}</option>
                     {f.ref
                       ? options(f).map((o) => (
                           <option key={o.id} value={o.id}>
@@ -3043,7 +3116,7 @@ function EntityForm({
                 ) : f.type === 'textarea' ? (
                   <textarea
                     value={v[f.key] || ''}
-                    required={f.required}
+                    required={required}
                     rows={4}
                     onChange={(e) => set(f.key, e.target.value)}
                   />
@@ -3088,7 +3161,7 @@ function EntityForm({
                   <QuestionEditor questions={v.questions} onChange={(qs) => set('questions', qs)} />
                 ) : f.type === 'password' ? (
                   <PasswordInput
-                    required={f.key === 'password' ? !record.id : f.required}
+                    required={f.key === 'password' ? !record.id : required}
                     autoComplete={f.key === 'password' ? 'new-password' : undefined}
                     value={v[f.key] ?? ''}
                     onChange={(e) => set(f.key, e.target.value)}
@@ -3096,7 +3169,7 @@ function EntityForm({
                 ) : (
                   <input
                     type={f.type || 'text'}
-                    required={f.key === 'password' ? !record.id : f.required}
+                    required={f.key === 'password' ? !record.id : required}
                     autoComplete={f.key === 'password' ? 'new-password' : undefined}
                     value={v[f.key] ?? ''}
                     min={f.type === 'number' ? 0 : undefined}

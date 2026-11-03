@@ -172,6 +172,8 @@ const specs: Record<string, string[]> = {
     'email',
     'role',
     'departmentId',
+    'programId',
+    'sessionId',
     'batchId',
     'identifier',
     'phone',
@@ -320,8 +322,23 @@ function validate(c: Context, t: string, r: Row, previous?: Row) {
         403,
       );
     if (['STUDENT', 'TEACHER', 'HOD'].includes(r.role)) assert(dep, 'Department is required.', 400);
-    if (r.role === 'STUDENT') assert(batch, 'Student batch is required.', 400);
-    else r.batchId = null;
+    if (r.role === 'STUDENT') {
+      assert(batch, 'Student batch is required.', 400);
+      const program = relation(d, 'programs', r.programId || batch.programId);
+      const session = relation(d, 'sessions', r.sessionId || batch.sessionId);
+      assert(
+        program.id === batch.programId && program.departmentId === dep?.id,
+        'Student program, department and batch do not match.',
+        400,
+      );
+      assert(session.id === batch.sessionId, 'Student session and batch do not match.', 400);
+      r.programId = program.id;
+      r.sessionId = session.id;
+    } else {
+      r.batchId = null;
+      r.programId = null;
+      r.sessionId = null;
+    }
     if (r.email) {
       assert(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email), 'Enter a valid email.', 400);
       r.email = r.email.toLowerCase();
@@ -512,7 +529,10 @@ function validate(c: Context, t: string, r: Row, previous?: Row) {
       'Attendance cannot be recorded for a future date.',
       400,
     );
-    if (previous && previous.status !== r.status)
+    if (
+      previous &&
+      (previous.status !== r.status || (previous.remarks || '') !== (r.remarks || ''))
+    )
       assert(r.reason?.trim(), 'Give a reason for the attendance correction.', 400);
     r.recordedBy = u.id;
   }
@@ -579,10 +599,19 @@ export async function save(c: Context, t: string, input: Row) {
   const d = c.data;
   const previous = input.id ? c.data[t]?.find((x) => x.id === input.id) : undefined;
   if (input.id) assert(previous, 'Record not found.', 404);
+  if (t === 'attendance')
+    assert(
+      permitted(c.user, previous ? 'attendance_correct' : 'attendance_record', c.rolePrivileges),
+      previous
+        ? 'Correcting submitted attendance is disabled for this account.'
+        : 'Recording attendance is disabled for this account.',
+      403,
+    );
   const visible = scopedData(c.user, c.data, c.rolePrivileges)[t] || [];
   if (previous) assert(visible.some((v) => v.id === previous.id));
   const r: Row = { ...(previous || {}), id: previous?.id || uid() };
   delete r.enrollmentCount;
+  delete r.uploadedBy;
   for (const k of specs[t]) {
     if (k in input) {
       let value = input[k];
@@ -744,6 +773,149 @@ export async function save(c: Context, t: string, input: Row) {
   ]);
   return r.id;
 }
+
+function importLookup(rows: Row[], value: unknown): Row | undefined {
+  const search = String(value ?? '')
+    .trim()
+    .toLowerCase();
+  if (!search) return undefined;
+  return rows.find((row) =>
+    [row.id, row.name, row.code].some(
+      (candidate) =>
+        String(candidate ?? '')
+          .trim()
+          .toLowerCase() === search,
+    ),
+  );
+}
+
+function resolveImportedAccount(c: Context, source: Row, defaults: Row) {
+  const errors: string[] = [];
+  const text = (value: unknown) => String(value ?? '').trim();
+  const role = text(source.role || defaults.role || 'STUDENT')
+    .toUpperCase()
+    .replaceAll(' ', '_');
+  const batchValue = source.batchId || source.batch || source.class || defaults.batchId;
+  const batch = importLookup(c.data.batches, batchValue);
+  const department =
+    importLookup(
+      c.data.departments,
+      source.departmentId || source.department || defaults.departmentId,
+    ) ||
+    (batch && importLookup(c.data.departments, batch.departmentId));
+  const program =
+    importLookup(c.data.programs, source.programId || source.program || defaults.programId) ||
+    (batch && importLookup(c.data.programs, batch.programId));
+  const session =
+    importLookup(c.data.sessions, source.sessionId || source.session || defaults.sessionId) ||
+    (batch && importLookup(c.data.sessions, batch.sessionId));
+
+  if (batchValue && !batch) errors.push('Unknown class/batch.');
+  if ((source.departmentId || source.department || defaults.departmentId) && !department)
+    errors.push('Unknown department.');
+  if ((source.programId || source.program || defaults.programId) && !program)
+    errors.push('Unknown program.');
+  if ((source.sessionId || source.session || defaults.sessionId) && !session)
+    errors.push('Unknown academic session.');
+
+  const record: Row = {
+    name: text(source.name),
+    username: text(source.username).toLowerCase(),
+    email: text(source.email).toLowerCase() || null,
+    role,
+    departmentId: department?.id || null,
+    programId: program?.id || null,
+    sessionId: session?.id || null,
+    batchId: batch?.id || null,
+    identifier: text(source.identifier) || null,
+    phone: text(source.phone) || null,
+    employmentType: text(source.employmentType || defaults.employmentType) || null,
+    password: text(source.password),
+    active: 1,
+  };
+  if (!roles.includes(record.role)) errors.push('Choose a supported account role.');
+  if (!record.name) errors.push('Name is required.');
+  if (!/^[a-zA-Z0-9_.-]{3,60}$/.test(record.username))
+    errors.push('Username must be 3–60 letters, numbers, dots, underscores or hyphens.');
+  if (!record.password || record.password.length < 10 || record.password.length > 128)
+    errors.push('Password must contain 10–128 characters.');
+  if (record.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(record.email))
+    errors.push('Enter a valid email address.');
+
+  try {
+    validate(c, 'users', record);
+  } catch (error) {
+    errors.push((error as Error).message);
+  }
+  if (record.role === 'STUDENT') {
+    if (batch && department && department.id !== batch.departmentId)
+      errors.push('Student department and class/batch do not match.');
+    if (batch && program && program.id !== batch.programId)
+      errors.push('Student program and class/batch do not match.');
+    if (batch && session && session.id !== batch.sessionId)
+      errors.push('Student session and class/batch do not match.');
+  }
+  return { record, errors: [...new Set(errors)] };
+}
+
+async function validateImportedAccounts(c: Context, rows: Row[], defaults: Row = {}) {
+  assert(permitted(c.user, 'users', c.rolePrivileges), 'User management access is disabled.');
+  assert(
+    Array.isArray(rows) && rows.length > 0 && rows.length <= 500,
+    'Choose 1–500 accounts.',
+    400,
+  );
+  const existing = await stmt('SELECT username,email,identifier FROM users').all<Row>();
+  const existingValues = new Set<string>();
+  for (const user of existing.results)
+    for (const key of ['username', 'email', 'identifier']) {
+      const value = String(user[key] || '')
+        .trim()
+        .toLowerCase();
+      if (value) existingValues.add(`${key}:${value}`);
+    }
+  const seenValues = new Map<string, number>();
+  const results: Array<{ rowNumber: number; record: Row; errors: string[] }> = [];
+  for (const [index, source] of rows.entries()) {
+    const rowNumber = Number(source?._rowNumber) || index + 2;
+    const { record, errors } = resolveImportedAccount(c, source || {}, defaults);
+    if (record.role === 'STUDENT' && !permitted(c.user, 'student_enrollment', c.rolePrivileges))
+      errors.push('Student enrollment access is disabled.');
+    for (const key of ['username', 'email', 'identifier']) {
+      const value = String(record[key] || '')
+        .trim()
+        .toLowerCase();
+      if (!value) continue;
+      const token = `${key}:${value}`;
+      const priorRow = seenValues.get(token);
+      if (priorRow) errors.push(`Duplicate ${key} in import row ${priorRow}.`);
+      else seenValues.set(token, rowNumber);
+      if (existingValues.has(token)) errors.push(`This ${key} already exists.`);
+    }
+    results.push({ rowNumber, record, errors: [...new Set(errors)] });
+  }
+  return results;
+}
+
+async function createImportedAccounts(c: Context, rows: Row[], defaults: Row = {}) {
+  const results = await validateImportedAccounts(c, rows, defaults);
+  const created: Array<{ rowNumber: number; id: string; username: string }> = [];
+  const rejected: Array<{ rowNumber: number; errors: string[] }> = [];
+  for (const result of results) {
+    if (result.errors.length) {
+      rejected.push({ rowNumber: result.rowNumber, errors: result.errors });
+      continue;
+    }
+    try {
+      const id = await save(c, 'users', result.record);
+      created.push({ rowNumber: result.rowNumber, id, username: result.record.username });
+    } catch (error) {
+      rejected.push({ rowNumber: result.rowNumber, errors: [(error as Error).message] });
+    }
+  }
+  return { created, rejected };
+}
+
 export async function remove(c: Context, t: string, id: string) {
   const u = c.user;
   assert(t !== 'tasks', 'Office tasks have been retired.');
@@ -762,6 +934,22 @@ export async function remove(c: Context, t: string, id: string) {
       'Only the author, administrator or department HOD can delete this announcement.',
     );
   else assert(scopedData(u, c.data, c.rolePrivileges)[t]?.some((x) => x.id === id));
+  if (t === 'materials') {
+    assert(permitted(u, 'materials_delete', c.rolePrivileges));
+    const creator = await stmt(
+      "SELECT actorId FROM audit WHERE entity='materials' AND recordId=? AND action='create' ORDER BY createdAt LIMIT 1",
+      [id],
+    ).first<Row>();
+    const fileOwner = r.fileId
+      ? (await stmt('SELECT ownerId FROM files WHERE id=?', [r.fileId]).first<Row>())?.ownerId
+      : undefined;
+    const uploader = creator?.actorId || r.uploadedBy || fileOwner || r.updatedBy;
+    assert(
+      u.role === 'ADMIN' || uploader === u.id,
+      'Only an administrator or the original uploader can delete this learning material.',
+      403,
+    );
+  }
   if (t === 'timetable')
     assert(
       ['ADMIN', 'PRINCIPAL'].includes(u.role) ||
@@ -1018,6 +1206,40 @@ export async function action(c: Context, body: Row) {
     return facultyAction(c, body);
   if (body.action === 'save') return save(c, body.entity, body.record || {});
   if (body.action === 'remove') return remove(c, body.entity, body.id);
+  if (body.action === 'validateUserImport') {
+    const rows = await validateImportedAccounts(c, body.rows, body.defaults || {});
+    return {
+      rows: rows.map(({ rowNumber, errors }) => ({ rowNumber, errors })),
+      valid: rows.every((row) => row.errors.length === 0),
+    };
+  }
+  if (body.action === 'importUsers')
+    return createImportedAccounts(c, body.rows, body.defaults || {});
+  if (body.action === 'validateStudentImport') {
+    assert(permitted(u, 'student_enrollment', c.rolePrivileges));
+    const rows = await validateImportedAccounts(c, body.rows, {
+      role: 'STUDENT',
+      batchId: body.batchId,
+    });
+    const errors = rows.flatMap((row) =>
+      row.errors.map((message) => `Row ${row.rowNumber}: ${message}`),
+    );
+    return { valid: errors.length === 0, errors, rows };
+  }
+  if (body.action === 'importStudents') {
+    assert(permitted(u, 'student_enrollment', c.rolePrivileges));
+    const result = await createImportedAccounts(c, body.rows, {
+      role: 'STUDENT',
+      batchId: body.batchId,
+    });
+    return {
+      valid: result.rejected.length === 0,
+      created: result.created.map((record) => record.id),
+      errors: result.rejected.flatMap((row) =>
+        row.errors.map((message) => `Row ${row.rowNumber}: ${message}`),
+      ),
+    };
+  }
   if (body.action === 'assignSemesterSubjects') {
     assert(
       permitted(u, 'student_enrollment', c.rolePrivileges),
@@ -1259,9 +1481,20 @@ export async function action(c: Context, body: Row) {
     const existing = d.attendance.filter(
       (record) => record.offeringId === offering.id && record.date === body.date,
     );
+    assert(
+      permitted(u, existing.length ? 'attendance_correct' : 'attendance_record', c.rolePrivileges),
+      existing.length
+        ? 'Correcting submitted attendance is disabled for this account.'
+        : 'Recording attendance is disabled for this account.',
+      403,
+    );
     const corrections = body.records.filter((record: Row) =>
       existing.some(
-        (previous) => previous.studentId === record.studentId && previous.status !== record.status,
+        (previous) =>
+          previous.studentId === record.studentId &&
+          (previous.status !== record.status ||
+            (previous.remarks || '') !==
+              (record.status === 'Late' ? String(record.remarks || '').trim() : '')),
       ),
     );
     assert(

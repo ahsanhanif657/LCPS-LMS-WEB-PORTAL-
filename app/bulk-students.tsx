@@ -1,26 +1,78 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Data, Row } from '@/lib/lms/types';
-import { parseStudentCsv, studentImportHeaders } from '@/lib/lms/student-csv';
+import {
+  guessAccountImportMappings,
+  ImportFileData,
+  parseAccountImportFile,
+} from '@/lib/lms/account-import-files';
 import { reportCsv } from '@/lib/lms/export';
-const saveCsv = (text: string, name: string) => {
-  const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' })),
-    a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
+import { roles } from '@/lib/lms/types';
+import { permitted } from '@/security/privileges';
+
+const fields = [
+  ['name', 'Full name', true],
+  ['username', 'Username', true],
+  ['role', 'Role', false],
+  ['departmentId', 'Department', false],
+  ['programId', 'Program', false],
+  ['sessionId', 'Academic session', false],
+  ['batchId', 'Class / batch', false],
+  ['identifier', 'Student / employee ID', false],
+  ['email', 'Email', false],
+  ['phone', 'Phone', false],
+  ['password', 'Password', false],
+  ['employmentType', 'Teacher appointment', false],
+] as const;
+
 const request = async (body: Row) => {
-  const r = await fetch('/api/lms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
-    j = await r.json();
-  if (!r.ok) throw new Error(j.error || 'Import failed.');
-  return j.result;
+  const response = await fetch('/api/lms', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.error || 'Import request failed.');
+  return json.result;
 };
+
+function temporaryPassword() {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return `Lc!${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function saveCsv(text: string, name: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = name;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function mappedRecords(file: ImportFileData, mapping: Record<string, string>, defaults: Row) {
+  const columnIndex = (field: string) =>
+    mapping[field] ? file.headers.indexOf(mapping[field]) : -1;
+  return file.rows.map((row, index) => {
+    const output: Row = { _rowNumber: index + 2 };
+    for (const [field] of fields) {
+      const position = columnIndex(field);
+      if (position >= 0) output[field] = row[position] || '';
+    }
+    for (const key of [
+      'role',
+      'departmentId',
+      'programId',
+      'sessionId',
+      'batchId',
+      'employmentType',
+    ])
+      if (!output[key]) output[key] = defaults[key] || '';
+    if (!output.password) output.password = temporaryPassword();
+    return output;
+  });
+}
+
 export function BulkStudents({
   data,
   user,
@@ -30,176 +82,413 @@ export function BulkStudents({
   user: Row;
   refresh: () => Promise<void>;
 }) {
-  const [open, setOpen] = useState(false),
-    [batch, setBatch] = useState(''),
-    [rows, setRows] = useState<Row[]>([]),
-    [validated, setValidated] = useState(false),
-    [busy, setBusy] = useState(false),
-    [message, setMessage] = useState(''),
-    [done, setDone] = useState(0);
-  const batches = data.batches.filter(
-    (b) =>
-      b.active &&
-      (['ADMIN', 'PRINCIPAL'].includes(user.role) || b.departmentId === user.departmentId),
+  const [open, setOpen] = useState(false);
+  const [fileData, setFileData] = useState<ImportFileData | null>(null);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [records, setRecords] = useState<Row[]>([]);
+  const [outcomes, setOutcomes] = useState<Record<number, { status: string; errors: string[] }>>(
+    {},
   );
+  const [defaultRole, setDefaultRole] = useState('STUDENT');
+  const [departmentId, setDepartmentId] = useState(
+    user.role === 'HOD' ? String(user.departmentId || '') : '',
+  );
+  const [programId, setProgramId] = useState('');
+  const [sessionId, setSessionId] = useState('');
+  const [batchId, setBatchId] = useState('');
+  const [employmentType, setEmploymentType] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [previewed, setPreviewed] = useState(false);
+  const [created, setCreated] = useState(0);
+
+  const canAssignSeniorRoles = permitted(user, 'senior_accounts');
+  const availableRoles = canAssignSeniorRoles ? roles : ['STUDENT', 'TEACHER'];
+  const departments = data.departments.filter(
+    (department) => user.role !== 'HOD' || department.id === user.departmentId,
+  );
+  const programs = data.programs.filter(
+    (program) =>
+      program.active !== 0 &&
+      (!departmentId || program.departmentId === departmentId) &&
+      (user.role !== 'HOD' || program.departmentId === user.departmentId),
+  );
+  const batches = data.batches.filter(
+    (batch) =>
+      batch.active !== 0 &&
+      (!departmentId || batch.departmentId === departmentId) &&
+      (!programId || batch.programId === programId) &&
+      (!sessionId || batch.sessionId === sessionId) &&
+      (user.role !== 'HOD' || batch.departmentId === user.departmentId),
+  );
+  const defaultValues = useMemo(
+    () => ({ role: defaultRole, departmentId, programId, sessionId, batchId, employmentType }),
+    [defaultRole, departmentId, programId, sessionId, batchId, employmentType],
+  );
+
+  async function loadFile(file: File) {
+    setMessage('');
+    setFileData(null);
+    setRecords([]);
+    setOutcomes({});
+    setPreviewed(false);
+    setCreated(0);
+    try {
+      const parsed = await parseAccountImportFile(file);
+      setFileData(parsed);
+      setMapping(guessAccountImportMappings(parsed.headers));
+      setRecords(mappedRecords(parsed, guessAccountImportMappings(parsed.headers), defaultValues));
+      setMessage(
+        `${parsed.rows.length} account rows loaded. Map columns, select defaults, and preview validation.`,
+      );
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
+  }
+
+  function prepareRecords() {
+    if (!fileData) return [];
+    if (!mapping.name || !mapping.username)
+      throw new Error('Map both Full name and Username before validating the import.');
+    const mappedColumns = Object.entries(mapping).filter(([, column]) => column);
+    const duplicate = mappedColumns.find(
+      ([, column], index) =>
+        mappedColumns.findIndex(([, candidate]) => candidate === column) !== index,
+    );
+    if (duplicate) throw new Error('Each file column can map to only one account field.');
+    const prepared = mappedRecords(fileData, mapping, defaultValues);
+    setRecords(prepared);
+    return prepared;
+  }
+
+  const validCount = Object.values(outcomes).filter((outcome) => outcome.status === 'Ready').length;
+  const invalidCount = Object.values(outcomes).filter(
+    (outcome) => outcome.status === 'Rejected',
+  ).length;
+  const createdRecords = records.filter(
+    (row) => outcomes[Number(row._rowNumber)]?.status === 'Created',
+  );
+
   return (
     <section className="bulk-students panel">
-      <button className="btn" onClick={() => setOpen(!open)}>
-        Bulk import students
+      <button className="btn" type="button" onClick={() => setOpen(!open)}>
+        Bulk import accounts
       </button>
       {open && (
-        <>
-          <h3>Create accounts from a CSV</h3>
+        <div className="account-import">
+          <h3>Import users from CSV, Excel or PDF</h3>
           <p>
-            Select a class, download the template, then save your Excel sheet as CSV UTF-8. Up to
-            500 students per file. Accounts are enrolled in the class’s active subjects. Existing
-            accounts are never overwritten.
+            Choose a file containing 1–500 accounts. CSV and Excel (.xlsx) sheets are supported. PDF
+            import only accepts readable text tables; scanned or unclear PDFs are rejected. Existing
+            accounts are not overwritten.
           </p>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy || created > 0}
+            onClick={() =>
+              saveCsv(
+                reportCsv(
+                  fields.map(([field]) => field),
+                  [],
+                ),
+                'LCPS-account-import-template.csv',
+              )
+            }
+          >
+            Download CSV template
+          </button>
           <div className="row gap">
-            <button
-              className="btn"
-              disabled={busy}
-              onClick={() =>
-                saveCsv(reportCsv(studentImportHeaders, []), 'LCPS-student-import-template.csv')
-              }
-            >
-              Download CSV template
-            </button>
             <label className="field">
-              <span>Department / program / session / class</span>
+              <span>Default role</span>
               <select
-                value={batch}
-                disabled={busy || done > 0}
-                onChange={(e) => {
-                  setBatch(e.target.value);
-                  setValidated(false);
+                value={defaultRole}
+                disabled={busy || created > 0}
+                onChange={(event) => {
+                  setDefaultRole(event.target.value);
+                  setPreviewed(false);
+                  setOutcomes({});
                 }}
               >
-                <option value="">Select class</option>
-                {batches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {data.departments.find((d) => d.id === b.departmentId)?.name} ·{' '}
-                    {data.programs.find((p) => p.id === b.programId)?.name} ·{' '}
-                    {data.sessions.find((s) => s.id === b.sessionId)?.name} · {b.name} · Semester{' '}
-                    {b.semester}
+                {availableRoles.map((role) => (
+                  <option key={role} value={role}>
+                    {role.replaceAll('_', ' ')}
                   </option>
                 ))}
               </select>
             </label>
             <label className="field">
-              <span>CSV file</span>
+              <span>Default department</span>
+              <select
+                value={departmentId}
+                disabled={busy || user.role === 'HOD' || created > 0}
+                onChange={(event) => {
+                  setDepartmentId(event.target.value);
+                  setProgramId('');
+                  setBatchId('');
+                  setPreviewed(false);
+                }}
+              >
+                <option value="">Select department if needed</option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Default program</span>
+              <select
+                value={programId}
+                disabled={busy || created > 0}
+                onChange={(event) => {
+                  setProgramId(event.target.value);
+                  setBatchId('');
+                  setPreviewed(false);
+                }}
+              >
+                <option value="">Select program if needed</option>
+                {programs.map((program) => (
+                  <option key={program.id} value={program.id}>
+                    {program.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Default academic session</span>
+              <select
+                value={sessionId}
+                disabled={busy || created > 0}
+                onChange={(event) => {
+                  setSessionId(event.target.value);
+                  setBatchId('');
+                  setPreviewed(false);
+                }}
+              >
+                <option value="">Select session if needed</option>
+                {data.sessions.map((session) => (
+                  <option key={session.id} value={session.id}>
+                    {session.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Default class / batch</span>
+              <select
+                value={batchId}
+                disabled={busy || created > 0}
+                onChange={(event) => {
+                  setBatchId(event.target.value);
+                  setPreviewed(false);
+                }}
+              >
+                <option value="">Select class for students if needed</option>
+                {batches.map((batch) => (
+                  <option key={batch.id} value={batch.id}>
+                    {data.departments.find((row) => row.id === batch.departmentId)?.name} ·{' '}
+                    {data.programs.find((row) => row.id === batch.programId)?.name} ·{' '}
+                    {data.sessions.find((row) => row.id === batch.sessionId)?.name} · {batch.name} ·
+                    Semester {batch.semester}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Default teacher appointment</span>
+              <select
+                value={employmentType}
+                disabled={busy || created > 0}
+                onChange={(event) => {
+                  setEmploymentType(event.target.value);
+                  setPreviewed(false);
+                }}
+              >
+                <option value="">Select if importing teachers</option>
+                <option value="Visiting">Visiting</option>
+                <option value="Permanent">Permanent</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Account file</span>
               <input
-                disabled={busy}
                 type="file"
-                accept=".csv,text/csv"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = '';
-                  if (!file) return;
-                  setMessage('');
-                  setRows([]);
-                  setDone(0);
-                  setValidated(false);
-                  try {
-                    if (file.size > 400000) throw new Error('CSV must be under 400 KB.');
-                    setRows(
-                      parseStudentCsv(await file.text()).map((r) => ({
-                        ...r,
-                        password:
-                          r.password ||
-                          'Lc!' +
-                            Array.from(crypto.getRandomValues(new Uint8Array(12)), (n) =>
-                              n.toString(16).padStart(2, '0'),
-                            ).join(''),
-                      })),
-                    );
-                  } catch (e) {
-                    setMessage((e as Error).message);
-                  }
+                accept=".csv,.xlsx,.pdf,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                disabled={busy || created > 0}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = '';
+                  if (file) void loadFile(file);
                 }}
               />
             </label>
           </div>
-          {rows.length > 0 && (
+
+          {fileData && (
             <>
+              <h4>Map file columns</h4>
               <p>
-                {rows.length} students loaded · {done} saved. Blank passwords receive a unique
-                temporary password. New students change it on first login.
+                Required: full name and username. Map role, department, program, session and class
+                when these vary by row.
+              </p>
+              <div className="account-import-mappings">
+                {fields.map(([field, label, required]) => (
+                  <label className="field" key={field}>
+                    <span>
+                      {label}
+                      {required && <em>*</em>}
+                    </span>
+                    <select
+                      value={mapping[field] || ''}
+                      disabled={busy || created > 0}
+                      onChange={(event) => {
+                        setMapping((previous) => ({ ...previous, [field]: event.target.value }));
+                        setPreviewed(false);
+                        setOutcomes({});
+                      }}
+                    >
+                      <option value="">Not mapped</option>
+                      {fileData.headers.map((header, index) => (
+                        <option key={`${header}-${index}`} value={header}>
+                          {header}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+              </div>
+              <p>
+                {records.length} accounts · {created} created · {validCount} ready
+                {previewed ? ` · ${invalidCount} rejected` : ''}
               </p>
               <div className="table-wrap import-preview">
                 <table>
                   <thead>
                     <tr>
-                      <th>#</th>
+                      <th>File row</th>
                       <th>Name</th>
                       <th>Username</th>
-                      <th>Roll number</th>
-                      <th>Status</th>
+                      <th>Role</th>
+                      <th>Program / session / class</th>
+                      <th>Status and details</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((r, i) => (
-                      <tr key={i}>
-                        <td>{i + 1}</td>
-                        <td>{r.name}</td>
-                        <td>{r.username}</td>
-                        <td>{r.identifier}</td>
-                        <td>{i < done ? 'Created' : 'Pending'}</td>
-                      </tr>
-                    ))}
+                    {records.map((record) => {
+                      const rowNumber = Number(record._rowNumber);
+                      const outcome = outcomes[rowNumber];
+                      const batch = data.batches.find(
+                        (candidate) =>
+                          candidate.id === record.batchId || candidate.name === record.batchId,
+                      );
+                      const program = data.programs.find(
+                        (candidate) =>
+                          candidate.id === record.programId || candidate.name === record.programId,
+                      );
+                      const session = data.sessions.find(
+                        (candidate) =>
+                          candidate.id === record.sessionId || candidate.name === record.sessionId,
+                      );
+                      return (
+                        <tr key={rowNumber}>
+                          <td>{rowNumber}</td>
+                          <td>{record.name || '—'}</td>
+                          <td>{record.username || '—'}</td>
+                          <td>{record.role || defaultRole}</td>
+                          <td>
+                            {[
+                              program?.name || record.programId,
+                              session?.name || record.sessionId,
+                              batch?.name || record.batchId,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ') || '—'}
+                          </td>
+                          <td>
+                            <strong>{outcome?.status || 'Not validated'}</strong>
+                            {outcome?.errors.map((error) => (
+                              <small className="import-row-error" key={error}>
+                                {error}
+                              </small>
+                            ))}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-              <div className="row gap">
+              <div className="row gap account-import-actions">
                 <button
+                  type="button"
                   className="btn"
-                  disabled={!batch || busy || done > 0}
+                  disabled={busy || created > 0}
                   onClick={async () => {
                     setBusy(true);
                     setMessage('');
                     try {
+                      const prepared = prepareRecords();
                       const result = await request({
-                        action: 'validateStudentImport',
-                        batchId: batch,
-                        rows,
+                        action: 'validateUserImport',
+                        rows: prepared,
                       });
-                      setValidated(result.valid);
+                      const next: Record<number, { status: string; errors: string[] }> = {};
+                      for (const row of result.rows)
+                        next[row.rowNumber] = {
+                          status: row.errors.length ? 'Rejected' : 'Ready',
+                          errors: row.errors,
+                        };
+                      setOutcomes(next);
+                      setPreviewed(true);
                       setMessage(
                         result.valid
-                          ? 'Validation passed. Review the preview, then create accounts.'
-                          : result.errors.join('\n'),
+                          ? 'Validation passed. Review the preview before importing.'
+                          : 'Validation found issues. Valid rows can still be imported; rejected rows will be skipped.',
                       );
-                    } catch (e) {
-                      setMessage((e as Error).message);
+                    } catch (error) {
+                      setMessage((error as Error).message);
                     } finally {
                       setBusy(false);
                     }
                   }}
                 >
-                  Validate preview
+                  {busy ? 'Validating…' : 'Validate and preview'}
                 </button>
                 <button
+                  type="button"
                   className="btn primary"
-                  disabled={!validated || busy || done === rows.length}
+                  disabled={busy || !previewed || validCount === 0 || created > 0}
                   onClick={async () => {
                     setBusy(true);
                     setMessage('');
-                    let count = done;
+                    let imported = 0;
+                    const updated = { ...outcomes };
                     try {
-                      for (let i = done; i < rows.length; i += 10) {
+                      const readyRows = records.filter(
+                        (record) => outcomes[Number(record._rowNumber)]?.status === 'Ready',
+                      );
+                      for (let index = 0; index < readyRows.length; index += 25) {
                         const result = await request({
-                          action: 'importStudents',
-                          batchId: batch,
-                          rows: rows.slice(i, i + 10),
+                          action: 'importUsers',
+                          rows: readyRows.slice(index, index + 25),
                         });
-                        if (!result.valid) throw new Error(result.errors.join('\n'));
-                        count += result.created.length;
-                        setDone(count);
+                        for (const row of result.created) {
+                          updated[row.rowNumber] = { status: 'Created', errors: [] };
+                          imported++;
+                        }
+                        for (const row of result.rejected)
+                          updated[row.rowNumber] = { status: 'Rejected', errors: row.errors };
+                        setOutcomes({ ...updated });
+                        setCreated(imported);
                       }
-                      setMessage(`${count} student accounts created and enrolled.`);
-                    } catch (e) {
                       setMessage(
-                        `${count} accounts saved. ${(e as Error).message} Download credentials for saved rows before leaving. If the network response was lost, check accounts before retrying.`,
+                        `${imported} account${imported === 1 ? '' : 's'} created. ${Object.values(updated).filter((item) => item.status === 'Rejected').length} row(s) rejected; review the row details.`,
+                      );
+                    } catch (error) {
+                      setMessage(
+                        `${imported} accounts created before the request failed: ${(error as Error).message}`,
                       );
                     } finally {
                       setBusy(false);
@@ -207,24 +496,31 @@ export function BulkStudents({
                     }
                   }}
                 >
-                  {busy
-                    ? 'Processing…'
-                    : done
-                      ? 'Continue remaining rows'
-                      : 'Create student accounts'}
+                  {busy ? 'Importing…' : 'Import valid accounts'}
                 </button>
-                {done > 0 && (
+                {created > 0 && (
                   <button
+                    type="button"
                     className="btn"
                     onClick={() =>
                       saveCsv(
                         reportCsv(
-                          ['Name', 'Username', 'Roll number', 'Temporary password', 'Powered by'],
-                          rows
-                            .slice(0, done)
-                            .map((r) => [r.name, r.username, r.identifier, r.password, 'A & U']),
+                          [
+                            'Name',
+                            'Username',
+                            'Role',
+                            'Student / employee ID',
+                            'Temporary password',
+                          ],
+                          createdRecords.map((record) => [
+                            record.name,
+                            record.username,
+                            record.role,
+                            record.identifier,
+                            record.password,
+                          ]),
                         ),
-                        'LCPS-student-credentials.csv',
+                        'LCPS-imported-account-credentials.csv',
                       )
                     }
                   >
@@ -232,10 +528,6 @@ export function BulkStudents({
                   </button>
                 )}
               </div>
-              <p className="muted">
-                Download the credentials before leaving. Keep the file private and share each
-                student’s own details individually. Powered by A &amp; U
-              </p>
             </>
           )}
           {message && (
@@ -243,7 +535,7 @@ export function BulkStudents({
               {message}
             </p>
           )}
-        </>
+        </div>
       )}
     </section>
   );

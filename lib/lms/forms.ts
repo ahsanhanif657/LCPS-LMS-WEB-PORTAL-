@@ -47,6 +47,8 @@ export const forms: Record<string, Field[]> = {
     }),
     f('employmentType', 'Teacher appointment', 'select', { options: ['Visiting', 'Permanent'] }),
     ref('departmentId', 'Department', 'departments', true),
+    ref('programId', 'Program', 'programs', true),
+    ref('sessionId', 'Academic session', 'sessions', true),
     ref('batchId', 'Student batch', 'batches', true),
     f('identifier', 'Student / employee ID', 'text', { required: false }),
     f('phone', 'Phone', 'tel', { required: false }),
@@ -194,7 +196,17 @@ export const titles: Record<string, string> = {
   audit: 'Activity log',
 };
 export const columns: Record<string, string[]> = {
-  users: ['name', 'role', 'employmentType', 'identifier', 'departmentId', 'batchId', 'active'],
+  users: [
+    'name',
+    'role',
+    'employmentType',
+    'identifier',
+    'departmentId',
+    'programId',
+    'sessionId',
+    'batchId',
+    'active',
+  ],
   departments: ['name', 'code', 'active'],
   programs: ['name', 'departmentId', 'active'],
   sessions: ['name', 'active'],

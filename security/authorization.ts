@@ -29,7 +29,20 @@ export function teachingAllowed(u: Row, o: Row): boolean {
   );
 }
 export function canRecordAttendance(u: Row, o: Row): boolean {
-  return o.active !== 0 && permitted(u, 'attendance') && teachingAllowed(u, o);
+  return (
+    o.active !== 0 &&
+    permitted(u, 'attendance') &&
+    permitted(u, 'attendance_record') &&
+    teachingAllowed(u, o)
+  );
+}
+export function canCorrectAttendance(u: Row, o: Row): boolean {
+  return (
+    o.active !== 0 &&
+    permitted(u, 'attendance') &&
+    permitted(u, 'attendance_correct') &&
+    teachingAllowed(u, o)
+  );
 }
 // Results are the only teaching workflow delegated to the whole HOD department.
 export function resultsAllowed(u: Row, o: Row, d: Data): boolean {
@@ -86,6 +99,8 @@ export function scopedData(u: Row, d: Data, config?: RolePrivilegesConfig): Data
             role: v.role,
             departmentId: v.departmentId,
             batchId: v.batchId,
+            programId: v.programId || d.batches.find((batch) => batch.id === v.batchId)?.programId,
+            sessionId: v.sessionId || d.batches.find((batch) => batch.id === v.batchId)?.sessionId,
             identifier: v.identifier,
             avatar: v.avatar,
             active: v.active,

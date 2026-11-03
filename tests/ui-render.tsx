@@ -185,11 +185,18 @@ for (const user of [teacher, hod]) {
       renderMark={(id) => <span>MARK-CLASS:{id}</span>}
     />,
   );
-  assert(html.includes('Mark attendance'));
+  assert(html.includes(user.role === 'HOD' ? 'Record / correct attendance' : 'Record attendance'));
   assert(html.includes('MARK-CLASS:'));
   assert(!html.includes('MARK-CLASS:off-automata'));
 }
-const denied = { ...teacher, permissions: JSON.stringify({ attendance: false }) };
+const denied = {
+  ...teacher,
+  permissions: JSON.stringify({
+    attendance: false,
+    attendance_record: false,
+    attendance_correct: false,
+  }),
+};
 const disabled = renderToStaticMarkup(
   <FacultyAttendance
     data={scopedData(denied, data)}
@@ -213,6 +220,28 @@ const header = register.match(/<thead>(.*?)<\/thead>/s)![1];
 assert.equal((header.match(/<th>/g) || []).length, 6);
 assert.equal((header.match(/S.No./g) || []).length, 1);
 assert(register.includes('Remarks (Late)'));
+const submittedAttendance = renderToStaticMarkup(
+  <AttendanceWorkflow
+    data={{
+      ...scopedData(teacher, data),
+      attendance: [
+        {
+          offeringId: 'off-mobile',
+          studentId: 'student',
+          date: new Date().toISOString().slice(0, 10),
+          status: 'Present',
+          remarks: null,
+        },
+      ],
+    }}
+    user={teacher}
+    label={(_, id) => id}
+    run={async () => {}}
+    fixedOfferingId="off-mobile"
+  />,
+);
+assert(submittedAttendance.includes('already been submitted and is read-only'));
+assert(submittedAttendance.includes('disabled=""'));
 console.log(
   'PASS direct faculty marking, HOD own-class entry, explicit denied-access message, six-column attendance register',
 );
