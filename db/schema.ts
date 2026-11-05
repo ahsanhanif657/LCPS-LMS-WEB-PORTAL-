@@ -1,4 +1,4 @@
-import { pgTable, text, integer, bigint, doublePrecision } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, bigint, doublePrecision, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const departments = pgTable('departments', {
   id: text('id').primaryKey(),
@@ -63,6 +63,41 @@ export const subjects = pgTable('subjects', {
   credits: integer('credits').notNull().default(3),
   active: integer('active').notNull().default(1),
 });
+export const subjectPrograms = pgTable(
+  'subjectPrograms',
+  {
+    id: text('id').primaryKey(),
+    subjectId: text('subjectId')
+      .notNull()
+      .references(() => subjects.id),
+    programId: text('programId')
+      .notNull()
+      .references(() => programs.id),
+  },
+  (table) => [uniqueIndex('subject_program_unique').on(table.subjectId, table.programId)],
+);
+export const subjectSessions = pgTable(
+  'subjectSessions',
+  {
+    id: text('id').primaryKey(),
+    subjectId: text('subjectId')
+      .notNull()
+      .references(() => subjects.id),
+    programId: text('programId')
+      .notNull()
+      .references(() => programs.id),
+    sessionId: text('sessionId')
+      .notNull()
+      .references(() => sessions.id),
+  },
+  (table) => [
+    uniqueIndex('subject_program_session_unique').on(
+      table.subjectId,
+      table.programId,
+      table.sessionId,
+    ),
+  ],
+);
 export const offerings = pgTable('offerings', {
   coTeacherId: text('coTeacherId'),
   id: text('id').primaryKey(),

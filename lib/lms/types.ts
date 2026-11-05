@@ -17,6 +17,8 @@ export const tables = [
   'batches',
   'users',
   'subjects',
+  'subjectPrograms',
+  'subjectSessions',
   'offerings',
   'enrollments',
   'hodScopes',

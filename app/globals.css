@@ -7193,3 +7193,223 @@ td .profile-note {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.academic-directory {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.directory-breadcrumbs,
+.directory-class-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.directory-breadcrumbs > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.directory-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+  gap: 13px;
+}
+.directory-navigation-card {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  transition:
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+.directory-navigation-card:hover {
+  border-color: #b7cba8;
+  transform: translateY(-1px);
+}
+.directory-navigation-card > span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.directory-navigation-card strong {
+  font-size: 13px;
+}
+.directory-navigation-card small,
+.directory-section-heading p {
+  color: var(--muted);
+  font-size: 11px;
+}
+.directory-card-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #f0f5e9;
+  color: var(--green);
+}
+.directory-class-summary {
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 12px;
+}
+.directory-class-summary strong {
+  color: var(--ink);
+}
+.directory-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+.directory-section {
+  min-width: 0;
+  padding: 18px;
+}
+.directory-section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+.directory-section-heading h2 {
+  margin-bottom: 4px;
+}
+.directory-people-list {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+.directory-person {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.directory-person-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.directory-person-info small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.directory-person-link {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--green);
+  font-weight: 650;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+.directory-person-link:hover {
+  text-decoration-color: currentColor;
+}
+.directory-subjects {
+  grid-column: 1 / -1;
+}
+.directory-subjects .table-wrap {
+  overflow-x: auto;
+}
+.directory-subjects table {
+  min-width: 650px;
+}
+.directory-table-empty {
+  padding: 17px 0 4px;
+  color: var(--muted);
+}
+.directory-profile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.directory-profile-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.directory-profile-subjects {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+}
+.directory-profile-subjects p {
+  color: var(--muted);
+}
+.subject-assignment-summary {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
+  gap: 8px 13px;
+  padding: 13px;
+  border-radius: 8px;
+  background: #f8faf5;
+  font-size: 12px;
+}
+.subject-assignment-summary span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.subject-student-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 17px;
+  border-top: 1px solid var(--line);
+}
+.subject-student-entry {
+  display: grid;
+  grid-template-columns: 36px minmax(85px, 0.35fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+}
+.subject-student-entry > span {
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .directory-section-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .directory-subjects {
+    grid-column: auto;
+  }
+  .directory-profile {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .directory-profile-subjects {
+    grid-column: auto;
+  }
+  .subject-assignment-summary {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
+  }
+  .subject-assignment-summary strong:not(:first-child) {
+    margin-top: 7px;
+  }
+}

@@ -38,6 +38,7 @@ async function impersonate(id: string) {
 import assert from 'node:assert/strict';
 import { context, action, all, stmt, save, remove, payload, insert, db } from '../lib/lms/service';
 import { scopedData, attendancePercent, overlap } from '../lib/lms/policy';
+import { pageAllowed } from '../security/privileges';
 
 import { POST as uploadFile } from '../app/api/files/route';
 import { GET as getFile } from '../app/api/files/[id]/route';
@@ -159,12 +160,14 @@ await test('unauthenticated visitors denied', async () => {
   await rejects(() => context(), /sign in/);
   jar.set('lcps_session', value);
 });
-await test('student sees only own attendance results and submissions', async () => {
+await test('student sees only own coursework plus safe current-class profiles', async () => {
   const c = await ctx('student');
   const d = payload(c).data;
   assert(d.attendance.every((x) => x.studentId === 'student'));
   assert(d.results.every((x) => x.studentId === 'student'));
-  assert(!d.users.some((x) => x.id === 'student2'));
+  assert(d.users.some((x) => x.id === 'student2'));
+  assert(!d.users.some((x) => x.id === 'student3'));
+  assert(!('username' in d.users.find((x) => x.id === 'student2')!));
   assert(d.quizzes.every((q) => q.questions.every((x: any) => !('correct' in x))));
 });
 await test('student cannot create user or change marks', async () => {
@@ -200,11 +203,133 @@ await test('staff cannot record attendance', async () => {
 await test('HOD cannot access another department or edit out of scope students', async () => {
   const c = await ctx('hod_pharmd');
   assert(payload(c).data.users.every((u) => u.departmentId === 'pharm' || u.id === c.user.id));
+  assert(pageAllowed(c.user, 'myDepartment'));
+  assert(!pageAllowed(c.user, 'myCollege'));
+  assert(!pageAllowed(c.user, 'myClass'));
   await rejects(() =>
     save(c, 'users', { ...c.data.users.find((u) => u.id === 'student'), name: 'No' }),
   );
   await rejects(() =>
     save(c, 'subjects', { name: 'No', code: 'INVALID', departmentId: 'cs', credits: 3 }),
+  );
+});
+await test('principal academic profiles exclude account and authentication fields', async () => {
+  const c = await ctx('principal');
+  const data = payload(c).data;
+  assert(pageAllowed(c.user, 'myCollege'));
+  assert(!pageAllowed(c.user, 'myDepartment'));
+  assert(!pageAllowed(c.user, 'myClass'));
+  assert(data.users.some((u) => u.role === 'STUDENT'));
+  assert(data.users.some((u) => u.role === 'TEACHER'));
+  assert(!data.users.some((u) => u.role === 'ADMIN'));
+  assert(!data.users.some((u) => u.role === 'PRINCIPAL' && u.id !== c.user.id));
+  for (const person of data.users)
+    for (const field of [
+      'username',
+      'email',
+      'phone',
+      'permissions',
+      'passwordChangeRequired',
+      'passwordPolicyVersion',
+      'responsibilities',
+      'createdAt',
+      'demo',
+    ])
+      assert(!Object.prototype.hasOwnProperty.call(person, field));
+});
+await test('students receive only their current class profiles and semester teachers', async () => {
+  const c = await ctx('student');
+  const data = payload(c).data;
+  assert(pageAllowed(c.user, 'myClass'));
+  assert(!pageAllowed(c.user, 'myDepartment'));
+  assert(!pageAllowed(c.user, 'myCollege'));
+  assert(data.users.some((u) => u.id === 'student2'));
+  assert(!data.users.some((u) => ['student3', 'student4', 'admin', 'principal'].includes(u.id)));
+  assert(
+    data.users
+      .filter((u) => u.id !== c.user.id)
+      .every((u) => !('username' in u) && !('permissions' in u) && !('email' in u)),
+  );
+  const classOfferings = data.academicDirectoryOfferings;
+  assert(classOfferings.length > 0);
+  assert(
+    classOfferings.every((o) => {
+      const batch = data.batches.find((b) => b.id === o.batchId);
+      return (
+        batch?.departmentId === 'cs' &&
+        batch.programId === 'bscs' &&
+        batch.sessionId === 's24' &&
+        batch.semester === 4
+      );
+    }),
+  );
+});
+await test('subject program and session assignments are multi-program, scoped and non-duplicating', async () => {
+  let c = await ctx();
+  const secondProgramId = await save(c, 'programs', {
+    name: 'BS Software Engineering Test',
+    departmentId: 'cs',
+  });
+  c = await ctx();
+  await save(c, 'batches', {
+    name: 'BSSE-24-TEST',
+    departmentId: 'cs',
+    programId: secondProgramId,
+    sessionId: 's24',
+    semester: 4,
+  });
+  c = await ctx();
+  const sessionAssignments = [
+    JSON.stringify(['bscs', 's24']),
+    JSON.stringify([secondProgramId, 's24']),
+  ];
+  const subjectId = await save(c, 'subjects', {
+    name: 'Programming Fundamentals Test',
+    code: 'PF-TEST-1',
+    departmentId: 'cs',
+    credits: 3,
+    programIds: ['bscs', secondProgramId],
+    sessionAssignments,
+  });
+  assert.equal((await all('subjects')).filter((s) => s.id === subjectId).length, 1);
+  assert.equal((await all('subjectPrograms')).filter((r) => r.subjectId === subjectId).length, 2);
+  assert.deepEqual(
+    (await all('subjectSessions'))
+      .filter((r) => r.subjectId === subjectId)
+      .map((r) => [r.programId, r.sessionId])
+      .sort(),
+    [
+      ['bscs', 's24'],
+      [secondProgramId, 's24'],
+    ].sort(),
+  );
+  c = await ctx();
+  const subject = c.data.subjects.find((s) => s.id === subjectId)!;
+  await save(c, 'subjects', {
+    ...subject,
+    programIds: ['bscs', secondProgramId],
+    sessionAssignments,
+  });
+  assert.equal((await all('subjects')).filter((s) => s.id === subjectId).length, 1);
+  await rejects(async () =>
+    save(await ctx(), 'subjects', {
+      name: 'Invalid cross department subject',
+      code: 'PF-TEST-2',
+      departmentId: 'cs',
+      credits: 3,
+      programIds: ['pharmd'],
+      sessionAssignments: [],
+    }),
+  );
+  await rejects(async () =>
+    save(await ctx(), 'subjects', {
+      name: 'Invalid session subject',
+      code: 'PF-TEST-3',
+      departmentId: 'cs',
+      credits: 3,
+      programIds: ['bscs'],
+      sessionAssignments: [JSON.stringify(['bscs', 'missing-session'])],
+    }),
   );
 });
 await test('student account stores department, program, session and batch consistently', async () => {

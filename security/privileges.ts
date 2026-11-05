@@ -300,6 +300,9 @@ export function supportsPrivilege(role: string, key: string): boolean {
   );
 }
 export function pageAllowed(u: Row, page: string, config?: RolePrivilegesConfig): boolean {
+  if (page === 'myDepartment') return u.role === 'HOD';
+  if (page === 'myCollege') return u.role === 'PRINCIPAL';
+  if (page === 'myClass') return u.role === 'STUDENT';
   if (['dashboard', 'profile', 'password', 'personal'].includes(page)) return true;
   if (page === 'management')
     return ['finance', 'exams', 'events', 'transport'].some((k) => permitted(u, k, config));

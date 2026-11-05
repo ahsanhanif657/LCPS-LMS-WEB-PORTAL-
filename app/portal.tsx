@@ -13,6 +13,7 @@ import { ResourceSubjects, AdminResourceSubjects } from './resource-subjects';
 import { resourceScope } from '@/lib/lms/resource-scope';
 import { rollOrder } from '@/lib/lms/ordering';
 import { UserPhoto, UserDirectory } from './user-directory';
+import { AcademicDirectory } from './academic-directory';
 import { CommunityBanner, RecordWorkspace } from './portal-additions';
 import { CourseOutlines, SessionSubjects, TeacherProfile } from './academic-components';
 import { FacultyTasks, DepartmentResponsibilities, LoginNotices } from './faculty-tasks';
@@ -133,6 +134,9 @@ const icons: Record<string, any> = {
   teacherTasks: Briefcase,
   responsibilities: ShieldCheck,
   reports: BarChart3,
+  myDepartment: Building2,
+  myCollege: Building2,
+  myClass: Users,
 };
 const names: Record<string, string> = {
   personal: 'My diary & to-do',
@@ -158,6 +162,9 @@ const names: Record<string, string> = {
   responsibilities: 'Departmental responsibilities',
   reports: 'Reports',
   password: 'Change password',
+  myDepartment: 'My Department',
+  myCollege: 'My College',
+  myClass: 'My Class',
 };
 const entityNames: Record<string, string> = {
   users: 'account',
@@ -212,6 +219,7 @@ export default function Portal() {
     [academic, setAcademic] = useState('departments'),
     [form, setForm] = useState<{ entity: string; record: Row } | null>(null),
     [detail, setDetail] = useState<{ entity: string; record: Row } | null>(null),
+    [detailOrigin, setDetailOrigin] = useState<{ entity: string; record: Row } | null>(null),
     [confirm, setConfirm] = useState<{ entity: string; record: Row } | null>(null),
     [quizAttempt, setQuizAttempt] = useState<Row | null>(null),
     [report, setReport] = useState('attendance'),
@@ -302,6 +310,7 @@ export default function Portal() {
     setPage(s);
     setMobile(false);
     setDetail(null);
+    setDetailOrigin(null);
   };
   async function run(body: Row, message = 'Changes saved') {
     setBusy(true);
@@ -469,6 +478,7 @@ export default function Portal() {
   const baseNav = student
     ? [
         'dashboard',
+        'myClass',
         'subjects',
         'materials',
         'assignments',
@@ -479,10 +489,20 @@ export default function Portal() {
         'announcements',
       ]
     : u.role === 'PRINCIPAL'
-      ? ['dashboard', 'attendance', 'results', 'timetable', 'announcements', 'academic', 'reports']
+      ? [
+          'dashboard',
+          'myCollege',
+          'attendance',
+          'results',
+          'timetable',
+          'announcements',
+          'academic',
+          'reports',
+        ]
       : u.role === 'HOD'
         ? [
             'dashboard',
+            'myDepartment',
             'subjects',
             'deptSubjects',
             'assignments',
@@ -566,6 +586,11 @@ export default function Portal() {
   };
   const display = (key: string, val: any) => {
     if (refTable[key]) return label(refTable[key], val);
+    if (key === 'programIds' || key === 'sessionIds')
+      return Array.isArray(val)
+        ? val.map((id) => label(key === 'programIds' ? 'programs' : 'sessions', id)).join(', ') ||
+            '—'
+        : '—';
     if (['dueDate', 'createdAt', 'date', 'submittedAt'].includes(key)) return date(val);
     if (key === 'active') return val ? 'Active' : 'Inactive';
     if (key === 'published') return val ? 'Published' : 'Draft';
@@ -577,7 +602,9 @@ export default function Portal() {
       departmentId: 'Department',
       batchId: 'Batch',
       programId: 'Program',
+      programIds: 'Assigned programs',
       sessionId: 'Session',
+      sessionIds: 'Assigned sessions',
       studentId: 'Student',
       offeringId: 'Subject & class',
       teacherId: 'Teacher',
@@ -652,6 +679,10 @@ export default function Portal() {
       onSelect={() => setDetail({ entity: 'subject', record: o })}
     />
   );
+  const openStudentProfile = (person: Row) => {
+    setDetailOrigin(detail);
+    setDetail({ entity: 'studentProfile', record: person });
+  };
   function exportCsv(entity: string, records: Row[]) {
     if (!permitted(u, 'reports', rolePrivileges)) {
       setToast('Report export access is disabled.');
@@ -1143,6 +1174,12 @@ export default function Portal() {
         </>
       );
     if (page === 'dashboard') return renderDashboard();
+    if (page === 'myDepartment' && u.role === 'HOD')
+      return <AcademicDirectory data={allData} user={u} mode="department" />;
+    if (page === 'myCollege' && u.role === 'PRINCIPAL')
+      return <AcademicDirectory data={allData} user={u} mode="college" />;
+    if (page === 'myClass' && student)
+      return <AcademicDirectory data={allData} user={u} mode="class" />;
     if (page === 'subjects')
       return (
         <>
@@ -2357,20 +2394,58 @@ export default function Portal() {
       {detail && (
         <Modal
           title={
-            detail.entity === 'subject'
-              ? label('subjects', detail.record.subjectId)
-              : detail.entity === 'class'
-                ? 'Class details'
-                : detail.record.title || 'Details'
+            detail.entity === 'studentProfile'
+              ? detail.record.name
+              : detail.entity === 'subject'
+                ? label('subjects', detail.record.subjectId)
+                : detail.entity === 'class'
+                  ? 'Class details'
+                  : detail.record.title || 'Details'
           }
           subtitle={
-            detail.record.offeringId ? label('offerings', detail.record.offeringId) : undefined
+            detail.entity === 'studentProfile'
+              ? 'Student profile'
+              : detail.record.offeringId
+                ? label('offerings', detail.record.offeringId)
+                : undefined
           }
-          onClose={() => setDetail(null)}
+          onClose={() => {
+            setDetail(null);
+            setDetailOrigin(null);
+          }}
           wide={detail.entity === 'assignments' || detail.entity === 'quizzes'}
         >
           <div className="modal-body">
-            {detail.entity === 'teacherProfile' ? (
+            {detail.entity === 'studentProfile' ? (
+              <>
+                {detailOrigin && (
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      setDetail(detailOrigin);
+                      setDetailOrigin(null);
+                    }}
+                  >
+                    <ChevronLeft size={16} />
+                    Back to subject
+                  </button>
+                )}
+                <div className="directory-profile">
+                  <ProfilePhoto user={detail.record} size="large" />
+                  <div className="directory-profile-copy">
+                    <p>{detail.record.identifier || 'Student'}</p>
+                    {detail.record.profileNote && (
+                      <p>
+                        <strong>Notes</strong>
+                        <br />
+                        {detail.record.profileNote}
+                      </p>
+                    )}
+                    <ProfileDetails user={detail.record} />
+                  </div>
+                </div>
+              </>
+            ) : detail.entity === 'teacherProfile' ? (
               <TeacherProfile teacher={detail.record} />
             ) : detail.entity === 'announcements' ? (
               <>
@@ -2407,6 +2482,20 @@ export default function Portal() {
                   <strong>Course code:</strong>{' '}
                   {d.subjects.find((s) => s.id === detail.record.subjectId)?.code || '—'}
                 </p>
+                <div className="subject-assignment-summary">
+                  <strong>Assigned programs</strong>
+                  <span>
+                    {(d.subjects.find((s) => s.id === detail.record.subjectId)?.programIds || [])
+                      .map((id: string) => label('programs', id))
+                      .join(', ') || 'No program assignment recorded'}
+                  </span>
+                  <strong>Assigned sessions</strong>
+                  <span>
+                    {(d.subjects.find((s) => s.id === detail.record.subjectId)?.sessionIds || [])
+                      .map((id: string) => label('sessions', id))
+                      .join(', ') || 'Sessions follow the class assignments'}
+                  </span>
+                </div>
                 <div className="profile-details">
                   <div>
                     <small>Teacher</small>
@@ -2431,6 +2520,34 @@ export default function Portal() {
                     </strong>
                   </div>
                 </div>
+                {u.role === 'TEACHER' &&
+                  (detail.record.teacherId === u.id || detail.record.coTeacherId === u.id) && (
+                    <section className="subject-student-list">
+                      <h3>Students in this subject</h3>
+                      {d.enrollments
+                        .filter(
+                          (enrollment) =>
+                            enrollment.offeringId === detail.record.id && enrollment.active,
+                        )
+                        .map((enrollment) =>
+                          d.users.find((person) => person.id === enrollment.studentId),
+                        )
+                        .filter((person): person is Row => !!person)
+                        .sort(rollOrder)
+                        .map((person) => (
+                          <div className="subject-student-entry" key={person.id}>
+                            <UserPhoto user={person} />
+                            <span>{person.identifier || '—'}</span>
+                            <button
+                              className="directory-person-link"
+                              onClick={() => openStudentProfile(person)}
+                            >
+                              {person.name}
+                            </button>
+                          </div>
+                        ))}
+                    </section>
+                  )}
                 <div className="subject-links">
                   {[
                     'courseOutlines',
@@ -2954,6 +3071,28 @@ function EntityForm({
   const set = (key: string, value: any) => setV((prev) => ({ ...prev, [key]: value }));
   const options = (f: Field): Row[] => {
     let rows = d[f.ref!] || [];
+    if (entity === 'subjects' && f.key === 'sessionAssignments') {
+      const selectedPrograms = Array.isArray(v.programIds) ? v.programIds : [];
+      rows = [
+        ...new Map(
+          d.batches
+            .filter(
+              (batch) =>
+                batch.departmentId === v.departmentId && selectedPrograms.includes(batch.programId),
+            )
+            .map((batch) => {
+              const id = JSON.stringify([batch.programId, batch.sessionId]);
+              return [
+                id,
+                {
+                  id,
+                  name: `${label('programs', batch.programId)} · ${label('sessions', batch.sessionId)}`,
+                },
+              ];
+            }),
+        ).values(),
+      ];
+    }
     if (
       entity === 'timetable' &&
       f.ref === 'offerings' &&
@@ -2968,9 +3107,23 @@ function EntityForm({
             ? ['TEACHER', 'HOD'].includes(r.role)
             : r.role === 'HOD',
       );
-    rows = rows.filter((r) => r.active !== 0 || r.id === v[f.key]);
+    rows = rows.filter(
+      (r) =>
+        r.active !== 0 || (Array.isArray(v[f.key]) ? v[f.key].includes(r.id) : r.id === v[f.key]),
+    );
     if (f.ref === 'programs' && v.departmentId)
       rows = rows.filter((r) => r.departmentId === v.departmentId);
+    if (entity === 'subjects' && f.key === 'sessionIds') {
+      const selectedPrograms = Array.isArray(v.programIds) ? v.programIds : [];
+      rows = rows.filter((session) =>
+        d.batches.some(
+          (batch) =>
+            batch.departmentId === v.departmentId &&
+            selectedPrograms.includes(batch.programId) &&
+            batch.sessionId === session.id,
+        ),
+      );
+    }
     if (f.ref === 'batches' && v.departmentId)
       rows = rows.filter((r) => r.departmentId === v.departmentId);
     if (f.ref === 'batches' && v.programId) rows = rows.filter((r) => r.programId === v.programId);
@@ -3073,13 +3226,54 @@ function EntityForm({
                   {f.label}
                   {required && <em>*</em>}
                 </span>
-                {f.type === 'select' ? (
+                {f.type === 'multi-select' ? (
+                  <select
+                    multiple
+                    required={required}
+                    size={Math.max(3, Math.min(6, options(f).length))}
+                    value={Array.isArray(v[f.key]) ? v[f.key] : []}
+                    onChange={(e) => {
+                      const values = Array.from(e.target.selectedOptions, (option) => option.value);
+                      if (entity === 'subjects' && f.key === 'programIds') {
+                        const validAssignments = new Set(
+                          d.batches
+                            .filter(
+                              (batch) =>
+                                batch.departmentId === v.departmentId &&
+                                values.includes(batch.programId),
+                            )
+                            .map((batch) => JSON.stringify([batch.programId, batch.sessionId])),
+                        );
+                        setV((previous) => ({
+                          ...previous,
+                          programIds: values,
+                          sessionAssignments: (previous.sessionAssignments || []).filter(
+                            (id: string) => validAssignments.has(id),
+                          ),
+                        }));
+                      } else set(f.key, values);
+                    }}
+                  >
+                    {options(f).map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {f.key === 'sessionAssignments' ? option.name : label(f.ref!, option.id)}
+                      </option>
+                    ))}
+                  </select>
+                ) : f.type === 'select' ? (
                   <select
                     value={v[f.key] || ''}
                     required={required}
                     onChange={(e) => {
                       const value = e.target.value;
-                      if (entity === 'users' && f.key === 'departmentId')
+                      if (entity === 'subjects' && f.key === 'departmentId')
+                        setV((previous) => ({
+                          ...previous,
+                          departmentId: value,
+                          programIds: [],
+                          sessionAssignments: [],
+                        }));
+                      else if (entity === 'users' && f.key === 'departmentId')
                         setV((previous) => ({
                           ...previous,
                           departmentId: value,

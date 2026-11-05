@@ -591,6 +591,108 @@ function validate(c: Context, t: string, r: Row, previous?: Row) {
   if (t === 'tasks') assert(false, 'Office tasks have been retired.');
   for (const k of ['active', 'published', 'allowLate', 'release']) if (k in r) r[k] = r[k] ? 1 : 0;
 }
+function subjectAssignments(c: Context, record: Row, input: Row, previous?: Row) {
+  assert(
+    !('programIds' in input) || Array.isArray(input.programIds),
+    'Choose valid programs.',
+    400,
+  );
+  assert(
+    !('sessionAssignments' in input) || Array.isArray(input.sessionAssignments),
+    'Choose valid program and session assignments.',
+    400,
+  );
+  const existingPrograms = (c.data.subjectPrograms || [])
+    .filter((r) => r.subjectId === record.id)
+    .map((r) => r.programId);
+  const existingSessions = (c.data.subjectSessions || []).filter((r) => r.subjectId === record.id);
+  const legacyBatches = c.data.offerings
+    .filter((o) => o.subjectId === record.id)
+    .map((o) => c.data.batches.find((b) => b.id === o.batchId))
+    .filter((b): b is Row => !!b);
+  const programIds = Array.isArray(input.programIds)
+    ? input.programIds
+    : existingPrograms.length
+      ? existingPrograms
+      : legacyBatches.map((b) => b.programId);
+  let sessionAssignments: Row[];
+  if (Array.isArray(input.sessionAssignments)) {
+    sessionAssignments = input.sessionAssignments.map((value) => {
+      let pair: unknown;
+      try {
+        pair = JSON.parse(value);
+      } catch {
+        throw new AppError('Choose valid program and session assignments.', 400);
+      }
+      assert(
+        Array.isArray(pair) && pair.length === 2 && pair.every((id) => typeof id === 'string'),
+        'Choose valid program and session assignments.',
+        400,
+      );
+      return { programId: pair[0], sessionId: pair[1] };
+    });
+  } else if (Array.isArray(input.sessionIds)) {
+    sessionAssignments = input.sessionIds.flatMap((sessionId: string) =>
+      programIds.map((programId: string) => ({ programId, sessionId })),
+    );
+  } else {
+    sessionAssignments = existingSessions.length
+      ? existingSessions.map((r) => ({ programId: r.programId, sessionId: r.sessionId }))
+      : legacyBatches.map((b) => ({ programId: b.programId, sessionId: b.sessionId }));
+  }
+  assert(
+    programIds.length <= 100 &&
+      programIds.every((id) => typeof id === 'string') &&
+      sessionAssignments.length <= 500,
+    'Choose valid programs and sessions.',
+    400,
+  );
+  const uniquePrograms = [...new Set(programIds)];
+  const uniqueAssignments = [
+    ...new Map(
+      sessionAssignments.map((assignment) => [
+        JSON.stringify([assignment.programId, assignment.sessionId]),
+        assignment,
+      ]),
+    ).values(),
+  ];
+  const programs = uniquePrograms.map((id) => relation(c.data, 'programs', id));
+  assert(
+    programs.every((p) => p.departmentId === record.departmentId),
+    'Every assigned program must belong to the selected department.',
+    400,
+  );
+  assert(
+    uniqueAssignments.every(
+      ({ programId, sessionId }) =>
+        uniquePrograms.includes(programId) &&
+        !!relation(c.data, 'sessions', sessionId) &&
+        c.data.batches.some(
+          (b) =>
+            b.departmentId === record.departmentId &&
+            b.programId === programId &&
+            b.sessionId === sessionId,
+        ),
+    ),
+    'Every assigned session must belong to its selected program in this department.',
+    400,
+  );
+  if (!previous && 'programIds' in input)
+    assert(uniquePrograms.length > 0, 'Assign the subject to at least one program.', 400);
+  assert(
+    legacyBatches.every(
+      (b) =>
+        uniquePrograms.includes(b.programId) &&
+        uniqueAssignments.some(
+          (assignment) =>
+            assignment.programId === b.programId && assignment.sessionId === b.sessionId,
+        ),
+    ),
+    'Keep the program and session assignments used by existing classes.',
+    400,
+  );
+  return { programIds: uniquePrograms, sessionAssignments: uniqueAssignments };
+}
 export async function save(c: Context, t: string, input: Row) {
   assert(t !== 'tasks', 'Office tasks have been retired.');
   assert(permitted(c.user, entityPrivilege(t), c.rolePrivileges));
@@ -641,6 +743,7 @@ export async function save(c: Context, t: string, input: Row) {
     r.questions = '[]';
   }
   validate(c, t, r, previous);
+  const assignments = t === 'subjects' ? subjectAssignments(c, r, input, previous) : undefined;
   if (['assignments', 'quizzes', 'materials', 'results', 'timetable'].includes(t))
     r.updatedBy = c.user.id;
   if (
@@ -746,6 +849,14 @@ export async function save(c: Context, t: string, input: Row) {
         r.id,
       ])
     : insert(t, r);
+  if (assignments) {
+    extra.push(stmt('DELETE FROM subjectPrograms WHERE subjectId=?', [r.id]));
+    extra.push(stmt('DELETE FROM subjectSessions WHERE subjectId=?', [r.id]));
+    for (const programId of assignments.programIds)
+      extra.push(insert('subjectPrograms', { id: uid(), subjectId: r.id, programId }));
+    for (const assignment of assignments.sessionAssignments)
+      extra.push(insert('subjectSessions', { id: uid(), subjectId: r.id, ...assignment }));
+  }
   await db().batch([
     write,
     ...extra,
@@ -1096,6 +1207,10 @@ export async function remove(c: Context, t: string, id: string) {
   else if (t === 'subjects') {
     for (const offering of c.data.offerings.filter((x) => x.subjectId === id))
       byOffering(offering.id);
+    writes.push(
+      stmt('DELETE FROM subjectSessions WHERE subjectId=?', [id]),
+      stmt('DELETE FROM subjectPrograms WHERE subjectId=?', [id]),
+    );
     writes.push(stmt('DELETE FROM subjects WHERE id=?', [id]));
   } else if (t === 'users') await byUser(id);
   else if (t === 'assignments') {

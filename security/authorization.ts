@@ -74,24 +74,59 @@ export function scopedData(u: Row, d: Data, config?: RolePrivilegesConfig): Data
     (e) => ids.has(e.offeringId) && (u.role !== 'STUDENT' || e.studentId === u.id),
   );
   const studentIds = new Set(enrollments.map((e) => e.studentId));
+  const studentBatch = u.role === 'STUDENT' ? d.batches.find((b) => b.id === u.batchId) : undefined;
+  const classBatches = studentBatch
+    ? d.batches.filter(
+        (b) =>
+          b.departmentId === studentBatch.departmentId &&
+          b.programId === studentBatch.programId &&
+          b.sessionId === studentBatch.sessionId &&
+          b.semester === studentBatch.semester,
+      )
+    : [];
+  const classBatchIds = new Set(classBatches.map((b) => b.id));
+  const classmateIds = new Set(
+    u.role === 'STUDENT'
+      ? d.users
+          .filter((v) => v.role === 'STUDENT' && v.active !== 0 && classBatchIds.has(v.batchId))
+          .map((v) => v.id)
+      : [],
+  );
+  const directoryOfferings =
+    u.role === 'STUDENT'
+      ? d.offerings.filter((o) => classBatchIds.has(o.batchId) && o.active !== 0)
+      : [];
+  const directoryTeacherIds = new Set(
+    directoryOfferings.flatMap((o) => [o.teacherId, o.coTeacherId].filter(Boolean)),
+  );
   const fullUsers = d.users.filter(
     (v) =>
-      broad(u) ||
+      u.role === 'ADMIN' ||
+      (broad(u) && u.role !== 'PRINCIPAL') ||
       permitted(u, 'manage_access', config) ||
       v.id === u.id ||
       (departmentAccess(u) && v.departmentId === u.departmentId) ||
-      (u.role === 'TEACHER' && studentIds.has(v.id)),
+      (u.role === 'TEACHER' && studentIds.has(v.id) && v.role !== 'STUDENT'),
   );
   out.users = d.users
     .filter(
       (v) =>
         fullUsers.some((x) => x.id === v.id) ||
+        (u.role === 'PRINCIPAL' && v.active !== 0 && ['STUDENT', 'TEACHER'].includes(v.role)) ||
+        (u.role === 'STUDENT' && (classmateIds.has(v.id) || directoryTeacherIds.has(v.id))) ||
+        (u.role === 'TEACHER' && studentIds.has(v.id)) ||
         (permitted(u, 'exams', config) && v.role === 'STUDENT') ||
-        os.some((o) => o.teacherId === v.id || (!!o.coTeacherId && o.coTeacherId === v.id)) ||
+        (['TEACHER', 'HOD'].includes(v.role) &&
+          os.some((o) => o.teacherId === v.id || (!!o.coTeacherId && o.coTeacherId === v.id))) ||
         ['TREASURER', 'EXAMINATION_CONTROLLER', 'REGISTRAR'].includes(v.role),
     )
-    .map((v) =>
-      fullUsers.some((x) => x.id === v.id)
+    .map((v) => {
+      const retainAccountFields =
+        fullUsers.some((x) => x.id === v.id) &&
+        u.role !== 'PRINCIPAL' &&
+        !(u.role === 'TEACHER' && v.role === 'STUDENT') &&
+        !(u.role === 'STUDENT' && classmateIds.has(v.id));
+      return retainAccountFields
         ? v
         : {
             id: v.id,
@@ -110,8 +145,8 @@ export function scopedData(u: Row, d: Data, config?: RolePrivilegesConfig): Data
             profileNote: v.profileNote,
             designation: v.designation,
             employmentType: v.employmentType,
-          },
-    );
+          };
+    });
   out.coursePolicies = (d.coursePolicies || []).filter(
     (r) => ids.has(r.offeringId) && permitted(u, 'view_courseOutlines', config),
   );
@@ -136,18 +171,60 @@ export function scopedData(u: Row, d: Data, config?: RolePrivilegesConfig): Data
     (b) =>
       broad(u) ||
       (departmentAccess(u) && b.departmentId === u.departmentId) ||
+      (u.role === 'STUDENT' && classBatchIds.has(b.id)) ||
       b.id === u.batchId ||
       os.some((o) => o.batchId === b.id),
   );
+  out.academicDirectoryOfferings = directoryOfferings.map((o) => ({
+    id: o.id,
+    subjectId: o.subjectId,
+    batchId: o.batchId,
+    teacherId: o.teacherId,
+    coTeacherId: o.coTeacherId,
+    active: o.active,
+  }));
   out.scheduleEvents = (d.scheduleEvents || []).filter(
     (e) => out.batches.some((b) => b.id === e.batchId) && permitted(u, 'view_timetable', config),
   );
-  out.subjects = d.subjects.filter(
-    (s) =>
-      broad(u) ||
-      (departmentAccess(u) && s.departmentId === u.departmentId) ||
-      os.some((o) => o.subjectId === s.id),
-  );
+  out.subjects = d.subjects
+    .filter(
+      (s) =>
+        broad(u) ||
+        (departmentAccess(u) && s.departmentId === u.departmentId) ||
+        os.some((o) => o.subjectId === s.id) ||
+        directoryOfferings.some((o) => o.subjectId === s.id),
+    )
+    .map((s) => {
+      const assignedPrograms = (d.subjectPrograms || [])
+        .filter((r) => r.subjectId === s.id)
+        .map((r) => r.programId);
+      const assignedSessions = (d.subjectSessions || []).filter((r) => r.subjectId === s.id);
+      const legacyOfferings = os.filter((o) => o.subjectId === s.id);
+      const legacyBatches = legacyOfferings
+        .map((o) => d.batches.find((b) => b.id === o.batchId))
+        .filter((b): b is Row => !!b);
+      return {
+        ...s,
+        programIds: assignedPrograms.length
+          ? [...new Set(assignedPrograms)]
+          : [...new Set(legacyBatches.map((b) => b.programId))],
+        sessionAssignments: [
+          ...new Set([
+            ...assignedSessions.map((r) => JSON.stringify([r.programId, r.sessionId])),
+            ...legacyBatches.map((b) => JSON.stringify([b.programId, b.sessionId])),
+          ]),
+        ],
+        sessionIds: [
+          ...new Set([
+            ...assignedSessions.map((r) => r.sessionId),
+            ...legacyBatches.map((b) => b.sessionId),
+          ]),
+        ],
+      };
+    });
+  const visibleSubjectIds = new Set(out.subjects.map((s) => s.id));
+  out.subjectPrograms = (d.subjectPrograms || []).filter((r) => visibleSubjectIds.has(r.subjectId));
+  out.subjectSessions = (d.subjectSessions || []).filter((r) => visibleSubjectIds.has(r.subjectId));
   out.hodScopes = d.hodScopes.filter((x) => u.role === 'ADMIN' || x.userId === u.id);
   out.resultFiles = d.resultFiles.filter((r) => ids.has(r.offeringId));
   out.assessmentPolicies = d.assessmentPolicies.filter(

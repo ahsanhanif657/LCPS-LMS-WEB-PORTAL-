@@ -170,3 +170,13 @@ supplementalMigrations.push({
     'ALTER TABLE "users" ADD COLUMN "sessionId" TEXT',
   ],
 });
+
+supplementalMigrations.push({
+  name: '0013_subject_program_sessions.sql',
+  statements: [
+    'CREATE TABLE "subjectPrograms" ("id" TEXT PRIMARY KEY NOT NULL,"subjectId" TEXT NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,"programId" TEXT NOT NULL REFERENCES programs(id) ON DELETE CASCADE)',
+    'CREATE UNIQUE INDEX "subject_program_unique" ON "subjectPrograms" ("subjectId","programId")',
+    'CREATE TABLE "subjectSessions" ("id" TEXT PRIMARY KEY NOT NULL,"subjectId" TEXT NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,"programId" TEXT NOT NULL REFERENCES programs(id) ON DELETE CASCADE,"sessionId" TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE)',
+    'CREATE UNIQUE INDEX "subject_program_session_unique" ON "subjectSessions" ("subjectId","programId","sessionId")',
+  ],
+});

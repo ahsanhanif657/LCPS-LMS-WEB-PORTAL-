@@ -71,6 +71,14 @@ export const forms: Record<string, Field[]> = {
       help: 'Subject codes can be reused for subjects with different names.',
     }),
     ref('departmentId', 'Department', 'departments'),
+    f('programIds', 'Assigned programs', 'multi-select', {
+      ref: 'programs',
+      help: 'Choose every program that uses this subject.',
+    }),
+    f('sessionAssignments', 'Program sessions', 'multi-select', {
+      required: false,
+      help: 'Choose only sessions offered by the selected programs.',
+    }),
     f('credits', 'Credit hours', 'number'),
     active,
   ],
@@ -211,7 +219,7 @@ export const columns: Record<string, string[]> = {
   programs: ['name', 'departmentId', 'active'],
   sessions: ['name', 'active'],
   batches: ['name', 'programId', 'sessionId', 'semester', 'active'],
-  subjects: ['name', 'code', 'departmentId', 'credits', 'active'],
+  subjects: ['name', 'code', 'departmentId', 'programIds', 'sessionIds', 'credits', 'active'],
   offerings: ['subjectId', 'batchId', 'teacherId', 'coTeacherId', 'lectureTime', 'active'],
   enrollments: ['studentId', 'offeringId', 'active'],
   hodScopes: ['userId', 'batchId'],
