@@ -16,7 +16,33 @@ export function CoursePolicy({
   run: Run;
 }) {
   const saved = data.coursePolicies?.find((r) => r.offeringId === offeringId),
-    policy = saved ? JSON.parse(saved.policy) : defaultCoursePolicy;
+    subject = data.subjects.find(
+      (item) => item.id === data.offerings.find((item) => item.id === offeringId)?.subjectId,
+    ),
+    hasLab = subject?.subjectType !== 'Lab' && !!subject?.hasLab,
+    sourcePolicy = saved ? JSON.parse(saved.policy) : defaultCoursePolicy,
+    theoryKeys = ['assignment', 'quiz', 'attendance', 'participation', 'midterm', 'final'],
+    theoryTotal = theoryKeys.reduce((sum, key) => sum + Number(sourcePolicy[key] || 0), 0),
+    policy =
+      hasLab && sourcePolicy.lab !== 20
+        ? Object.fromEntries([
+            ...theoryKeys.map((key) => [
+              key,
+              (Number(sourcePolicy[key] || 0) * 80) / (theoryTotal || 100),
+            ]),
+            ['lab', 20],
+            ['methods', sourcePolicy.methods],
+          ])
+        : !hasLab && sourcePolicy.lab === 20 && theoryTotal > 0
+          ? Object.fromEntries([
+              ...theoryKeys.map((key) => [
+                key,
+                (Number(sourcePolicy[key] || 0) * 100) / (theoryTotal || 1),
+              ]),
+              ['lab', 0],
+              ['methods', sourcePolicy.methods],
+            ])
+          : { ...sourcePolicy, lab: hasLab ? 20 : 0 };
   const [draft, setDraft] = useState<Row | null>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
@@ -25,6 +51,16 @@ export function CoursePolicy({
     ['attendance', 'Attendance', 'participation', 'Participation / Presentation'],
     ['midterm', 'Mid Term', 'final', 'Final'],
   ];
+  if (subject?.subjectType === 'Lab')
+    return (
+      <section className="course-policy">
+        <h2>Assessment policy</h2>
+        <p>
+          Lab-only subject: the practical assessment is marked out of 20. Theory components do not
+          apply.
+        </p>
+      </section>
+    );
   return (
     <section className="course-policy">
       <h2>Assessment policy</h2>
@@ -52,6 +88,12 @@ export function CoursePolicy({
                 ))}
               </tr>
             ))}
+            {hasLab && (
+              <tr>
+                <PolicyCell name="Lab" value={20} editing={false} onChange={() => {}} />
+                <td colSpan={2}>Practical assessment · marks out of 20</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

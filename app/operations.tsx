@@ -75,7 +75,9 @@ export function GradingSettings({
       <h3>Assessment weighting</h3>
       <p>
         Teachers must use these exact assessment names when entering results. All components must be
-        published before a course grade appears.
+        published before a course grade appears. For a theory subject with a lab component, theory
+        weights contribute 80% and Lab contributes 20%; lab-only subjects use one Lab result out of
+        20 marks.
       </p>
       {p.assessments.map((a, i) => (
         <div className="policy-row" key={i}>
@@ -227,7 +229,16 @@ export function AcademicSummary({
               <tbody>
                 {g.courses.map((c) => (
                   <tr key={c.offeringId}>
-                    <td>{c.subject}</td>
+                    <td>
+                      {c.subject}
+                      <small className="course-subject-type">
+                        {c.subjectType === 'Lab'
+                          ? 'Lab · 20 marks'
+                          : c.hasLab
+                            ? 'Theory + Lab'
+                            : 'Theory'}
+                      </small>
+                    </td>
                     <td>{c.credits}</td>
                     <td>{c.percentage === null ? '—' : c.percentage.toFixed(2)}</td>
                     <td>{c.grade || '—'}</td>

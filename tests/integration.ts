@@ -39,6 +39,13 @@ import assert from 'node:assert/strict';
 import { context, action, all, stmt, save, remove, payload, insert, db } from '../lib/lms/service';
 import { scopedData, attendancePercent, overlap } from '../lib/lms/policy';
 import { pageAllowed } from '../security/privileges';
+import {
+  inspectResourceUpload,
+  resourceExtensionAllowed,
+  resourceMimeAllowed,
+  maxBookUploadBytes,
+  maxUploadBytes,
+} from '../lib/lms/file-types';
 
 import { POST as uploadFile } from '../app/api/files/route';
 import { GET as getFile } from '../app/api/files/[id]/route';
@@ -1375,6 +1382,43 @@ await test('grading validates weights and withholds grades for incomplete result
   assert.equal(g.points, 4);
   assert.equal(courseGrade(null, []).complete, false);
 });
+await test('lab grading supports 20-mark lab-only and theory-plus-lab courses', () => {
+  const labOnly = courseGrade(policy, [{ title: 'Lab', marks: 15, maxMarks: 20, published: 1 }], {
+      subjectType: 'Lab',
+    }),
+    theoryWithLab = courseGrade(
+      policy,
+      [
+        { title: 'Midterm', marks: 40, maxMarks: 50, published: 1 },
+        { title: 'Final', marks: 90, maxMarks: 100, published: 1 },
+        { title: 'Lab', marks: 15, maxMarks: 20, published: 1 },
+      ],
+      { subjectType: 'Theory', hasLab: 1 },
+    );
+  assert.equal(labOnly.percentage, 75);
+  assert.equal(labOnly.grade, 'B');
+  assert.equal(theoryWithLab.percentage, 83.8);
+  assert.equal(theoryWithLab.grade, 'B');
+  assert.equal(
+    courseGrade(policy, [{ title: 'Lab', marks: 15, maxMarks: 15, published: 1 }], {
+      subjectType: 'Lab',
+    }).complete,
+    false,
+  );
+});
+await test('learning resource categories enforce file formats and upload caps', () => {
+  const pdf = new TextEncoder().encode('%PDF-1.7\n'),
+    png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(inspectResourceUpload('lecture.pdf', pdf, 'Slides'), 'application/pdf');
+  assert.equal(inspectResourceUpload('lecture.pdf', pdf, 'Image'), null);
+  assert.equal(inspectResourceUpload('cover.png', png, 'Image'), 'image/png');
+  assert.equal(resourceExtensionAllowed('book.zip', 'Book'), true);
+  assert.equal(resourceExtensionAllowed('book.zip', 'Slides'), false);
+  assert.equal(resourceMimeAllowed('application/zip', 'Book'), true);
+  assert.equal(resourceMimeAllowed('application/zip', 'Document'), false);
+  assert.equal(maxUploadBytes, 4 * 1024 * 1024);
+  assert.equal(maxBookUploadBytes, 25 * 1024 * 1024);
+});
 await test('only admin configures policy and incomplete semesters have no GPA', async () => {
   await impersonate('lcps-administrator');
   await rejects(async () => action(await ctx('student'), { action: 'grading', policy }));
@@ -2303,6 +2347,32 @@ await test('material deletion is restricted to uploader and administrator', asyn
   await rejects(async () => remove(await ctx('teacher'), 'materials', adminOnlyId), /uploader/);
   await remove(await ctx(), 'materials', adminOnlyId);
   assert(!(await all('materials')).some((material) => material.id === adminOnlyId));
+});
+await test('learning resources allow at most two books per subject in each session', async () => {
+  const teacher = await ctx('teacher'),
+    ids: string[] = [];
+  for (const title of ['Book one', 'Book two'])
+    ids.push(
+      await save(teacher, 'materials', {
+        offeringId: 'off-mobile',
+        title,
+        kind: 'Document',
+        resourceType: 'Book',
+        url: `https://example.org/${encodeURIComponent(title)}.pdf`,
+      }),
+    );
+  await rejects(
+    () =>
+      save(teacher, 'materials', {
+        offeringId: 'off-mobile',
+        title: 'Book three',
+        kind: 'Document',
+        resourceType: 'Book',
+        url: 'https://example.org/book-three.pdf',
+      }),
+    /two books/,
+  );
+  for (const id of ids) await remove(await ctx('teacher'), 'materials', id);
 });
 await test('backup restore preserves qualifications and course outlines', async () => {
   const c = await ctx(),

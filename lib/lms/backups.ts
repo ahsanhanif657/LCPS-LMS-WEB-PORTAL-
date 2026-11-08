@@ -116,6 +116,13 @@ export async function restoreBackup(
       }
     }
   if (!Array.isArray(data.timetableFiles)) data.timetableFiles = [];
+  if (Array.isArray(data.subjects))
+    for (const subject of data.subjects) {
+      subject.subjectType ||= 'Theory';
+      subject.hasLab ??= 0;
+    }
+  if (Array.isArray(data.materials))
+    for (const material of data.materials) material.resourceType ??= 'Document';
   // Older v1 snapshots predate quiz attachments.
   if (Array.isArray(data.quizzes))
     for (const quiz of data.quizzes) if (!('fileId' in quiz)) quiz.fileId = null;

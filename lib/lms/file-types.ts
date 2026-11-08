@@ -1,8 +1,37 @@
 export const maxUploadBytes = 4 * 1024 * 1024;
+export const maxBookUploadBytes = 25 * 1024 * 1024;
 export const documentAccept =
   'image/png,image/jpeg,image/webp,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.zip';
+export const resourceTypeAccept: Record<string, string> = {
+  Slides: 'application/pdf,.ppt,.pptx',
+  Document: 'application/pdf,.doc,.docx',
+  Image: 'image/png,image/jpeg,image/webp',
+  Book: documentAccept,
+  ZIP: '.zip,application/zip',
+};
 export const timetableAccept = 'image/png,image/jpeg,application/pdf,.png,.jpg,.jpeg,.pdf';
 const imageAccept = 'image/png,image/jpeg,image/webp';
+const resourceExtensions: Record<string, string[]> = {
+  Slides: ['pdf', 'ppt', 'pptx'],
+  Document: ['pdf', 'doc', 'docx'],
+  Image: ['png', 'jpg', 'jpeg', 'webp'],
+  Book: [
+    'png',
+    'jpg',
+    'jpeg',
+    'webp',
+    'pdf',
+    'doc',
+    'docx',
+    'xls',
+    'xlsx',
+    'ppt',
+    'pptx',
+    'csv',
+    'zip',
+  ],
+  ZIP: ['zip'],
+};
 const officeTypes: Record<string, string> = {
   '.doc': 'application/msword',
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -77,6 +106,45 @@ export function inspectUpload(
     return null;
   if (!mime || (purpose === 'avatar' && !mime.startsWith('image/'))) return null;
   return mime;
+}
+export function inspectResourceUpload(fileName: string, bytes: Uint8Array, resourceType: string) {
+  const mime = inspectUpload(fileName, bytes, 'academic');
+  if (!mime) return null;
+  const allowed: Record<string, string[]> = {
+    Slides: ['application/pdf', officeTypes['.ppt'], officeTypes['.pptx']],
+    Document: ['application/pdf', officeTypes['.doc'], officeTypes['.docx']],
+    Image: ['image/png', 'image/jpeg', 'image/webp'],
+    Book: [mime],
+    ZIP: [officeTypes['.zip']],
+  };
+  return allowed[resourceType]?.includes(mime) ? mime : null;
+}
+export function resourceExtensionAllowed(fileName: string, resourceType: string) {
+  const extension = fileName.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+  return !!extension && !!resourceExtensions[resourceType]?.includes(extension);
+}
+export function resourceMimeAllowed(mime: string, resourceType: string) {
+  const allowed: Record<string, string[]> = {
+    Slides: ['application/pdf', officeTypes['.ppt'], officeTypes['.pptx']],
+    Document: ['application/pdf', officeTypes['.doc'], officeTypes['.docx']],
+    Image: ['image/png', 'image/jpeg', 'image/webp'],
+    Book: [
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'text/csv',
+      'application/zip',
+    ],
+    ZIP: [officeTypes['.zip']],
+  };
+  return allowed[resourceType]?.includes(mime) || false;
 }
 export function inlineFileAllowed(mime: string) {
   return (

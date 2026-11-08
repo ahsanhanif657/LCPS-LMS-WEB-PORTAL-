@@ -5,7 +5,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { env } from '@/lib/platform';
 import { context, AppError, insert, db, stmt } from '@/lib/lms/service';
 import { uid } from '@/lib/lms/types';
-import { inspectUpload, maxUploadBytes } from '@/lib/lms/file-types';
+import {
+  inspectUpload,
+  inspectResourceUpload,
+  maxUploadBytes,
+  resourceTypeAccept,
+} from '@/lib/lms/file-types';
+import { teachingAllowed } from '@/lib/lms/policy';
 import { createHash } from 'node:crypto';
 export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
@@ -18,7 +24,8 @@ export async function POST(req: NextRequest) {
       rawPurpose = form.get('purpose'),
       batchId = form.get('batchId'),
       offeringId = form.get('offeringId'),
-      departmentId = form.get('departmentId');
+      departmentId = form.get('departmentId'),
+      rawResourceType = form.get('resourceType');
     if (
       rawPurpose !== null &&
       !['avatar', 'academic', 'timetable', 'result-sheet', 'assessment-policy'].includes(
@@ -100,6 +107,22 @@ export async function POST(req: NextRequest) {
       )
     )
       throw new AppError('Academic upload access is disabled.', 403);
+    if (rawResourceType !== null) {
+      if (typeof offeringId !== 'string' || !offeringId)
+        throw new AppError('Select a subject and class for this learning resource.');
+      if (typeof rawResourceType !== 'string' || !(rawResourceType in resourceTypeAccept))
+        throw new AppError('Select a valid learning resource category.', 400);
+      if (rawResourceType === 'Book')
+        throw new AppError('Books must use the secure book upload flow.', 400);
+      const offering = c.data.offerings.find((item) => item.id === offeringId);
+      if (
+        purpose !== 'academic' ||
+        !permitted(c.user, 'materials', c.rolePrivileges) ||
+        !offering ||
+        !teachingAllowed(c.user, offering)
+      )
+        throw new AppError('You may only upload resources to your authorized subjects.', 403);
+    }
     const storage = env.BUCKET,
       provider = env.STORAGE_MODE;
     if (!storage || provider === 'unavailable')
@@ -110,18 +133,22 @@ export async function POST(req: NextRequest) {
     if (!(file instanceof File) || file.size === 0 || file.size > maxUploadBytes)
       throw new AppError('Choose a file smaller than 4 MB.');
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const mime = inspectUpload(
-      file.name,
-      bytes,
-      purpose === 'avatar' ? 'avatar' : purpose === 'timetable' ? 'timetable' : 'academic',
-    );
+    const mime = rawResourceType
+      ? inspectResourceUpload(file.name, bytes, rawResourceType)
+      : inspectUpload(
+          file.name,
+          bytes,
+          purpose === 'avatar' ? 'avatar' : purpose === 'timetable' ? 'timetable' : 'academic',
+        );
     if (!mime)
       throw new AppError(
         purpose === 'avatar'
           ? 'Use a valid PNG, JPG or WebP image.'
           : purpose === 'timetable'
             ? 'Use a valid PNG, JPG or PDF file.'
-            : 'Use a valid PNG, JPG, WebP, PDF, Word, Excel, PowerPoint, CSV or ZIP file.',
+            : rawResourceType
+              ? `Choose a valid ${rawResourceType.toLowerCase()} file.`
+              : 'Use a valid PNG, JPG, WebP, PDF, Word, Excel, PowerPoint, CSV or ZIP file.',
       );
     if (
       purpose === 'result-sheet' &&

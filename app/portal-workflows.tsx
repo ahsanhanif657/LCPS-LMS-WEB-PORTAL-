@@ -298,6 +298,9 @@ export function ResultsWorkflow({
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
   const offering = offerings.find((o) => o.id === offeringId),
+    subject = offering ? data.subjects.find((item) => item.id === offering.subjectId) : undefined,
+    labOnly = subject?.subjectType === 'Lab',
+    labComponent = !!subject?.hasLab,
     roster = offering
       ? (data.enrollments || [])
           .filter((e) => e.offeringId === offering.id && e.active)
@@ -323,6 +326,8 @@ export function ResultsWorkflow({
               onChange={(e) => {
                 setSessionId(e.target.value);
                 setOfferingId('');
+                setTitle('');
+                setMaxMarks('100');
                 setMarks({});
               }}
             >
@@ -343,7 +348,18 @@ export function ResultsWorkflow({
         )}
         <label className="field">
           <span>2. Subject & semester</span>
-          <select value={offeringId} onChange={(e) => setOfferingId(e.target.value)}>
+          <select
+            value={offeringId}
+            onChange={(e) => {
+              const next = offerings.find((item) => item.id === e.target.value),
+                nextSubject = next
+                  ? data.subjects.find((item) => item.id === next.subjectId)
+                  : undefined;
+              setOfferingId(e.target.value);
+              setTitle(nextSubject?.subjectType === 'Lab' ? 'Lab' : '');
+              setMaxMarks(nextSubject?.subjectType === 'Lab' ? '20' : '100');
+            }}
+          >
             <option value="">Select subject</option>
             {offerings.map((o) => (
               <option key={o.id} value={o.id}>
@@ -353,24 +369,48 @@ export function ResultsWorkflow({
           </select>
         </label>
         <label className="field">
-          <span>Assessment name</span>
+          <span>{labOnly ? 'Lab assessment' : 'Assessment name'}</span>
           <input
             value={title}
             maxLength={120}
             required
+            disabled={labOnly || (labComponent && title.toLowerCase() === 'lab')}
             onChange={(e) => setTitle(e.target.value)}
           />
         </label>
         <label className="field">
-          <span>Maximum marks</span>
+          <span>
+            {labOnly || (labComponent && title.toLowerCase() === 'lab')
+              ? 'Lab marks out of 20'
+              : 'Maximum marks'}
+          </span>
           <input
             type="number"
             min="1"
             max="1000"
             value={maxMarks}
+            disabled={labOnly || (labComponent && title.toLowerCase() === 'lab')}
             onChange={(e) => setMaxMarks(e.target.value)}
           />
         </label>
+        {labComponent && !labOnly && (
+          <div className="field lab-entry-control">
+            <span>Lab assessment</span>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                const selectingLab = title.toLowerCase() !== 'lab';
+                setTitle(selectingLab ? 'Lab' : '');
+                setMaxMarks(selectingLab ? '20' : '100');
+              }}
+            >
+              {title.toLowerCase() === 'lab'
+                ? 'Enter a theory assessment'
+                : 'Enter lab marks (out of 20)'}
+            </button>
+          </div>
+        )}
         <label className="field checkbox-field">
           <input
             type="checkbox"
@@ -1699,6 +1739,9 @@ export function DepartmentTeachers({
                       .filter((m) => m.offeringId === selectedOffering.id)
                       .map((m) => (
                         <p key={m.id}>
+                          <span className="resource-type-badge">
+                            {m.resourceType || 'Document'}
+                          </span>{' '}
                           {m.title}
                           {m.url && (
                             <>

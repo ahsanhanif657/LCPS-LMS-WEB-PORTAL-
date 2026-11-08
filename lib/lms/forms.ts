@@ -70,6 +70,8 @@ export const forms: Record<string, Field[]> = {
     f('code', 'Subject code', 'text', {
       help: 'Subject codes can be reused for subjects with different names.',
     }),
+    f('subjectType', 'Subject type', 'select', { options: ['Theory', 'Lab'] }),
+    f('hasLab', 'Includes 20-mark lab component', 'checkbox', { required: false }),
     ref('departmentId', 'Department', 'departments'),
     f('programIds', 'Assigned programs', 'multi-select', {
       ref: 'programs',
@@ -173,13 +175,16 @@ export const forms: Record<string, Field[]> = {
   materials: [
     offering,
     f('title', 'Resource title'),
+    f('resourceType', 'Resource category', 'select', {
+      options: ['Slides', 'Document', 'Image', 'Book', 'ZIP'],
+    }),
     f('kind', 'Resource type', 'select', {
       options: ['Link', 'Video', 'Document', 'Course outline'],
     }),
     f('url', 'Resource URL (HTTPS)', 'url', { required: false }),
-    f('fileId', 'Document (PDF, Office, CSV or ZIP)', 'file', {
+    f('fileId', 'Upload resource', 'file', {
       required: false,
-      help: 'Choose or replace an attachment. Maximum 4 MB.',
+      help: 'Slides, documents, images and ZIP files: maximum 4 MB. Books: maximum 25 MB.',
       accept: documentAccept,
     }),
   ],
@@ -219,7 +224,17 @@ export const columns: Record<string, string[]> = {
   programs: ['name', 'departmentId', 'active'],
   sessions: ['name', 'active'],
   batches: ['name', 'programId', 'sessionId', 'semester', 'active'],
-  subjects: ['name', 'code', 'departmentId', 'programIds', 'sessionIds', 'credits', 'active'],
+  subjects: [
+    'name',
+    'code',
+    'subjectType',
+    'hasLab',
+    'departmentId',
+    'programIds',
+    'sessionIds',
+    'credits',
+    'active',
+  ],
   offerings: ['subjectId', 'batchId', 'teacherId', 'coTeacherId', 'lectureTime', 'active'],
   enrollments: ['studentId', 'offeringId', 'active'],
   hodScopes: ['userId', 'batchId'],
@@ -229,6 +244,6 @@ export const columns: Record<string, string[]> = {
   quizzes: ['title', 'offeringId', 'duration', 'published', 'updatedBy'],
   results: ['studentId', 'offeringId', 'title', 'marks', 'maxMarks', 'published', 'updatedBy'],
   announcements: ['title', 'departmentId', 'createdAt'],
-  materials: ['title', 'offeringId', 'kind', 'updatedBy'],
+  materials: ['title', 'offeringId', 'resourceType', 'kind', 'updatedBy'],
   audit: ['createdAt', 'actorId', 'action', 'entity', 'recordId', 'detail'],
 };

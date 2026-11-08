@@ -11,6 +11,7 @@ import { ensureDatabase } from '@/lib/database';
 import { AppError } from '@/security/errors';
 export { AppError } from '@/security/errors';
 import { Data, Row, tables, roles, uid } from './types';
+import { maxBookUploadBytes, maxUploadBytes, resourceMimeAllowed } from './file-types';
 
 import { cookies } from 'next/headers';
 import { digest, hashPassword } from './password';
@@ -183,7 +184,7 @@ const specs: Record<string, string[]> = {
     'schedule',
     'active',
   ],
-  subjects: ['name', 'code', 'departmentId', 'credits', 'active'],
+  subjects: ['name', 'code', 'departmentId', 'subjectType', 'hasLab', 'credits', 'active'],
   offerings: ['subjectId', 'batchId', 'teacherId', 'coTeacherId', 'active'],
   enrollments: ['studentId', 'offeringId', 'active'],
   hodScopes: ['userId', 'batchId'],
@@ -214,7 +215,7 @@ const specs: Record<string, string[]> = {
   ],
   results: ['offeringId', 'studentId', 'title', 'marks', 'maxMarks', 'published', 'feedback'],
   announcements: ['title', 'body', 'departmentId', 'batchId', 'offeringId', 'targetRole'],
-  materials: ['offeringId', 'title', 'kind', 'url', 'fileId'],
+  materials: ['offeringId', 'title', 'kind', 'resourceType', 'url', 'fileId'],
   tasks: ['userId', 'title', 'dueDate', 'status', 'notes'],
 };
 const required: Record<string, string[]> = {
@@ -375,6 +376,9 @@ function validate(c: Context, t: string, r: Row, previous?: Row) {
   }
   if (t === 'subjects') {
     assert(manager(u) && (broad(u) || r.departmentId === u.departmentId));
+    assert(['Theory', 'Lab'].includes(r.subjectType || 'Theory'), 'Select Theory or Lab.', 400);
+    r.subjectType ||= 'Theory';
+    r.hasLab = r.subjectType === 'Theory' && r.hasLab ? 1 : 0;
     r.credits = number(r.credits, 1, 12, 'Credits');
   }
   if (t === 'offerings') {
@@ -538,7 +542,19 @@ function validate(c: Context, t: string, r: Row, previous?: Row) {
   }
   if (['assignments', 'results'].includes(t)) {
     r.maxMarks = number(r.maxMarks, 1, 1000, 'Maximum marks');
-    if (t === 'results') r.marks = number(r.marks, 0, r.maxMarks, 'Marks');
+    if (t === 'results') {
+      r.marks = number(r.marks, 0, r.maxMarks, 'Marks');
+      assert(off, 'Select an offering for this result.', 400);
+      const subject = relation(d, 'subjects', off.subjectId);
+      if (subject.subjectType === 'Lab')
+        assert(
+          r.title.trim().toLowerCase() === 'lab' && r.maxMarks === 20,
+          'Lab subjects accept only one Lab assessment out of 20 marks.',
+          400,
+        );
+      if (subject.hasLab && r.title.trim().toLowerCase() === 'lab')
+        assert(r.maxMarks === 20, 'Lab marks must be recorded out of 20.', 400);
+    }
   }
   if (t === 'assignments') date(r.dueDate, 'Due date');
   if (t === 'quizzes') {
@@ -577,6 +593,12 @@ function validate(c: Context, t: string, r: Row, previous?: Row) {
       'Select a material type.',
       400,
     );
+    assert(
+      ['Slides', 'Document', 'Image', 'Book', 'ZIP'].includes(r.resourceType || 'Document'),
+      'Select a learning resource category.',
+      400,
+    );
+    r.resourceType ||= 'Document';
     assert(r.url || r.fileId, 'Provide a link or upload a document.', 400);
     if (r.url) {
       let url;
@@ -839,6 +861,31 @@ export async function save(c: Context, t: string, input: Row) {
     assert(
       file && (file.ownerId === c.user.id || previous?.fileId === r.fileId),
       'Choose one of your uploaded files.',
+      400,
+    );
+    if (t === 'materials') {
+      assert(
+        file.purpose === 'academic' &&
+          resourceMimeAllowed(file.mime, r.resourceType) &&
+          file.size <= (r.resourceType === 'Book' ? maxBookUploadBytes : maxUploadBytes),
+        'The uploaded file does not match the selected resource category or size limit.',
+        400,
+      );
+    }
+  }
+  if (t === 'materials' && r.resourceType === 'Book') {
+    const offering = relation(c.data, 'offerings', r.offeringId),
+      batch = relation(c.data, 'batches', offering.batchId),
+      books = await stmt(
+        `SELECT count(*) AS total FROM materials m
+         JOIN offerings o ON o.id=m.offeringId
+         JOIN batches b ON b.id=o.batchId
+         WHERE o.subjectId=? AND b.sessionId=? AND m.resourceType='Book' AND m.id<>?`,
+        [offering.subjectId, batch.sessionId, r.id || ''],
+      ).first<{ total: number }>();
+    assert(
+      Number(books?.total || 0) < 2,
+      'Only two books can be added for this subject in a session.',
       400,
     );
   }
@@ -1746,7 +1793,8 @@ export async function action(c: Context, body: Row) {
   if (body.action === 'resultBatch') {
     assert(permitted(u, 'results', c.rolePrivileges));
     const offering = relation(d, 'offerings', body.offeringId),
-      batch = d.batches.find((x) => x.id === offering.batchId);
+      batch = d.batches.find((x) => x.id === offering.batchId),
+      subject = relation(d, 'subjects', offering.subjectId);
     assert(
       resultsAllowed(u, offering, d),
       'You may only publish results within your authorized department or subjects.',
@@ -1759,7 +1807,16 @@ export async function action(c: Context, body: Row) {
       400,
     );
     const maxMarks = number(body.maxMarks, 1, 1000, 'Maximum marks'),
-      records = body.records;
+      records = body.records,
+      title = body.title.trim();
+    if (subject.subjectType === 'Lab')
+      assert(
+        title.toLowerCase() === 'lab' && maxMarks === 20,
+        'Lab subjects accept only one Lab assessment out of 20 marks.',
+        400,
+      );
+    if (subject.hasLab && title.toLowerCase() === 'lab')
+      assert(maxMarks === 20, 'Lab marks must be recorded out of 20.', 400);
     assert(
       Array.isArray(records) && records.length > 0 && records.length <= 500,
       'No enrolled students were selected.',
@@ -1777,8 +1834,7 @@ export async function action(c: Context, body: Row) {
       'Include every currently enrolled student exactly once.',
       400,
     );
-    const title = body.title.trim(),
-      published = body.published ? 1 : 0,
+    const published = body.published ? 1 : 0,
       reason = typeof body.correctionReason === 'string' ? body.correctionReason.trim() : '';
     assert(reason.length <= 1000, 'Correction reason is too long.', 400);
     const writes: ReturnType<typeof stmt>[] = [];

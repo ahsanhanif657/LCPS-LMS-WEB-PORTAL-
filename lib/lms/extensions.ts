@@ -82,18 +82,44 @@ export async function extensionAction(c: Context, b: Row) {
     );
     const p = b.policy;
     check(p && typeof p === 'object', 'Enter assessment weights.', 400);
-    const clean: Row = {};
-    for (const k of ['assignment', 'quiz', 'attendance', 'participation', 'midterm', 'final']) {
+    const subject = c.data.subjects.find((item) => item.id === o!.subjectId),
+      hasLab = subject?.subjectType !== 'Lab' && !!subject?.hasLab,
+      clean: Row = {};
+    check(subject, 'The selected subject could not be found.', 400);
+    check(
+      subject.subjectType !== 'Lab',
+      'Lab-only subjects do not use theory assessment weights.',
+      400,
+    );
+    for (const k of [
+      'assignment',
+      'quiz',
+      'attendance',
+      'participation',
+      'midterm',
+      'final',
+      'lab',
+    ]) {
+      const value = k === 'lab' && p[k] === undefined ? 0 : p[k];
       check(
-        typeof p[k] === 'number' && Number.isFinite(p[k]) && p[k] >= 0 && p[k] <= 100,
+        typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100,
         'Weights must be numbers between 0 and 100.',
         400,
       );
-      clean[k] = p[k];
+      clean[k] = value;
     }
     check(
+      hasLab ? clean.lab === 20 : clean.lab === 0,
+      hasLab
+        ? 'The lab component must be 20%.'
+        : 'Lab weighting is only available for subjects with a lab component.',
+      400,
+    );
+    check(
       Math.abs(Object.values(clean).reduce((a: number, v) => a + Number(v), 0) - 100) < 0.0001,
-      'Assessment weights must total 100%.',
+      hasLab
+        ? 'Theory assessment weights and the 20% lab component must total 100%.'
+        : 'Assessment weights must total 100%.',
       400,
     );
     clean.methods = text(p.methods, 'assessment methods', 2000);

@@ -1,5 +1,6 @@
 import { put, get, del, head, list } from '@vercel/blob';
 import { database } from './database';
+import { cloudinaryStorage } from './cloudinary-storage';
 import { mkdir, readFile, writeFile, stat, rm, readdir } from 'node:fs/promises';
 import { resolve, relative, dirname } from 'node:path';
 const metadata = async (key: string) => {
@@ -239,7 +240,7 @@ const bucket = {
     };
   },
 };
-type FileProvider = 'blob' | 'local' | 'legacy' | 'legacy-database';
+type FileProvider = 'blob' | 'local' | 'legacy' | 'legacy-database' | 'cloudinary';
 const configuredMode = () => process.env.FILE_STORAGE_MODE;
 const modeAvailable = () => {
   const mode = configuredMode();
@@ -291,6 +292,7 @@ export const env = {
     if (provider === 'blob') return process.env.BLOB_READ_WRITE_TOKEN ? bucket : undefined;
     if (provider === 'local') return !process.env.VERCEL ? localBucket : undefined;
     if (provider === 'legacy-database') return legacyDatabaseBucket;
+    if (provider === 'cloudinary') return cloudinaryStorage;
     return legacyBucket;
   },
 };

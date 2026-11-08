@@ -65,7 +65,24 @@ export function validateGrading(p: GradingPolicy) {
     bands: bands.reverse(),
   };
 }
-export function courseGrade(policy: GradingPolicy | null, results: Row[]) {
+export function courseGrade(policy: GradingPolicy | null, results: Row[], subject?: Row) {
+  const labOnly = subject?.subjectType === 'Lab';
+  if (labOnly) {
+    const labs = results.filter(
+      (r) => r.published && r.title.toLowerCase() === 'lab' && r.maxMarks === 20,
+    );
+    if (labs.length !== 1 || !policy)
+      return {
+        complete: false,
+        percentage: null,
+        grade: null,
+        points: null,
+        missing: ['Lab'],
+      };
+    const percentage = (labs[0].marks / 20) * 100;
+    const band = [...policy.bands].sort((a, b) => b.min - a.min).find((b) => percentage >= b.min)!;
+    return { complete: true, percentage, grade: band.grade, points: band.points, missing: [] };
+  }
   if (!policy)
     return {
       complete: false,
@@ -74,6 +91,7 @@ export function courseGrade(policy: GradingPolicy | null, results: Row[]) {
       points: null,
       missing: [] as string[],
     };
+  const includesLab = subject?.hasLab === 1 || subject?.hasLab === true;
   const missing = policy.assessments
     .filter(
       (a) =>
@@ -81,12 +99,21 @@ export function courseGrade(policy: GradingPolicy | null, results: Row[]) {
           .length !== 1,
     )
     .map((a) => a.title);
+  if (
+    includesLab &&
+    results.filter((r) => r.published && r.title.toLowerCase() === 'lab').length !== 1
+  )
+    missing.push('Lab');
   if (missing.length)
     return { complete: false, percentage: null, grade: null, points: null, missing };
-  const percentage = policy.assessments.reduce((sum, a) => {
+  const theoryPercentage = policy.assessments.reduce((sum, a) => {
     const r = results.find((r) => r.published && r.title.toLowerCase() === a.title.toLowerCase())!;
     return sum + (r.marks / r.maxMarks) * a.weight;
   }, 0);
+  const percentage = includesLab
+    ? theoryPercentage * 0.8 +
+      (results.find((r) => r.published && r.title.toLowerCase() === 'lab')!.marks / 20) * 20
+    : theoryPercentage;
   const band = [...policy.bands].sort((a, b) => b.min - a.min).find((b) => percentage >= b.min)!;
   return { complete: true, percentage, grade: band.grade, points: band.points, missing };
 }
@@ -99,10 +126,13 @@ export function transcript(studentId: string, d: Data, policy: GradingPolicy | n
       offeringId: o.id,
       batchId: o.batchId,
       subject: subject?.name || '',
+      subjectType: subject?.subjectType || 'Theory',
+      hasLab: subject?.hasLab || 0,
       credits: subject?.credits || 0,
       ...courseGrade(
         policy,
         d.results.filter((r) => r.studentId === studentId && r.offeringId === o.id),
+        subject,
       ),
     };
   });

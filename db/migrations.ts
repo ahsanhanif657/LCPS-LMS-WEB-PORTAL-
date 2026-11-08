@@ -180,3 +180,12 @@ supplementalMigrations.push({
     'CREATE UNIQUE INDEX "subject_program_session_unique" ON "subjectSessions" ("subjectId","programId","sessionId")',
   ],
 });
+
+supplementalMigrations.push({
+  name: '0014_subject_labs_resources.sql',
+  statements: [
+    `ALTER TABLE "subjects" ADD COLUMN "subjectType" TEXT NOT NULL DEFAULT 'Theory'`,
+    'ALTER TABLE "subjects" ADD COLUMN "hasLab" INTEGER NOT NULL DEFAULT 0',
+    `ALTER TABLE "materials" ADD COLUMN "resourceType" TEXT NOT NULL DEFAULT 'Document'`,
+  ],
+});

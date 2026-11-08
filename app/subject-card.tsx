@@ -50,6 +50,13 @@ export function SubjectCard({
             {s.credits || '—'} CREDIT HOURS · {b.name}
           </small>
           <h3>{s.name}</h3>
+          <span className="subject-type-badge">
+            {s.subjectType === 'Lab'
+              ? 'Lab · 20 marks'
+              : s.hasLab
+                ? 'Theory · Lab component'
+                : 'Theory'}
+          </span>
         </div>
       </button>
       <div className="subject-body">

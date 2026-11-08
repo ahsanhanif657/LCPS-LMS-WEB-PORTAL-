@@ -7413,3 +7413,143 @@ td .profile-note {
     margin-top: 7px;
   }
 }
+
+.selection-field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.selection-field legend {
+  margin-bottom: 7px;
+  color: #35556c;
+  font-size: 12px;
+  font-weight: 700;
+}
+.selection-field legend em {
+  margin-left: 4px;
+  color: #b3343a;
+  font-style: normal;
+}
+.selection-accordion {
+  min-width: 0;
+}
+.selection-accordion > summary {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #b7cbd9;
+  border-radius: 9px;
+  background: #fff;
+  color: #25465e;
+  cursor: pointer;
+  list-style: none;
+}
+.selection-accordion > summary::-webkit-details-marker {
+  display: none;
+}
+.selection-accordion > summary::after {
+  content: '';
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #33708d;
+  border-bottom: 2px solid #33708d;
+  transform: rotate(45deg);
+  color: #33708d;
+  transition: transform 160ms ease;
+}
+.selection-accordion[open] > summary {
+  border-color: #3c96b5;
+  border-radius: 9px 9px 0 0;
+}
+.selection-accordion[open] > summary::after {
+  transform: rotate(225deg);
+}
+.selection-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.selection-options {
+  display: grid;
+  gap: 2px;
+  max-height: 230px;
+  overflow: auto;
+  padding: 7px;
+  border: 1px solid #b7cbd9;
+  border-top: 0;
+  border-radius: 0 0 9px 9px;
+  background: #fff;
+}
+.selection-option {
+  display: flex;
+  min-width: 0;
+  min-height: 40px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  color: #294c63;
+  cursor: pointer;
+}
+.selection-option:hover {
+  background: #f0f7fa;
+}
+.selection-option input {
+  flex: 0 0 auto;
+  width: 18px !important;
+  height: 18px !important;
+  margin: 0;
+  accent-color: #0789b7;
+}
+.selection-option span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.subject-type-badge,
+.resource-type-badge {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  padding: 4px 9px;
+  border: 1px solid #c5ddea;
+  border-radius: 999px;
+  background: #edf7fb;
+  color: #235a75;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.resource-type-badge {
+  margin: 3px 0 8px;
+  background: #eef4fc;
+}
+.lab-entry-control .btn {
+  width: fit-content;
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+@media (max-width: 600px) {
+  .selection-accordion > summary {
+    min-height: 48px;
+    padding: 10px 12px;
+  }
+  .selection-options {
+    max-height: min(42vh, 260px);
+  }
+  .lab-entry-control .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .resource-type-badge {
+    margin-bottom: 5px;
+  }
+}

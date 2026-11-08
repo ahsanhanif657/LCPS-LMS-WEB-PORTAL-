@@ -77,7 +77,12 @@ import { GradingSettings, AcademicSummary, BackupSettings } from './operations';
 import { GradingPolicy } from '@/lib/lms/grading';
 import { LoginForm, PasswordForm, PasswordInput, authRequest } from './security';
 import { forms, titles, columns, Field } from '@/lib/lms/forms';
-import { documentAccept, maxUploadBytes } from '@/lib/lms/file-types';
+import {
+  documentAccept,
+  maxBookUploadBytes,
+  maxUploadBytes,
+  resourceTypeAccept,
+} from '@/lib/lms/file-types';
 import { downloadReport, showReport, reportOptions } from '@/lib/lms/export';
 import { TimetableFiles } from './timetable-files';
 import {
@@ -376,10 +381,61 @@ export default function Portal() {
     if (!res.ok) throw new Error(json.error || 'Attendance could not be loaded.');
     return json.result;
   }, []);
-  async function upload(file: File, purpose = 'academic') {
+  async function upload(file: File, purpose = 'academic', details?: Row) {
+    if (purpose === 'academic' && details?.resourceType === 'Book') {
+      if (file.size < 1 || file.size > maxBookUploadBytes)
+        throw new Error('Books must be 25 MB or smaller.');
+      const signatureResponse = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'sign',
+            fileName: file.name,
+            fileSize: file.size,
+            resourceType: 'Book',
+            offeringId: details.offeringId,
+            materialId: details.materialId,
+          }),
+        }),
+        signature = await signatureResponse.json();
+      if (!signatureResponse.ok) throw new Error(signature.error || 'Book upload is unavailable.');
+      const uploadForm = new FormData();
+      uploadForm.set('file', file);
+      uploadForm.set('api_key', signature.apiKey);
+      uploadForm.set('timestamp', String(signature.timestamp));
+      uploadForm.set('public_id', signature.publicId);
+      uploadForm.set('signature', signature.signature);
+      uploadForm.set('type', signature.type);
+      uploadForm.set('allowed_formats', signature.allowedFormats);
+      const cloudResponse = await fetch(
+          `https://api.cloudinary.com/v1_1/${encodeURIComponent(signature.cloudName)}/raw/upload`,
+          { method: 'POST', body: uploadForm },
+        ),
+        asset = await cloudResponse.json();
+      if (!cloudResponse.ok)
+        throw new Error(asset.error?.message || 'Cloudinary could not store this book.');
+      const savedResponse = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'verify',
+            publicId: asset.public_id,
+            fileName: file.name,
+            resourceType: 'Book',
+            offeringId: details.offeringId,
+            materialId: details.materialId,
+          }),
+        }),
+        saved = await savedResponse.json();
+      if (!savedResponse.ok)
+        throw new Error(saved.error || 'The uploaded book could not be verified.');
+      return saved.id;
+    }
     const form = new FormData();
     form.append('file', file);
     form.append('purpose', purpose);
+    if (details?.resourceType) form.append('resourceType', details.resourceType);
+    if (details?.offeringId) form.append('offeringId', details.offeringId);
     const res = await fetch('/api/files', { method: 'POST', body: form });
     const json: any = await res.json();
     if (!res.ok) throw new Error(json.error);
@@ -594,6 +650,7 @@ export default function Portal() {
     if (['dueDate', 'createdAt', 'date', 'submittedAt'].includes(key)) return date(val);
     if (key === 'active') return val ? 'Active' : 'Inactive';
     if (key === 'published') return val ? 'Published' : 'Draft';
+    if (key === 'hasLab') return val ? 'Yes — 20 marks' : 'No';
     if (key === 'role') return String(val).toLowerCase();
     return val ?? '—';
   };
@@ -607,6 +664,9 @@ export default function Portal() {
       sessionIds: 'Assigned sessions',
       studentId: 'Student',
       offeringId: 'Subject & class',
+      subjectType: 'Subject type',
+      hasLab: 'Lab component',
+      resourceType: 'Resource category',
       teacherId: 'Teacher',
       subjectId: 'Subject',
       lectureTime: 'Lecture timetable',
@@ -1884,6 +1944,7 @@ export default function Portal() {
                   <span className={'stat-icon ' + (m.kind === 'Video' ? 'purple' : 'blue')}></span>
                   <div className="grow">
                     <h3>{m.title}</h3>
+                    <span className="resource-type-badge">{m.resourceType || 'Document'}</span>
                     {(m.uploadedBy || m.updatedBy) && (
                       <small className="actor-credit">
                         Uploaded by {label('users', m.uploadedBy || m.updatedBy)}
@@ -2482,6 +2543,14 @@ export default function Portal() {
                   <strong>Course code:</strong>{' '}
                   {d.subjects.find((s) => s.id === detail.record.subjectId)?.code || '—'}
                 </p>
+                <p>
+                  <strong>Subject type:</strong>{' '}
+                  {d.subjects.find((s) => s.id === detail.record.subjectId)?.subjectType === 'Lab'
+                    ? 'Lab · total marks out of 20'
+                    : d.subjects.find((s) => s.id === detail.record.subjectId)?.hasLab
+                      ? 'Theory with an optional 20-mark lab component'
+                      : 'Theory'}
+                </p>
                 <div className="subject-assignment-summary">
                   <strong>Assigned programs</strong>
                   <span>
@@ -3037,7 +3106,7 @@ function EntityForm({
   label: (t: string, id: any) => string;
   onClose: () => void;
   onSave: (r: Row) => Promise<void>;
-  upload: (file: File) => Promise<string>;
+  upload: (file: File, purpose?: string, details?: Row) => Promise<string>;
   rolePrivileges?: RolePrivilegesConfig;
 }) {
   const fields = forms[entity] || [];
@@ -3048,6 +3117,9 @@ function EntityForm({
         allowLate: 0,
         release: 0,
         credits: 3,
+        subjectType: 'Theory',
+        hasLab: 0,
+        resourceType: 'Document',
         semester: 4,
         maxMarks: 20,
         duration: 15,
@@ -3204,6 +3276,7 @@ function EntityForm({
               ['batchId', 'programId', 'sessionId'].includes(f.key)
             )
               return null;
+            if (entity === 'subjects' && f.key === 'hasLab' && v.subjectType === 'Lab') return null;
             const required =
               f.required ||
               (entity === 'users' &&
@@ -3213,6 +3286,85 @@ function EntityForm({
               f.key === 'role' && !permitted(u, 'senior_accounts', rolePrivileges)
                 ? ['STUDENT', 'TEACHER']
                 : f.options;
+            if (f.type === 'multi-select') {
+              const choicesForField = options(f),
+                selectedValues = Array.isArray(v[f.key]) ? v[f.key] : [],
+                selectedLabels = selectedValues
+                  .map((value: string) => {
+                    const option = choicesForField.find((item) => item.id === value);
+                    return option
+                      ? f.key === 'sessionAssignments'
+                        ? option.name
+                        : label(f.ref!, option.id)
+                      : '';
+                  })
+                  .filter(Boolean);
+              return (
+                <fieldset className="field span-two selection-field" key={f.key}>
+                  <legend>
+                    {f.label}
+                    {required && <em>*</em>}
+                  </legend>
+                  <details className="selection-accordion">
+                    <summary>
+                      <span className="selection-summary">
+                        {selectedLabels.length
+                          ? `${selectedLabels.length} selected · ${selectedLabels.slice(0, 2).join(', ')}${selectedLabels.length > 2 ? ', …' : ''}`
+                          : 'Select options'}
+                      </span>
+                    </summary>
+                    <div className="selection-options" role="group" aria-label={f.label}>
+                      {choicesForField.map((option) => (
+                        <label className="selection-option" key={option.id}>
+                          <input
+                            type="checkbox"
+                            checked={selectedValues.includes(option.id)}
+                            onChange={(event) => {
+                              const values = event.target.checked
+                                ? [...selectedValues, option.id]
+                                : selectedValues.filter((id: string) => id !== option.id);
+                              if (entity === 'subjects' && f.key === 'programIds') {
+                                const validAssignments = new Set(
+                                  d.batches
+                                    .filter(
+                                      (batch) =>
+                                        batch.departmentId === v.departmentId &&
+                                        values.includes(batch.programId),
+                                    )
+                                    .map((batch) =>
+                                      JSON.stringify([batch.programId, batch.sessionId]),
+                                    ),
+                                );
+                                setV((previous) => ({
+                                  ...previous,
+                                  programIds: values,
+                                  sessionAssignments: (previous.sessionAssignments || []).filter(
+                                    (id: string) => validAssignments.has(id),
+                                  ),
+                                }));
+                              } else set(f.key, values);
+                            }}
+                          />
+                          <span>
+                            {f.key === 'sessionAssignments'
+                              ? option.name
+                              : label(f.ref!, option.id)}
+                          </span>
+                        </label>
+                      ))}
+                      {!choicesForField.length && (
+                        <small>
+                          {f.key === 'sessionAssignments'
+                            ? 'Select assigned programs first to show their available sessions.'
+                            : 'No options are available for this department.'}
+                        </small>
+                      )}
+                    </div>
+                  </details>
+                  {f.help && <small>{f.help}</small>}
+                </fieldset>
+              );
+            }
             return (
               <label
                 className={
@@ -3226,41 +3378,7 @@ function EntityForm({
                   {f.label}
                   {required && <em>*</em>}
                 </span>
-                {f.type === 'multi-select' ? (
-                  <select
-                    multiple
-                    required={required}
-                    size={Math.max(3, Math.min(6, options(f).length))}
-                    value={Array.isArray(v[f.key]) ? v[f.key] : []}
-                    onChange={(e) => {
-                      const values = Array.from(e.target.selectedOptions, (option) => option.value);
-                      if (entity === 'subjects' && f.key === 'programIds') {
-                        const validAssignments = new Set(
-                          d.batches
-                            .filter(
-                              (batch) =>
-                                batch.departmentId === v.departmentId &&
-                                values.includes(batch.programId),
-                            )
-                            .map((batch) => JSON.stringify([batch.programId, batch.sessionId])),
-                        );
-                        setV((previous) => ({
-                          ...previous,
-                          programIds: values,
-                          sessionAssignments: (previous.sessionAssignments || []).filter(
-                            (id: string) => validAssignments.has(id),
-                          ),
-                        }));
-                      } else set(f.key, values);
-                    }}
-                  >
-                    {options(f).map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {f.key === 'sessionAssignments' ? option.name : label(f.ref!, option.id)}
-                      </option>
-                    ))}
-                  </select>
-                ) : f.type === 'select' ? (
+                {f.type === 'select' ? (
                   <select
                     value={v[f.key] || ''}
                     required={required}
@@ -3273,7 +3391,21 @@ function EntityForm({
                           programIds: [],
                           sessionAssignments: [],
                         }));
-                      else if (entity === 'users' && f.key === 'departmentId')
+                      else if (entity === 'subjects' && f.key === 'subjectType')
+                        setV((previous) => ({
+                          ...previous,
+                          subjectType: value,
+                          hasLab: value === 'Lab' ? 0 : previous.hasLab,
+                        }));
+                      else if (entity === 'materials' && f.key === 'resourceType') {
+                        setV((previous) => ({
+                          ...previous,
+                          resourceType: value,
+                          fileId: '',
+                          url: '',
+                        }));
+                        setFileName('');
+                      } else if (entity === 'users' && f.key === 'departmentId')
                         setV((previous) => ({
                           ...previous,
                           departmentId: value,
@@ -3324,17 +3456,42 @@ function EntityForm({
                   <>
                     <input
                       type="file"
-                      accept={f.accept || documentAccept}
+                      accept={
+                        entity === 'materials'
+                          ? resourceTypeAccept[v.resourceType] || documentAccept
+                          : f.accept || documentAccept
+                      }
                       disabled={saving}
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         e.target.value = '';
                         if (file) {
+                          const book = entity === 'materials' && v.resourceType === 'Book',
+                            limit = book ? maxBookUploadBytes : maxUploadBytes;
+                          if (file.size < 1 || file.size > limit) {
+                            setError(
+                              book
+                                ? 'Books must be 25 MB or smaller.'
+                                : 'This resource must be 4 MB or smaller.',
+                            );
+                            return;
+                          }
                           setSaving(true);
                           setError('');
                           try {
-                            const id = await upload(file);
+                            const id = await upload(
+                              file,
+                              'academic',
+                              entity === 'materials'
+                                ? {
+                                    resourceType: v.resourceType,
+                                    offeringId: v.offeringId,
+                                    materialId: record.id,
+                                  }
+                                : undefined,
+                            );
                             set(f.key, id);
+                            if (entity === 'materials') set('url', '');
                             setFileName(file.name);
                           } catch (e) {
                             setError((e as Error).message);
@@ -3349,7 +3506,15 @@ function EntityForm({
                         {fileName || 'An attachment is already saved. Choose a file to replace it.'}
                       </small>
                     )}
-                    {f.help && <small>{f.help}</small>}
+                    {f.help && (
+                      <small>
+                        {entity === 'materials' && v.resourceType !== 'Book'
+                          ? `${v.resourceType}: maximum 4 MB.`
+                          : entity === 'materials'
+                            ? 'Book: maximum 25 MB. PDF, Office documents, images, CSV or ZIP.'
+                            : f.help}
+                      </small>
+                    )}
                   </>
                 ) : f.type === 'questions' ? (
                   <QuestionEditor questions={v.questions} onChange={(qs) => set('questions', qs)} />

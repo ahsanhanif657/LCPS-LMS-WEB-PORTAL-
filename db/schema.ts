@@ -60,6 +60,8 @@ export const subjects = pgTable('subjects', {
   name: text('name').notNull(),
   code: text('code').notNull(),
   departmentId: text('departmentId').notNull(),
+  subjectType: text('subjectType').notNull().default('Theory'),
+  hasLab: integer('hasLab').notNull().default(0),
   credits: integer('credits').notNull().default(3),
   active: integer('active').notNull().default(1),
 });
@@ -226,6 +228,7 @@ export const announcements = pgTable('announcements', {
 });
 export const materials = pgTable('materials', {
   updatedBy: text('updatedBy'),
+  resourceType: text('resourceType').notNull().default('Document'),
   id: text('id').primaryKey(),
   offeringId: text('offeringId').notNull(),
   title: text('title').notNull(),
