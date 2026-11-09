@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
         id,
         name,
         username,
-        role: 'ADMIN',
+        role: 'SUPER_ADMIN',
         passwordChangeRequired: 1,
         active: 1,
         demo: 0,

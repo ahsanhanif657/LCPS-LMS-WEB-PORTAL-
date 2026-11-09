@@ -33,6 +33,7 @@ import {
   accountManageAllowed,
   resultsAllowed,
   teachingAllowed,
+  materialsAllowed,
   scopedData,
   overlap,
 } from './policy';
@@ -104,7 +105,8 @@ export async function context(loadData = true, allowPasswordChange = false) {
     throw new AppError('Change your password before using the portal.', 403);
   const rolePrivileges = await getRolePrivileges();
   actual.accessConfig = rolePrivileges;
-  const isOwner = actual.role === 'ADMIN';
+  const owner = await stmt("SELECT value FROM settings WHERE key='owner'").first<Row>();
+  const isOwner = actual.id === owner?.value;
   const data: Data = {};
   const loaded = loadData ? await db().batch(dataQueries(actual)) : [];
   tables.forEach((t, i) => {
@@ -350,12 +352,13 @@ function validate(c: Context, t: string, r: Row, previous?: Row) {
         'You cannot deactivate yourself or change your own access identity.',
         400,
       );
-    if (previous?.role === 'ADMIN' && (!r.active || r.role !== 'ADMIN'))
-      assert(
-        d.users.some((v) => v.id !== r.id && v.role === 'ADMIN' && v.active && !v.demo),
-        'Keep at least one active non-demo administrator.',
-        400,
-      );
+    if (['ADMIN', 'DIRECTOR', 'SUPER_ADMIN'].includes(r.role))
+      assert(c.isOwner, 'Only the college owner can assign this elevated role.', 403);
+    assert(
+      r.role !== 'SUPER_ADMIN' || (c.isOwner && r.id === c.user.id),
+      'Only the college owner can hold Super Admin access.',
+      403,
+    );
     if (previous && previous.batchId !== r.batchId)
       assert(
         !d.enrollments.some((e) => e.studentId === r.id && e.active),
@@ -501,8 +504,16 @@ function validate(c: Context, t: string, r: Row, previous?: Row) {
       409,
     );
   }
-  if (['attendance', 'assignments', 'quizzes', 'materials'].includes(t))
-    assert(off && teachingAllowed(u, off));
+  if (['attendance', 'assignments', 'quizzes'].includes(t)) assert(off && teachingAllowed(u, off));
+  if (t === 'materials')
+    assert(
+      off &&
+        materialsAllowed(
+          u,
+          off,
+          d.batches.find((batch) => batch.id === off?.batchId),
+        ),
+    );
   if (t === 'results') assert(off && resultsAllowed(u, off, d));
   if (['attendance', 'results'].includes(t)) {
     relation(d, 'users', r.studentId);
@@ -1086,6 +1097,10 @@ export async function remove(c: Context, t: string, id: string) {
   assert(specs[t], 'Unknown entity.', 400);
   const r = c.data[t]?.find((x) => x.id === id);
   assert(r, 'Record not found.', 404);
+  if (t === 'users') {
+    const owner = await stmt("SELECT value FROM settings WHERE key='owner'").first<Row>();
+    assert(r.id !== owner?.value, 'The college owner account cannot be removed.', 403);
+  }
   if (t === 'announcements')
     assert(
       canDeleteAnnouncement(u, r, c.data),
@@ -1103,14 +1118,14 @@ export async function remove(c: Context, t: string, id: string) {
       : undefined;
     const uploader = creator?.actorId || r.uploadedBy || fileOwner || r.updatedBy;
     assert(
-      u.role === 'ADMIN' || uploader === u.id,
+      ['ADMIN', 'SUPER_ADMIN'].includes(u.role) || uploader === u.id,
       'Only an administrator or the original uploader can delete this learning material.',
       403,
     );
   }
   if (t === 'timetable')
     assert(
-      ['ADMIN', 'PRINCIPAL'].includes(u.role) ||
+      ['ADMIN', 'PRINCIPAL', 'DIRECTOR', 'SUPER_ADMIN'].includes(u.role) ||
         c.data.batches.some(
           (b) =>
             b.departmentId === u.departmentId &&
@@ -1124,19 +1139,26 @@ export async function remove(c: Context, t: string, id: string) {
     );
     if (u.role === 'HOD')
       assert(['STUDENT', 'TEACHER'].includes(r.role) && r.departmentId === u.departmentId);
-    if (r.role === 'ADMIN' && r.active && !r.demo)
-      assert(
-        c.data.users.some((x) => x.id !== r.id && x.role === 'ADMIN' && x.active && !x.demo),
-        'Keep at least one active non-demo administrator.',
-        400,
-      );
-  } else if ('active' in r && u.role !== 'ADMIN' && !(u.role === 'HOD' && t === 'users')) {
+  } else if (
+    'active' in r &&
+    !['ADMIN', 'SUPER_ADMIN'].includes(u.role) &&
+    !(u.role === 'HOD' && t === 'users')
+  ) {
     await save(c, t, { ...r, active: 0 });
     return;
   }
   if (['assignments', 'quizzes', 'materials', 'attendance'].includes(t)) {
     const offering = c.data.offerings.find((x) => x.id === r.offeringId);
-    assert(offering && teachingAllowed(u, offering));
+    assert(
+      offering &&
+        (t === 'materials'
+          ? materialsAllowed(
+              u,
+              offering,
+              c.data.batches.find((batch) => batch.id === offering.batchId),
+            )
+          : teachingAllowed(u, offering)),
+    );
   }
   if (t === 'results')
     assert(
@@ -1144,7 +1166,7 @@ export async function remove(c: Context, t: string, id: string) {
       'You may only manage results within your authorized department or subjects.',
     );
   if (t === 'attendance')
-    assert(u.role === 'ADMIN', 'Attendance records must be corrected, not deleted.');
+    assert(u.role === 'SUPER_ADMIN', 'Attendance records must be corrected, not deleted.');
   const writes: ReturnType<typeof stmt>[] = [];
   let timetableFileId: string | null = null;
   if (t === 'timetableFiles') {
@@ -1937,7 +1959,11 @@ export async function action(c: Context, body: Row) {
     );
     const target = await stmt('SELECT * FROM users WHERE id=?', [body.userId]).first<Row>();
     assert(target, 'User not found.', 404);
-    assert(target.role !== 'ADMIN', 'Administrator access is protected.', 400);
+    assert(
+      !['ADMIN', 'SUPER_ADMIN'].includes(target.role),
+      'Administrator access is protected.',
+      400,
+    );
     const overrides = body.permissions;
     assert(
       overrides && typeof overrides === 'object' && !Array.isArray(overrides),
@@ -2020,7 +2046,16 @@ export async function action(c: Context, body: Row) {
         'Invalid role or privilege mapping.',
         400,
       );
-    rolePermissions.ADMIN = privileges.map((p: any) => p.key);
+    const ownerOnlyPrivileges = new Set([
+      'manage_access',
+      'system_settings',
+      'manage_backups',
+      'senior_accounts',
+    ]);
+    rolePermissions.ADMIN = (rolePermissions.ADMIN || []).filter(
+      (key: string) => !ownerOnlyPrivileges.has(key),
+    );
+    rolePermissions.SUPER_ADMIN = privileges.map((p: any) => p.key);
     const config: RolePrivilegesConfig = { privileges, rolePermissions };
     await db().batch([
       stmt(

@@ -286,8 +286,9 @@ export function ResultsWorkflow({
   );
   const offerings = allOfferings.filter(
     (o) =>
-      !['ADMIN', 'PRINCIPAL', 'HOD', 'EXAMINATION_CONTROLLER'].includes(user.role) ||
-      data.batches.some((b) => b.id === o.batchId && b.sessionId === sessionId),
+      !['ADMIN', 'SUPER_ADMIN', 'DIRECTOR', 'PRINCIPAL', 'HOD', 'EXAMINATION_CONTROLLER'].includes(
+        user.role,
+      ) || data.batches.some((b) => b.id === o.batchId && b.sessionId === sessionId),
   );
   const [offeringId, setOfferingId] = useState(''),
     [title, setTitle] = useState(''),
@@ -318,7 +319,14 @@ export function ResultsWorkflow({
         appear in the student results portal.
       </p>
       <div className="form-grid">
-        {['ADMIN', 'PRINCIPAL', 'HOD', 'EXAMINATION_CONTROLLER'].includes(user.role) && (
+        {[
+          'ADMIN',
+          'SUPER_ADMIN',
+          'DIRECTOR',
+          'PRINCIPAL',
+          'HOD',
+          'EXAMINATION_CONTROLLER',
+        ].includes(user.role) && (
           <label className="field">
             <span>1. Academic session</span>
             <select
@@ -650,7 +658,8 @@ export function ResultFiles({
 export function AssessmentPolicy({ data, user }: { data: Data; user: Row }) {
   const allowed =
       permitted(user, 'results') &&
-      (['ADMIN', 'HOD'].includes(user.role) || permitted(user, 'results_department')),
+      (['ADMIN', 'SUPER_ADMIN', 'DIRECTOR', 'HOD'].includes(user.role) ||
+        permitted(user, 'results_department')),
     departments = data.departments || [];
   const [departmentId, setDepartmentId] = useState(user.departmentId || departments[0]?.id || ''),
     [busy, setBusy] = useState(false),

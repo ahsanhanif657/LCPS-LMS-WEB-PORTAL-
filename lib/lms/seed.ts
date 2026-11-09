@@ -252,7 +252,7 @@ export function seedData(): Data {
   d.announcements = [
     {
       id: 'ann1',
-      title: 'Welcome to your academic workspace',
+      title: 'Welcome to your academic portal',
       body: 'Your classes, coursework and college updates, together in one place. Check your timetable and upcoming deadlines regularly.',
       departmentId: null,
       batchId: null,

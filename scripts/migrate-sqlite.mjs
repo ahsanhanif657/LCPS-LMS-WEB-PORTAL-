@@ -66,8 +66,17 @@ if (!url) {
       : 0;
     const retireStaff =
       hasUsers && (await query("SELECT 1 FROM users WHERE role='STAFF' LIMIT 1")).rows.length > 0;
+    const administratorGuardSql =
+      "CREATE TRIGGER keep_last_administrator BEFORE UPDATE OF role,active ON users\nWHEN OLD.role IN ('ADMIN','SUPER_ADMIN') AND OLD.active=1 AND OLD.demo=0 AND (NEW.role NOT IN ('ADMIN','SUPER_ADMIN') OR NEW.active!=1)\nAND NOT EXISTS (SELECT 1 FROM users WHERE id!=OLD.id AND role IN ('ADMIN','SUPER_ADMIN') AND active=1 AND demo=0)\nBEGIN SELECT RAISE(ABORT,'Keep at least one active administrator.'); END;";
+    const administratorGuard = await query(
+      "SELECT sql FROM sqlite_master WHERE type='trigger' AND name='keep_last_administrator'",
+    );
+    const needsAdministratorGuard = !String(administratorGuard.rows[0]?.sql ?? '').includes(
+      "role IN ('ADMIN','SUPER_ADMIN')",
+    );
     const needsUpdate =
       retireStaff ||
+      needsAdministratorGuard ||
       pending.length > 0 ||
       missingColumns.length > 0 ||
       !(await hasObject('table', 'privateFileObjects')) ||
@@ -105,12 +114,19 @@ if (!url) {
       );
     for (const [table, column, definition] of missingColumns)
       await query(`ALTER TABLE "${table}" ADD COLUMN "${column}" ${definition}`);
+    if (needsAdministratorGuard) {
+      await query('DROP TRIGGER IF EXISTS keep_last_administrator');
+      await query(administratorGuardSql);
+    }
     await query('UPDATE files SET storageKey=id WHERE storageKey IS NULL');
     await query(
       "CREATE TABLE IF NOT EXISTS privateFileObjects (key text PRIMARY KEY, contents blob NOT NULL, metadata text NOT NULL DEFAULT '{}')",
     );
     await query(
       'CREATE TABLE IF NOT EXISTS blobMetadata (key text PRIMARY KEY, metadata text NOT NULL)',
+    );
+    await query(
+      "UPDATE users SET role='SUPER_ADMIN' WHERE id=(SELECT value FROM settings WHERE key='owner') AND role='ADMIN'",
     );
     const finalTables = await query(
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",

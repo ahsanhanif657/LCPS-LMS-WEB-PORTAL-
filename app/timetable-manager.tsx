@@ -18,7 +18,7 @@ export function TimetableManager({
   onDelete: (r: Row) => void;
   refresh: () => Promise<void>;
 }) {
-  const campus = ['ADMIN', 'PRINCIPAL'].includes(user.role),
+  const campus = ['ADMIN', 'PRINCIPAL', 'DIRECTOR', 'SUPER_ADMIN'].includes(user.role),
     [department, setDepartment] = useState(campus ? '' : user.departmentId || ''),
     [session, setSession] = useState(''),
     [batch, setBatch] = useState(''),

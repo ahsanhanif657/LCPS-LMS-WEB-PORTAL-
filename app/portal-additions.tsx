@@ -110,7 +110,7 @@ export function CoursePolicy({
       ) : (
         <p>{policy.methods}</p>
       )}
-      {['ADMIN', 'HOD'].includes(user.role) && (
+      {['ADMIN', 'SUPER_ADMIN', 'DIRECTOR', 'HOD'].includes(user.role) && (
         <div className="row gap">
           {draft ? (
             <>

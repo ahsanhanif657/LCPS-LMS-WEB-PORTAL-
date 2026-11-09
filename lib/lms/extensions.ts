@@ -1,7 +1,7 @@
 import { Context, AppError, stmt, db, insert, auditStmt } from './service';
 import { Row, uid } from './types';
 import { permitted } from '@/security/privileges';
-import { offeringAllowed, resultsAllowed } from '@/security/authorization';
+import { broad, offeringAllowed, resultsAllowed } from '@/security/authorization';
 function check(
   ok: unknown,
   message = 'You do not have permission to perform this action.',
@@ -71,10 +71,10 @@ export async function extensionAction(c: Context, b: Row) {
   if (b.action === 'coursePolicySave') {
     const o = c.data.offerings.find((o) => o.id === b.offeringId);
     check(
-      ['ADMIN', 'HOD'].includes(u.role) &&
+      ['ADMIN', 'SUPER_ADMIN', 'DIRECTOR', 'HOD'].includes(u.role) &&
         o &&
         offeringAllowed(u, o, c.data) &&
-        (u.role === 'ADMIN' ||
+        (broad(u) ||
           c.data.batches.some(
             (batch) => batch.id === o.batchId && batch.departmentId === u.departmentId,
           )) &&

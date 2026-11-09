@@ -6,7 +6,18 @@ const escape = (s: string) =>
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
   );
 export function timetableHtml(grids: TimetableGrid[]) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>LCPS · Timetable</title><style>@page{size:A4 landscape;margin:10mm}body{font:14px Arial,sans-serif;color:#18334b;margin:24px}h1{color:#007eaf;font-size:24px}h2{font-size:17px;margin:24px 0 14px}table{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:24px}th,td{border:1px solid #a9bfd0;padding:12px 8px;text-align:center;vertical-align:middle;overflow-wrap:anywhere}thead th{background:#dceffc;color:#123c59;font-weight:bold}th:first-child{width:100px}tbody th{background:#edf6fc}td div+div{border-top:1px dashed #a9bfd0;margin-top:8px;padding-top:8px}strong,span{display:block;line-height:1.5}span{font-size:12px;color:#40596d}thead{display:table-header-group}tr{break-inside:avoid}section+section{break-before:page}@media print{body{margin:0}table{font-size:10pt}th,td{padding:9px 6px}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><h1>LCPS · Academic timetable</h1>${grids.map((g) => `<section><h2>${escape(g.title)}</h2>${g.days.length ? `<table><thead><tr><th>Day / Time</th>${g.slots.map((s) => `<th>${escape(s.replace('|', ' – '))}</th>`).join('')}</tr></thead><tbody>${g.days.map((d) => `<tr><th scope="row">${escape(d.day)}</th>${d.cells.map((c) => `<td>${c.length ? c.map((x) => `<div><strong>${escape(x.subject)}</strong><span>${escape(x.teacher)}</span><span>${escape(x.room)}</span></div>`).join('') : '—'}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '<p>No scheduled classes for this batch.</p>'}</section>`).join('')}<footer style="font-size:11px;color:#52677a;margin-top:20px">Powered by A &amp; U</footer></body></html>`;
+  const cells = (items: TimetableGrid['days'][number]['cells'][number]) =>
+    items.length
+      ? items
+          .map(
+            (item) =>
+              `<div><strong>${escape(item.subject)}</strong><span>${escape(
+                item.record.startTime + ' – ' + item.record.endTime,
+              )}</span><span>${escape(item.teacher)}</span><span>${escape(item.room)}</span></div>`,
+          )
+          .join('')
+      : '—';
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>LCPS · Timetable</title><style>@page{size:A4 landscape;margin:10mm}body{font:14px Arial,sans-serif;color:#18334b;margin:24px}h1{color:#007eaf;font-size:24px}h2{font-size:17px;margin:24px 0 14px}table{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:24px}th,td{border:1px solid #a9bfd0;padding:12px 8px;text-align:center;vertical-align:middle;overflow-wrap:anywhere}thead th{background:#dceffc;color:#123c59;font-weight:bold}th:first-child{width:100px}tbody th{background:#edf6fc}td div+div{border-top:1px dashed #a9bfd0;margin-top:8px;padding-top:8px}strong,span{display:block;line-height:1.5}span{font-size:12px;color:#40596d}thead{display:table-header-group}tr{break-inside:avoid}section+section{break-before:page}@media print{body{margin:0}table{font-size:10pt}th,td{padding:9px 6px}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><h1>LCPS · Academic timetable</h1>${grids.map((grid) => `<section><h2>${escape(grid.title)}</h2>${grid.days.length ? `<table><thead><tr><th>Day / Time</th>${grid.slots.map((slot) => `<th>${escape(slot.replace('|', ' – '))}</th>`).join('')}</tr></thead><tbody>${grid.days.map((day) => `<tr><th scope="row">${escape(day.day)}</th>${day.cells.map((cell) => `<td>${cells(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '<p>No scheduled classes for this batch.</p>'}</section>`).join('')}<footer style="font-size:11px;color:#52677a;margin-top:20px">Powered by A &amp; U</footer></body></html>`;
 }
 function save(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob),
@@ -75,7 +86,13 @@ export function timetableExportOptions(grids: TimetableGrid[]) {
         g.days.map((d) => [
           d.day,
           ...d.cells.map(
-            (c) => c.map((x) => `${x.subject}\n${x.teacher}\n${x.room}`).join('\n\n') || '—',
+            (c) =>
+              c
+                .map(
+                  (x) =>
+                    `${x.record.startTime}–${x.record.endTime}\n${x.subject}\n${x.teacher}\n${x.room}`,
+                )
+                .join('\n\n') || '—',
           ),
         ]),
       ),

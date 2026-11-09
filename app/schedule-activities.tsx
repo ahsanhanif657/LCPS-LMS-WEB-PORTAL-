@@ -52,7 +52,9 @@ export function ScheduleActivities({ data, user }: { data: Data; user: Row }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   const batches = data.batches.filter(
-    (b) => ['ADMIN', 'PRINCIPAL'].includes(user.role) || b.departmentId === user.departmentId,
+    (b) =>
+      ['ADMIN', 'PRINCIPAL', 'DIRECTOR', 'SUPER_ADMIN'].includes(user.role) ||
+      b.departmentId === user.departmentId,
   );
   return (
     <section className="schedule-activities">

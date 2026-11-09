@@ -36,7 +36,7 @@ export function FacultyAttendance({
   };
   return (
     <>
-      <div className="tabs attendance-tabs" role="tablist" aria-label="Attendance workspace">
+      <div className="tabs attendance-tabs" role="tablist" aria-label="Attendance views">
         {canMark && (
           <button
             role="tab"

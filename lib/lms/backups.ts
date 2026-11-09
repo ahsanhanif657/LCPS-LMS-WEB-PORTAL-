@@ -158,13 +158,17 @@ export async function restoreBackup(
     )
       throw new AppError('Backup schema does not match this portal.');
   }
-  if (!data.users.some((u) => u.id === c.user.id && u.active && u.role === 'ADMIN' && !u.demo))
+  const owner = await stmt("SELECT value FROM settings WHERE key='owner'").first<Row>();
+  const ownerRecord = data.users.find((u) => u.id === owner?.value);
+  if (owner?.value !== c.user.id || !ownerRecord || !ownerRecord.active || ownerRecord.demo)
     throw new AppError('This backup does not preserve your active administrator account.');
+  if (ownerRecord.role === 'ADMIN') ownerRecord.role = 'SUPER_ADMIN';
+  if (ownerRecord.role !== 'SUPER_ADMIN')
+    throw new AppError('This backup does not preserve your Super Admin access.');
   if (data.users.some((u) => u.demo))
     throw new AppError('Demo datasets cannot be restored through the college portal.');
   if (!data.credentials.some((r) => r.userId === c.user.id))
     throw new AppError('Administrator credentials are missing in this backup.');
-  const owner = await stmt("SELECT value FROM settings WHERE key='owner'").first<Row>();
   if (
     !data.settings.some((r) => r.key === 'owner' && r.value === owner?.value) ||
     !data.settings.some((r) => r.key === 'college_auth_v2')

@@ -7138,6 +7138,12 @@ td .profile-note {
     padding-top: 8px;
   }
 
+  .wm-class-time {
+    color: #647d8e;
+    font-size: 9px;
+    font-weight: 650;
+  }
+
   .wm-subject {
     font-size: 12px;
     font-weight: 700;

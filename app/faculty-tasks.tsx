@@ -42,7 +42,8 @@ export function FacultyTasks({
     (t) =>
       t.role === 'TEACHER' &&
       t.active &&
-      (['ADMIN', 'PRINCIPAL'].includes(user.role) || t.departmentId === user.departmentId),
+      (['ADMIN', 'SUPER_ADMIN', 'PRINCIPAL'].includes(user.role) ||
+        t.departmentId === user.departmentId),
   );
   return (
     <>
@@ -244,7 +245,7 @@ function TaskCard({
       )}
       {t.status === 'Pending' &&
         permitted(user, 'task_assign') &&
-        (t.assignedBy === user.id || user.role === 'ADMIN') && (
+        (t.assignedBy === user.id || ['ADMIN', 'SUPER_ADMIN'].includes(user.role)) && (
           <button
             className="btn"
             disabled={busy}
@@ -291,7 +292,8 @@ export function DepartmentResponsibilities({
       (t) =>
         t.role === 'TEACHER' &&
         t.active &&
-        (['ADMIN', 'PRINCIPAL'].includes(user.role) || t.departmentId === user.departmentId),
+        (['ADMIN', 'SUPER_ADMIN', 'PRINCIPAL'].includes(user.role) ||
+          t.departmentId === user.departmentId),
     ),
     teacher = teachers.find((t) => t.id === selected);
   useEffect(() => {
@@ -487,7 +489,7 @@ export function LoginNotices({
         }}
       >
         <header className="notice-heading">
-          <span className="notice-category">LCPS · Your workspace</span>
+          <span className="notice-category">LCPS · Your updates</span>
           <h2 id="login-notices-title">Updates & announcements</h2>
           <p>{items.length} updates for your account</p>
         </header>

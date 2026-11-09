@@ -4,6 +4,7 @@ import { rateLimit } from '@/security/rate-limit';
 import { NextRequest, NextResponse } from 'next/server';
 import { env } from '@/lib/platform';
 import { context, AppError, insert, db, stmt } from '@/lib/lms/service';
+import type { Row } from '@/lib/lms/types';
 import { uid } from '@/lib/lms/types';
 import {
   inspectUpload,
@@ -11,7 +12,7 @@ import {
   maxUploadBytes,
   resourceTypeAccept,
 } from '@/lib/lms/file-types';
-import { teachingAllowed } from '@/lib/lms/policy';
+import { broad, materialsAllowed } from '@/lib/lms/policy';
 import { createHash } from 'node:crypto';
 export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
@@ -55,10 +56,7 @@ export async function POST(req: NextRequest) {
         departmentId: string;
       }>();
       if (!batch) throw new AppError('Select a valid batch.', 400);
-      if (
-        !['ADMIN', 'PRINCIPAL'].includes(c.user.role) &&
-        batch.departmentId !== c.user.departmentId
-      )
+      if (!broad(c.user) && batch.departmentId !== c.user.departmentId)
         throw new AppError('You can only upload timetables for your department.', 403);
     }
     if (purpose === 'result-sheet') {
@@ -76,7 +74,8 @@ export async function POST(req: NextRequest) {
         throw new AppError('You can only publish results for your own department.', 403);
       if (
         !permitted(c.user, 'exams', c.rolePrivileges) &&
-        !['ADMIN', 'PRINCIPAL', 'HOD'].includes(c.user.role) &&
+        !broad(c.user) &&
+        c.user.role !== 'HOD' &&
         offering.teacherId !== c.user.id &&
         offering.coTeacherId !== c.user.id &&
         !(
@@ -89,7 +88,7 @@ export async function POST(req: NextRequest) {
     if (purpose === 'assessment-policy') {
       if (!permitted(c.user, 'results', c.rolePrivileges))
         throw new AppError('Assessment policy access is disabled.', 403);
-      if (!['ADMIN', 'HOD'].includes(c.user.role))
+      if (!['ADMIN', 'SUPER_ADMIN', 'DIRECTOR', 'HOD'].includes(c.user.role))
         throw new AppError('Only administrators and HODs can upload assessment policies.', 403);
       if (typeof departmentId !== 'string' || !departmentId)
         throw new AppError('Select a department for this policy.');
@@ -97,7 +96,7 @@ export async function POST(req: NextRequest) {
         departmentId,
       ]).first();
       if (!department) throw new AppError('Select a valid department.', 400);
-      if (c.user.role !== 'ADMIN' && departmentId !== c.user.departmentId)
+      if (!broad(c.user) && departmentId !== c.user.departmentId)
         throw new AppError('You can only manage your department policy.', 403);
     }
     if (
@@ -114,12 +113,15 @@ export async function POST(req: NextRequest) {
         throw new AppError('Select a valid learning resource category.', 400);
       if (rawResourceType === 'Book')
         throw new AppError('Books must use the secure book upload flow.', 400);
-      const offering = c.data.offerings.find((item) => item.id === offeringId);
+      const offering = await stmt(
+        'SELECT o.*,b.departmentId FROM offerings o JOIN batches b ON b.id=o.batchId WHERE o.id=?',
+        [offeringId],
+      ).first<Row>();
       if (
         purpose !== 'academic' ||
         !permitted(c.user, 'materials', c.rolePrivileges) ||
         !offering ||
-        !teachingAllowed(c.user, offering)
+        !materialsAllowed(c.user, offering, offering)
       )
         throw new AppError('You may only upload resources to your authorized subjects.', 403);
     }

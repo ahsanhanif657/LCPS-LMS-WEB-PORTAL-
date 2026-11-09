@@ -42,7 +42,7 @@ export function UserPermissionFields({
             .map((p) => {
               const supported = supportsPrivilege(user.role, p.key),
                 connected = builtIn.has(p.key),
-                locked = user.role === 'ADMIN';
+                locked = ['ADMIN', 'SUPER_ADMIN'].includes(user.role);
               const inherited = permitted(
                   { ...user, permissions: '{}', responsibilities: '[]' },
                   p.key,
@@ -276,7 +276,13 @@ export function RolePrivilegesWorkflow({
               <tr>
                 <th>Permission</th>
                 {roles.map((r) => (
-                  <th key={r}>{r}</th>
+                  <th key={r}>
+                    {r === 'DIRECTOR'
+                      ? 'Director'
+                      : r === 'SUPER_ADMIN'
+                        ? 'Super Admin'
+                        : r.replaceAll('_', ' ')}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -300,9 +306,20 @@ export function RolePrivilegesWorkflow({
                           <input
                             type="checkbox"
                             aria-label={role + ' ' + p.label}
-                            disabled={saving || role === 'ADMIN' || !builtIn.has(p.key)}
+                            disabled={
+                              saving ||
+                              role === 'SUPER_ADMIN' ||
+                              (role === 'ADMIN' &&
+                                [
+                                  'manage_access',
+                                  'system_settings',
+                                  'manage_backups',
+                                  'senior_accounts',
+                                ].includes(p.key)) ||
+                              !builtIn.has(p.key)
+                            }
                             checked={
-                              role === 'ADMIN' ||
+                              role === 'SUPER_ADMIN' ||
                               (config.rolePermissions[role] || []).includes(p.key)
                             }
                             onChange={(e) => {
@@ -330,11 +347,16 @@ export function RolePrivilegesWorkflow({
       ) : user ? (
         <>
           <h3>
-            {user.name} — {user.role}
+            {user.name} —{' '}
+            {user.role === 'DIRECTOR'
+              ? 'Director of College'
+              : user.role === 'SUPER_ADMIN'
+                ? 'Super Admin'
+                : user.role}
           </h3>
           <p>
-            {user.role === 'ADMIN'
-              ? 'Administrator access cannot be revoked.'
+            {['ADMIN', 'SUPER_ADMIN'].includes(user.role)
+              ? 'Administrator access cannot be changed here.'
               : 'Allowed means within the current role and data scope. Save or discard before selecting another user.'}
           </p>
           <UserPermissionFields
@@ -347,7 +369,7 @@ export function RolePrivilegesWorkflow({
               setUserDirty(true);
             }}
           />
-          {user.role !== 'ADMIN' && (
+          {!['ADMIN', 'SUPER_ADMIN'].includes(user.role) && (
             <button
               className="btn"
               disabled={saving}

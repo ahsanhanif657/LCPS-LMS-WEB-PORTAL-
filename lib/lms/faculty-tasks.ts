@@ -142,7 +142,7 @@ export async function facultyAction(c: Context, body: Row) {
     check(
       allowed('task_assign') &&
         sameDepartment(task.departmentId) &&
-        (u.role === 'ADMIN' || task.assignedBy === u.id),
+        (['ADMIN', 'SUPER_ADMIN'].includes(u.role) || task.assignedBy === u.id),
     );
     const result = await stmt(
       "UPDATE facultyTasks SET status='Cancelled' WHERE id=? AND status='Pending' RETURNING id",

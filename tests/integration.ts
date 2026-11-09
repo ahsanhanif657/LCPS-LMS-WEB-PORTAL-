@@ -38,7 +38,8 @@ async function impersonate(id: string) {
 import assert from 'node:assert/strict';
 import { context, action, all, stmt, save, remove, payload, insert, db } from '../lib/lms/service';
 import { scopedData, attendancePercent, overlap } from '../lib/lms/policy';
-import { pageAllowed } from '../security/privileges';
+import { timetableGrids } from '../lib/lms/timetable-view';
+import { pageAllowed, permitted } from '../security/privileges';
 import {
   inspectResourceUpload,
   resourceExtensionAllowed,
@@ -152,6 +153,82 @@ await test('bootstrap is idempotent and does not reset password', async () => {
     (await auth({ action: 'login', username: 'ahsanhanif', password: 'new-test-password' })).status,
     200,
   );
+});
+await test('college owner remains Super Admin and alone grants Admin and Director roles', async () => {
+  const owner = await ctx();
+  assert.equal(owner.user.role, 'SUPER_ADMIN');
+  assert.equal(owner.isOwner, true);
+  assert.equal(permitted(owner.user, 'manage_access', owner.rolePrivileges), true);
+  assert.equal(permitted({ role: 'ADMIN' }, 'materials'), true);
+  assert.equal(permitted({ role: 'ADMIN' }, 'manage_access'), false);
+  assert.equal(permitted({ role: 'ADMIN' }, 'system_settings'), false);
+  assert.equal(permitted({ role: 'DIRECTOR' }, 'materials'), true);
+  const adminId = await save(owner, 'users', {
+    name: 'Delegated administrator',
+    username: 'delegated-admin',
+    password: 'delegated-admin-password',
+    role: 'ADMIN',
+    active: 1,
+  });
+  const directorId = await save(owner, 'users', {
+    name: 'College Director',
+    username: 'college-director',
+    password: 'college-director-password',
+    role: 'DIRECTOR',
+    active: 1,
+  });
+  assert.equal((await all('users')).find((user) => user.id === directorId)?.role, 'DIRECTOR');
+  await rejects(
+    async () =>
+      save(await ctx('admin'), 'users', {
+        name: 'Another administrator',
+        username: 'another-admin',
+        password: 'another-admin-password',
+        role: 'ADMIN',
+      }),
+    /access|role|permission/i,
+  );
+  await rejects(
+    async () =>
+      action(await ctx('admin'), {
+        action: 'settings',
+        college: 'Unauthorized change',
+      }),
+    /access|permission/i,
+  );
+  await rejects(async () => remove(await ctx(), 'users', owner.user.id), /owner account/);
+  await remove(await ctx(), 'users', adminId);
+  await remove(await ctx(), 'users', directorId);
+});
+await test('administrator safeguard permits owner promotion and protects last Super Admin', async () => {
+  const activeAdmins = (
+    await stmt(
+      "SELECT id,active FROM users WHERE role IN ('ADMIN','SUPER_ADMIN') AND active=1 AND demo=0",
+    ).all<{ id: string; active: number }>()
+  ).results;
+  const testAdminId = 'sole-admin-promotion-guard-test';
+  await insert('users', {
+    id: testAdminId,
+    name: 'Promotion guard test',
+    username: 'promotion-guard-test',
+    role: 'ADMIN',
+    active: 1,
+    demo: 0,
+    createdAt: new Date().toISOString(),
+  }).run();
+  try {
+    for (const admin of activeAdmins)
+      await stmt('UPDATE users SET active=0 WHERE id=?', [admin.id]).run();
+    await stmt("UPDATE users SET role='SUPER_ADMIN' WHERE id=?", [testAdminId]).run();
+    await rejects(
+      () => stmt("UPDATE users SET role='TEACHER' WHERE id=?", [testAdminId]).run(),
+      /Keep at least one active administrator/,
+    );
+  } finally {
+    for (const admin of activeAdmins)
+      await stmt('UPDATE users SET active=? WHERE id=?', [admin.active, admin.id]).run();
+    await stmt('DELETE FROM users WHERE id=?', [testAdminId]).run();
+  }
 });
 // Academic fixtures exist only in the test database, never in deployed initialization.
 const fixture = seedData();
@@ -1419,6 +1496,50 @@ await test('learning resource categories enforce file formats and upload caps', 
   assert.equal(maxUploadBytes, 4 * 1024 * 1024);
   assert.equal(maxBookUploadBytes, 25 * 1024 * 1024);
 });
+await test('timetable combines periods with near-identical starts without losing exact times', () => {
+  const [grid] = timetableGrids({
+    batches: [{ id: 'batch', name: 'Batch 1', programId: 'program', semester: 1 }],
+    programs: [{ id: 'program', name: 'Program' }],
+    offerings: [
+      { id: 'off1', batchId: 'batch', subjectId: 'subject1', teacherId: 'teacher' },
+      { id: 'off2', batchId: 'batch', subjectId: 'subject2', teacherId: 'teacher' },
+    ],
+    subjects: [
+      { id: 'subject1', name: 'Subject One' },
+      { id: 'subject2', name: 'Subject Two' },
+    ],
+    users: [{ id: 'teacher', name: 'Teacher' }],
+    timetable: [
+      {
+        id: 'monday',
+        offeringId: 'off1',
+        day: 'Monday',
+        startTime: '09:30',
+        endTime: '10:15',
+      },
+      {
+        id: 'tuesday',
+        offeringId: 'off2',
+        day: 'Tuesday',
+        startTime: '09:31',
+        endTime: '10:30',
+      },
+      {
+        id: 'wednesday',
+        offeringId: 'off1',
+        day: 'Wednesday',
+        startTime: '10:30',
+        endTime: '11:30',
+      },
+    ],
+  });
+  assert.deepEqual(grid.slots, ['09:30|10:30', '10:30|11:30']);
+  assert.equal(
+    grid.days.find((day) => day.day === 'Tuesday')?.cells[0][0].record.startTime,
+    '09:31',
+  );
+  assert.equal(grid.days.find((day) => day.day === 'Monday')?.cells[0][0].record.endTime, '10:15');
+});
 await test('only admin configures policy and incomplete semesters have no GPA', async () => {
   await impersonate('lcps-administrator');
   await rejects(async () => action(await ctx('student'), { action: 'grading', policy }));
@@ -2325,6 +2446,48 @@ await test('course outlines persist and enforce subject scope and independent vi
     save(await ctx('teacher'), 'materials', { id, title: 'Denied change' }),
   );
   await save(await ctx(), 'users', { id: 'teacher', permissions: {} });
+});
+await test('teachers, HODs and the college owner can upload learning resources and course outlines', async () => {
+  const uploaded: string[] = [];
+  const uploadMaterial = async (userId: string, offeringId: string) => {
+    await impersonate(userId);
+    const form = new FormData();
+    form.append('purpose', 'academic');
+    form.append('resourceType', 'Document');
+    form.append('offeringId', offeringId);
+    form.append('file', new File(['%PDF-1.7\n'], 'course-notes.pdf', { type: 'application/pdf' }));
+    const response = await uploadFile(
+      new Request('https://portal.test/api/files', {
+        method: 'POST',
+        headers: { origin: 'https://portal.test' },
+        body: form,
+      }) as any,
+    );
+    assert.equal(response.status, 200, await response.clone().text());
+    const result = (await response.json()) as { id: string };
+    uploaded.push(result.id);
+    return result.id;
+  };
+  for (const [userId, title] of [
+    ['teacher', 'Teacher course outline'],
+    ['hod_cs', 'Department course outline'],
+    ['admin', 'Administrator course outline'],
+    ['lcps-administrator', 'College course outline'],
+  ]) {
+    const fileId = await uploadMaterial(userId, 'off-mobile');
+    const outlineId = await save(await ctx(userId), 'materials', {
+      offeringId: 'off-mobile',
+      title,
+      kind: 'Course outline',
+      resourceType: 'Document',
+      fileId,
+    });
+    await remove(await ctx(userId), 'materials', outlineId);
+  }
+  for (const id of uploaded) {
+    await env.BUCKET.delete(id);
+    await stmt('DELETE FROM files WHERE id=?', [id]).run();
+  }
 });
 await test('material deletion is restricted to uploader and administrator', async () => {
   const teacher = await ctx('teacher');

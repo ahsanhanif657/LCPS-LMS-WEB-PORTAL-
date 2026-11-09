@@ -1,7 +1,7 @@
 import { canDeleteAnnouncement } from './announcement-access';
 import { permitted, departmentAccess, RolePrivilegesConfig } from './privileges';
 import { Data, Row } from '@/lib/lms/types';
-export const broad = (u: Row) => ['ADMIN', 'PRINCIPAL'].includes(u.role);
+export const broad = (u: Row) => ['ADMIN', 'PRINCIPAL', 'DIRECTOR', 'SUPER_ADMIN'].includes(u.role);
 export const manager = (u: Row) =>
   ['ADMIN', 'PRINCIPAL', 'HOD'].includes(u.role) ||
   permitted(u, 'academic') ||
@@ -26,6 +26,13 @@ export function teachingAllowed(u: Row, o: Row): boolean {
     broad(u) ||
     (['TEACHER', 'HOD'].includes(u.role) &&
       (o.teacherId === u.id || (!!o.coTeacherId && o.coTeacherId === u.id)))
+  );
+}
+export function materialsAllowed(u: Row, o: Row, batch?: Row): boolean {
+  return (
+    broad(u) ||
+    teachingAllowed(u, o) ||
+    (u.role === 'HOD' && batch?.departmentId === u.departmentId)
   );
 }
 export function canRecordAttendance(u: Row, o: Row): boolean {
@@ -57,7 +64,9 @@ export function studentManageAllowed(u: Row, st: Row, d: Data): boolean {
   return st.role === 'STUDENT' && st.departmentId === u.departmentId;
 }
 export function accountManageAllowed(u: Row, target: Row): boolean {
-  if (u.role === 'ADMIN' || permitted(u, 'senior_accounts')) return true;
+  if (u.role === 'SUPER_ADMIN') return true;
+  if (u.role === 'ADMIN') return ['STUDENT', 'TEACHER'].includes(target.role);
+  if (permitted(u, 'senior_accounts')) return true;
   return (
     permitted(u, 'users') &&
     ['STUDENT', 'TEACHER'].includes(target.role) &&
@@ -102,6 +111,7 @@ export function scopedData(u: Row, d: Data, config?: RolePrivilegesConfig): Data
   const fullUsers = d.users.filter(
     (v) =>
       u.role === 'ADMIN' ||
+      u.role === 'SUPER_ADMIN' ||
       (broad(u) && u.role !== 'PRINCIPAL') ||
       permitted(u, 'manage_access', config) ||
       v.id === u.id ||
@@ -225,7 +235,7 @@ export function scopedData(u: Row, d: Data, config?: RolePrivilegesConfig): Data
   const visibleSubjectIds = new Set(out.subjects.map((s) => s.id));
   out.subjectPrograms = (d.subjectPrograms || []).filter((r) => visibleSubjectIds.has(r.subjectId));
   out.subjectSessions = (d.subjectSessions || []).filter((r) => visibleSubjectIds.has(r.subjectId));
-  out.hodScopes = d.hodScopes.filter((x) => u.role === 'ADMIN' || x.userId === u.id);
+  out.hodScopes = d.hodScopes.filter((x) => u.role === 'SUPER_ADMIN' || x.userId === u.id);
   out.resultFiles = d.resultFiles.filter((r) => ids.has(r.offeringId));
   out.assessmentPolicies = d.assessmentPolicies.filter(
     (r) => broad(u) || r.departmentId === u.departmentId,
@@ -297,6 +307,7 @@ export function scopedData(u: Row, d: Data, config?: RolePrivilegesConfig): Data
     (t) =>
       permitted(u, 'view_teacherTasks', config) &&
       (u.role === 'ADMIN' ||
+        u.role === 'SUPER_ADMIN' ||
         t.userId === u.id ||
         (permitted(u, 'task_assign', config) && (broad(u) || t.departmentId === u.departmentId))),
   );
@@ -347,7 +358,7 @@ export function scopedData(u: Row, d: Data, config?: RolePrivilegesConfig): Data
     out.attempts = out.attempts.filter((r) => out.quizzes.some((a) => a.id === r.quizId));
     out.progress = out.progress.filter((r) => out.materials.some((a) => a.id === r.materialId));
   }
-  out.audit = u.role === 'ADMIN' ? d.audit.slice(-150).reverse() : [];
+  out.audit = u.role === 'SUPER_ADMIN' ? d.audit.slice(-150).reverse() : [];
   for (const key of [
     'attendance',
     'assignments',

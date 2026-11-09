@@ -4,25 +4,31 @@ import { stmt } from './service';
 // Restrict high-volume academic records in SQL before loading them into memory.
 export function dataQueries(user: Row) {
   const dept = departmentAccess(user);
-  const broad = ['ADMIN', 'PRINCIPAL'].includes(user.role) || permitted(user, 'exams');
-  const offeringSql = dept
-    ? 'SELECT o.id FROM offerings o JOIN batches b ON b.id=o.batchId WHERE b.departmentId=?'
-    : user.role === 'TEACHER'
-      ? 'SELECT id FROM offerings WHERE (teacherId=? OR coTeacherId=?)'
-      : user.role === 'HOD'
-        ? 'SELECT o.id FROM offerings o JOIN batches b ON b.id=o.batchId WHERE b.departmentId=?'
-        : user.role === 'STUDENT'
-          ? 'SELECT id FROM offerings WHERE batchId=? AND active=1 UNION SELECT offeringId FROM enrollments WHERE studentId=? AND active=1'
-          : 'SELECT id FROM offerings WHERE 0';
-  const values = dept
-    ? [user.departmentId]
-    : user.role === 'TEACHER'
-      ? [user.id, user.id]
-      : user.role === 'HOD'
-        ? [user.departmentId]
-        : user.role === 'STUDENT'
-          ? [user.batchId, user.id]
-          : [];
+  const broad =
+    ['ADMIN', 'PRINCIPAL', 'DIRECTOR', 'SUPER_ADMIN'].includes(user.role) ||
+    permitted(user, 'exams');
+  const offeringSql = broad
+    ? 'SELECT id FROM offerings'
+    : dept
+      ? 'SELECT o.id FROM offerings o JOIN batches b ON b.id=o.batchId WHERE b.departmentId=?'
+      : user.role === 'TEACHER'
+        ? 'SELECT id FROM offerings WHERE (teacherId=? OR coTeacherId=?)'
+        : user.role === 'HOD'
+          ? 'SELECT o.id FROM offerings o JOIN batches b ON b.id=o.batchId WHERE b.departmentId=?'
+          : user.role === 'STUDENT'
+            ? 'SELECT id FROM offerings WHERE batchId=? AND active=1 UNION SELECT offeringId FROM enrollments WHERE studentId=? AND active=1'
+            : 'SELECT id FROM offerings WHERE 0';
+  const values = broad
+    ? []
+    : dept
+      ? [user.departmentId]
+      : user.role === 'TEACHER'
+        ? [user.id, user.id]
+        : user.role === 'HOD'
+          ? [user.departmentId]
+          : user.role === 'STUDENT'
+            ? [user.batchId, user.id]
+            : [];
   return tables.map((table) => {
     if (table === 'offerings')
       return stmt(
@@ -56,7 +62,7 @@ export function dataQueries(user: Row) {
     }
     if (table === 'audit')
       return stmt(
-        user.role === 'ADMIN'
+        user.role === 'SUPER_ADMIN'
           ? 'SELECT * FROM (SELECT * FROM audit ORDER BY createdAt DESC LIMIT 150) ORDER BY createdAt'
           : 'SELECT * FROM audit WHERE 0',
       );

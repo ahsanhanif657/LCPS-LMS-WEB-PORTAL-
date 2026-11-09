@@ -122,8 +122,17 @@ async function createLocalSnapshotIfNeeded(hasChanges: boolean) {
   });
 }
 
+const administratorGuard =
+  "CREATE TRIGGER keep_last_administrator BEFORE UPDATE OF role,active ON users\nWHEN OLD.role IN ('ADMIN','SUPER_ADMIN') AND OLD.active=1 AND OLD.demo=0 AND (NEW.role NOT IN ('ADMIN','SUPER_ADMIN') OR NEW.active!=1)\nAND NOT EXISTS (SELECT 1 FROM users WHERE id!=OLD.id AND role IN ('ADMIN','SUPER_ADMIN') AND active=1 AND demo=0)\nBEGIN SELECT RAISE(ABORT,'Keep at least one active administrator.'); END;";
+
 async function runLegacyMigrations() {
   const pending = await pendingLegacyMigrations();
+  const guard = await sqlClient().execute(
+    "SELECT sql FROM sqlite_master WHERE type='trigger' AND name='keep_last_administrator'",
+  );
+  const needsAdministratorGuard = !String(guard.rows[0]?.sql ?? '').includes(
+    "role IN ('ADMIN','SUPER_ADMIN')",
+  );
   const retireStaff =
     (await hasObject('table', 'users')) &&
     (await sqlClient().execute("SELECT 1 FROM users WHERE role='STAFF' LIMIT 1")).rows.length > 0;
@@ -132,8 +141,14 @@ async function runLegacyMigrations() {
     !(await hasColumn('files', 'storageKey')) ||
     !(await hasColumn('files', 'checksum')) ||
     !(await hasColumn('quizzes', 'fileId'));
-  await createLocalSnapshotIfNeeded(pending.length > 0 || needsFileColumns || retireStaff);
+  await createLocalSnapshotIfNeeded(
+    pending.length > 0 || needsFileColumns || retireStaff || needsAdministratorGuard,
+  );
   for (const statement of pending) await sqlClient().execute(statement);
+  if (needsAdministratorGuard) {
+    await sqlClient().execute('DROP TRIGGER IF EXISTS keep_last_administrator');
+    await sqlClient().execute(administratorGuard);
+  }
   if (retireStaff) {
     await sqlClient().batch(
       [
@@ -162,6 +177,9 @@ export function ensureDatabase() {
     ready = (async () => {
       try {
         await runLegacyMigrations();
+        await sqlClient().execute(
+          "UPDATE users SET role='SUPER_ADMIN' WHERE id=(SELECT value FROM settings WHERE key='owner') AND role='ADMIN'",
+        );
         await ensureColumn('files', 'storageProvider', "text NOT NULL DEFAULT 'legacy'");
         await ensureColumn('files', 'storageKey', 'text');
         await ensureColumn('files', 'checksum', 'text');

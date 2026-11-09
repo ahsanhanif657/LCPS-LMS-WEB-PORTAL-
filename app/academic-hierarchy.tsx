@@ -69,6 +69,9 @@ export function TimetableSchedule({
                         {cell.length ? (
                           cell.map((c) => (
                             <div className="weekly-class" key={c.record.id}>
+                              <small>
+                                {c.record.startTime} – {c.record.endTime}
+                              </small>
                               <strong>{c.subject}</strong>
                               <small>{c.teacher}</small>
                               <small>{c.room}</small>
@@ -120,6 +123,9 @@ export function TimetableSchedule({
                         <div className="wm-classes">
                           {cell.map((c) => (
                             <div className="wm-class" key={c.record.id}>
+                              <span className="wm-time">
+                                {c.record.startTime} – {c.record.endTime}
+                              </span>
                               <strong className="wm-subject">{c.subject}</strong>
                               {c.teacher && <span className="wm-teacher">{c.teacher}</span>}
                               {c.room && <span className="wm-room">{c.room}</span>}

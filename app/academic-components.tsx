@@ -138,7 +138,7 @@ export function CourseOutlines({
       data.batches.find((b) => b.id === initial?.batchId)?.sessionId || '',
     ),
     [selected, setSelected] = useState(initial?.id || '');
-  const hierarchy = ['ADMIN', 'HOD', 'PRINCIPAL'].includes(user.role),
+  const hierarchy = ['ADMIN', 'HOD', 'PRINCIPAL', 'DIRECTOR', 'SUPER_ADMIN'].includes(user.role),
     offering = offers.find(
       (o) =>
         o.id === selected &&

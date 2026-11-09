@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   try {
     sameOrigin(req);
     const c = await context(false);
-    if (c.user.role !== 'ADMIN')
+    if (c.user.role !== 'SUPER_ADMIN')
       throw new AppError('Only administrators can change the college logo.', 403);
     if (Number(req.headers.get('content-length') || 0) > 600000)
       throw new AppError('Choose a logo smaller than 512 KB.', 413);

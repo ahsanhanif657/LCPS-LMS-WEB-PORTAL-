@@ -117,6 +117,16 @@ const actionPrivileges: PrivilegeDefinition[] = [
 
 const actionRolePermissions: Record<string, string[]> = {
   ADMIN: [
+    'finance',
+    'exams',
+    'events',
+    'transport',
+    'task_assign',
+    'view_teacherTasks',
+    'delegate_responsibilities',
+    'student_enrollment',
+    'college_setup',
+    'reset_passwords',
     'users',
     'academic',
     'timetable',
@@ -128,6 +138,20 @@ const actionRolePermissions: Record<string, string[]> = {
     'results',
     'materials',
     'materials_delete',
+    'announcements',
+    'reports',
+  ],
+  SUPER_ADMIN: [],
+  DIRECTOR: [
+    'academic',
+    'timetable',
+    'attendance',
+    'attendance_record',
+    'attendance_correct',
+    'assignments',
+    'quizzes',
+    'results',
+    'materials',
     'announcements',
     'reports',
   ],
@@ -188,6 +212,8 @@ const views: Record<string, string[]> = {
   EXAMINATION_CONTROLLER: ['announcements', 'courseOutlines', 'results', 'subjects'],
   REGISTRAR: ['announcements', 'courseOutlines'],
   ADMIN: modules,
+  SUPER_ADMIN: modules,
+  DIRECTOR: modules,
   PRINCIPAL: ['courseOutlines', 'academic', 'attendance', 'results', 'timetable', 'announcements'],
   STUDENT: [
     'courseOutlines',
@@ -213,6 +239,12 @@ const views: Record<string, string[]> = {
     'announcements',
   ],
 };
+const ownerOnlyPrivileges = new Set([
+  'manage_access',
+  'system_settings',
+  'manage_backups',
+  'senior_accounts',
+]);
 export const defaultPrivileges: PrivilegeDefinition[] = [
   ...actionPrivileges,
   ...modules.map((key) => ({
@@ -266,22 +298,31 @@ export function normalizeRolePrivileges(config: RolePrivilegesConfig): RolePrivi
   };
   const known = new Set(config.privileges.map((p) => p.key));
   const missing = defaultPrivileges.filter((p) => !known.has(p.key));
+  const rolePermissions = Object.fromEntries(
+    Object.keys(defaultRolePermissions).map((role) => [
+      role,
+      [
+        ...(config.rolePermissions[role] || defaultRolePermissions[role] || []).filter(
+          (k) =>
+            !['tasks', 'view_tasks'].includes(k) &&
+            !(role === 'ADMIN' && ownerOnlyPrivileges.has(k)),
+        ),
+        ...missing.filter((p) => defaultRolePermissions[role].includes(p.key)).map((p) => p.key),
+      ],
+    ]),
+  );
+  rolePermissions.ADMIN = [
+    ...new Set([
+      ...rolePermissions.ADMIN,
+      ...defaultPrivileges.map((p) => p.key).filter((key) => !ownerOnlyPrivileges.has(key)),
+    ]),
+  ];
   return {
     privileges: [
       ...defaultPrivileges,
       ...config.privileges.filter((p) => !defaultPrivileges.some((d) => d.key === p.key)),
     ],
-    rolePermissions: Object.fromEntries(
-      Object.keys(defaultRolePermissions).map((role) => [
-        role,
-        [
-          ...(config.rolePermissions[role] || defaultRolePermissions[role] || []).filter(
-            (k) => !['tasks', 'view_tasks'].includes(k),
-          ),
-          ...missing.filter((p) => defaultRolePermissions[role].includes(p.key)).map((p) => p.key),
-        ],
-      ]),
-    ),
+    rolePermissions,
   };
 }
 // These are existing role boundaries, not permissions that grant cross-department access.
@@ -289,6 +330,8 @@ export function supportsPrivilege(role: string, key: string): boolean {
   return (
     [
       'ADMIN',
+      'SUPER_ADMIN',
+      'DIRECTOR',
       'PRINCIPAL',
       'HOD',
       'TEACHER',
@@ -346,7 +389,8 @@ export function isValidPrivilege(key: string, roleConfig?: RolePrivilegesConfig)
 }
 
 export function permitted(u: Row, key: string, roleConfig?: RolePrivilegesConfig): boolean {
-  if (u.role === 'ADMIN') return true;
+  if (u.role === 'SUPER_ADMIN') return true;
+  if (u.role === 'ADMIN' && ownerOnlyPrivileges.has(key)) return false;
   roleConfig = roleConfig || u.accessConfig;
   if (!supportsPrivilege(u.role, key)) return false;
   const parent =

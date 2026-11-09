@@ -9,7 +9,7 @@ import {
 } from '@/lib/lms/file-types';
 import { uid } from '@/lib/lms/types';
 import { permitted } from '@/security/privileges';
-import { teachingAllowed } from '@/lib/lms/policy';
+import { materialsAllowed } from '@/lib/lms/policy';
 import { jsonBody, sameOrigin } from '@/security/requests';
 import { rateLimit } from '@/security/rate-limit';
 
@@ -40,7 +40,11 @@ async function bookOffering(body: Record<string, unknown>, c: Awaited<ReturnType
   if (
     !offering ||
     !permitted(c.user, 'materials', c.rolePrivileges) ||
-    !teachingAllowed(c.user, offering)
+    !materialsAllowed(
+      c.user,
+      offering,
+      c.data.batches.find((item) => item.id === offering.batchId),
+    )
   )
     throw new AppError('You may only upload books to your authorized subjects.', 403);
   const batch = c.data.batches.find((item) => item.id === offering.batchId);

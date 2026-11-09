@@ -69,6 +69,7 @@ import {
   manager,
   broad,
   teachingAllowed,
+  materialsAllowed,
   resultsAllowed,
   accountManageAllowed,
 } from '@/lib/lms/policy';
@@ -477,7 +478,7 @@ export default function Portal() {
     manage = manager(u),
     teacher = ['TEACHER', 'HOD'].includes(u.role),
     student = u.role === 'STUDENT',
-    admin = u.role === 'ADMIN',
+    admin = ['ADMIN', 'SUPER_ADMIN'].includes(u.role),
     canManageAccounts = permitted(u, 'users', rolePrivileges);
   const personalOfferingIds = new Set(
     allData.offerings
@@ -497,6 +498,7 @@ export default function Portal() {
     u.role === 'HOD' &&
     ![
       'courseOutlines',
+      'materials',
       'deptSubjects',
       'teachers',
       'academic',
@@ -651,7 +653,14 @@ export default function Portal() {
     if (key === 'active') return val ? 'Active' : 'Inactive';
     if (key === 'published') return val ? 'Published' : 'Draft';
     if (key === 'hasLab') return val ? 'Yes — 20 marks' : 'No';
-    if (key === 'role') return String(val).toLowerCase();
+    if (key === 'role')
+      return (
+        {
+          DIRECTOR: 'Director of College',
+          SUPER_ADMIN: 'Super Admin',
+          ADMIN: 'Administrator',
+        }[val as string] || String(val).replaceAll('_', ' ').toLowerCase()
+      );
     return val ?? '—';
   };
   const head = (key: string) =>
@@ -684,7 +693,7 @@ export default function Portal() {
     if (!permitted(u, entityPrivilege(entity), rolePrivileges) || entity === 'tasks') return false;
     if (entity === 'attendance')
       return permitted(u, r ? 'attendance_correct' : 'attendance_record', rolePrivileges);
-    if (admin) return entity !== 'audit';
+    if (admin && entity !== 'users') return entity !== 'audit';
     if (entity === 'users') return !r || accountManageAllowed(u, r);
     if (entity === 'enrollments' || entity === 'offerings')
       return permitted(u, 'student_enrollment', rolePrivileges);
@@ -696,10 +705,16 @@ export default function Portal() {
     if (['attendance', 'assignments', 'quizzes', 'results', 'materials'].includes(entity))
       return (
         !r ||
-        d.offerings.some(
-          (o) =>
-            o.id === r.offeringId &&
-            (entity === 'results' ? resultsAllowed(u, o, d) : teachingAllowed(u, o)),
+        d.offerings.some((o) =>
+          o.id === r.offeringId && entity === 'results'
+            ? resultsAllowed(u, o, d)
+            : entity === 'materials'
+              ? materialsAllowed(
+                  u,
+                  o,
+                  d.batches.find((batch) => batch.id === o.batchId),
+                )
+              : teachingAllowed(u, o),
         )
       );
     return false;
@@ -808,7 +823,9 @@ export default function Portal() {
                   'TEACHER',
                   'HOD',
                   'PRINCIPAL',
+                  'DIRECTOR',
                   'ADMIN',
+                  'SUPER_ADMIN',
                   'TREASURER',
                   'EXAMINATION_CONTROLLER',
                   'REGISTRAR',
@@ -1037,11 +1054,11 @@ export default function Portal() {
         )}
         <div className="greeting">
           <div>
-            <div className="eyebrow">YOUR ACADEMIC WORKSPACE</div>
+            <div className="eyebrow">YOUR ACADEMIC PORTAL</div>
             <h1>
               {student
                 ? 'Welcome back, ' + u.name.split(' ')[0]
-                : u.role === 'ADMIN'
+                : admin
                   ? 'Your campus, at a glance'
                   : 'Welcome back, ' + u.name.split(' ')[0]}{' '}
               <span className="wave">✦</span>
@@ -1417,11 +1434,9 @@ export default function Portal() {
             )
           ) : (
             <>
-              {selected === 'batches' &&
-                u.role === 'ADMIN' &&
-                permitted(u, 'academic', rolePrivileges) && (
-                  <SemesterSubjectAssignment data={d} user={u} run={run} />
-                )}
+              {selected === 'batches' && admin && permitted(u, 'academic', rolePrivileges) && (
+                <SemesterSubjectAssignment data={d} user={u} run={run} />
+              )}
               {selected === 'offerings' &&
                 u.role !== 'PRINCIPAL' &&
                 permitted(u, 'timetable', rolePrivileges) && (
@@ -1463,7 +1478,8 @@ export default function Portal() {
                 ? d.users
                 : d.users.filter(
                     (x) =>
-                      ['STUDENT', 'TEACHER'].includes(x.role) && x.departmentId === u.departmentId,
+                      ['STUDENT', 'TEACHER'].includes(x.role) &&
+                      (u.role === 'ADMIN' || x.departmentId === u.departmentId),
                   )
             }
             render={(rows) => renderTable('users', rows)}
@@ -1816,7 +1832,9 @@ export default function Portal() {
       );
     if (
       page === 'timetable' &&
-      (admin || u.role === 'PRINCIPAL' || permitted(u, 'timetable_department', rolePrivileges))
+      (admin ||
+        ['PRINCIPAL', 'DIRECTOR'].includes(u.role) ||
+        permitted(u, 'timetable_department', rolePrivileges))
     )
       return (
         <TimetableManager
@@ -2236,10 +2254,16 @@ export default function Portal() {
           {['TREASURER', 'EXAMINATION_CONTROLLER', 'REGISTRAR'].includes(u.role)
             ? 'MANAGEMENT · ' + u.role.replaceAll('_', ' ')
             : u.role === 'STUDENT'
-              ? 'STUDENT WORKSPACE'
+              ? 'STUDENT PORTAL'
               : u.role === 'TEACHER'
-                ? 'TEACHING WORKSPACE'
-                : u.role + ' WORKSPACE'}
+                ? 'TEACHING PORTAL'
+                : u.role === 'DIRECTOR'
+                  ? 'DIRECTOR OF COLLEGE'
+                  : u.role === 'SUPER_ADMIN'
+                    ? 'SUPER ADMINISTRATOR'
+                    : u.role === 'ADMIN'
+                      ? 'ADMINISTRATOR'
+                      : u.role}
         </div>
         <nav aria-label="Main navigation">
           {nav.map((n) => {
@@ -2303,7 +2327,7 @@ export default function Portal() {
               <span className="sr-only">Open navigation</span>
             </button>
             <span className="breadcrumb">
-              Workspace <strong>{names[page]}</strong>
+              Portal <strong>{names[page]}</strong>
             </span>
           </div>
           <div className="top-actions">
@@ -2377,7 +2401,7 @@ export default function Portal() {
             <span>© {new Date().getFullYear()} LCPS · Academic Portal · Powered by A &amp; U</span>
             <span>
               <span className="live-dot" />
-              Connected workspace · refreshes every 30s
+              Connected portal · refreshes every 30s
             </span>
           </footer>
         </main>
@@ -3222,7 +3246,15 @@ function EntityForm({
       ['attendance', 'assignments', 'quizzes', 'results', 'materials'].includes(entity)
     )
       rows = rows.filter((r) =>
-        entity === 'results' ? resultsAllowed(u, r, d) : teachingAllowed(u, r),
+        entity === 'results'
+          ? resultsAllowed(u, r, d)
+          : entity === 'materials'
+            ? materialsAllowed(
+                u,
+                r,
+                d.batches.find((batch) => batch.id === r.batchId),
+              )
+            : teachingAllowed(u, r),
       );
     if (entity === 'announcements' && u.role === 'TEACHER' && f.ref === 'offerings')
       rows = rows.filter(
@@ -3285,7 +3317,9 @@ function EntityForm({
             const choices =
               f.key === 'role' && !permitted(u, 'senior_accounts', rolePrivileges)
                 ? ['STUDENT', 'TEACHER']
-                : f.options;
+                : f.key === 'role' && v.role === 'SUPER_ADMIN'
+                  ? ['SUPER_ADMIN']
+                  : f.options?.filter((role) => role !== 'SUPER_ADMIN' || record.id === u.id);
             if (f.type === 'multi-select') {
               const choicesForField = options(f),
                 selectedValues = Array.isArray(v[f.key]) ? v[f.key] : [],
@@ -3435,7 +3469,11 @@ function EntityForm({
                         ))
                       : choices?.map((o) => (
                           <option key={o} value={o}>
-                            {o}
+                            {o === 'DIRECTOR'
+                              ? 'Director of College'
+                              : o === 'SUPER_ADMIN'
+                                ? 'Super Admin (college owner)'
+                                : o.replaceAll('_', ' ')}
                           </option>
                         ))}
                   </select>
@@ -3542,7 +3580,7 @@ function EntityForm({
           })}
           {entity === 'users' &&
             permitted(u, 'manage_access', rolePrivileges) &&
-            v.role !== 'ADMIN' && (
+            !['ADMIN', 'SUPER_ADMIN'].includes(v.role) && (
               <fieldset className="span-two permission-box">
                 <legend>Individual access overrides</legend>
                 <UserPermissionFields

@@ -1,6 +1,7 @@
 import { Context, AppError, stmt, db, insert, auditStmt } from './service';
 import { Row, uid } from './types';
 import { permitted } from '@/security/privileges';
+import { broad } from '@/security/authorization';
 import { hashPassword } from './password';
 function check(ok: unknown, message: string, status = 400): asserts ok {
   if (!ok) throw new AppError(message, status);
@@ -10,7 +11,7 @@ export async function portalEnhancementAction(c: Context, body: Row) {
   const u = c.user,
     d = c.data;
   if (body.action === 'socialAccountNames') {
-    check(u.role === 'ADMIN', 'Only administrators can update account labels.', 403);
+    check(u.role === 'SUPER_ADMIN', 'Only the college owner can update account labels.', 403);
     check(
       Array.isArray(body.names) &&
         body.names.length === 5 &&
@@ -81,7 +82,7 @@ export async function portalEnhancementAction(c: Context, body: Row) {
     const batch = d.batches.find((b) => b.id === (old?.batchId || r.batchId));
     check(batch, 'Select a class.');
     check(
-      ['ADMIN', 'PRINCIPAL'].includes(u.role) || batch.departmentId === u.departmentId,
+      broad(u) || batch.departmentId === u.departmentId,
       'Choose a class in your department.',
       403,
     );
@@ -159,7 +160,7 @@ export async function portalEnhancementAction(c: Context, body: Row) {
     const batch = d.batches.find((b) => b.id === body.batchId && b.active);
     check(batch, 'Select an active class.');
     check(
-      ['ADMIN', 'PRINCIPAL'].includes(u.role) || batch.departmentId === u.departmentId,
+      broad(u) || batch.departmentId === u.departmentId,
       'Import students only into your department.',
       403,
     );
