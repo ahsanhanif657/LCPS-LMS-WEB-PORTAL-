@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Manrope:wght@400;500;600;650;700;750;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&display=swap');
 @import 'tailwindcss';
 :root {
   --bg: #f6f7f9;
@@ -72,7 +72,7 @@ h1,
 h2,
 h3,
 h4 {
-  font-family: 'Manrope', 'DM Sans', Arial, sans-serif;
+  font-family: 'DM Sans', Arial, sans-serif;
 }
 h1 {
   font-size: 28px;
@@ -144,7 +144,7 @@ svg {
   flex-shrink: 0;
 }
 .brand strong {
-  font-family: 'Manrope', sans-serif;
+  font-family: 'DM Sans', sans-serif;
   font-size: 24px;
   letter-spacing: 1.4px;
   font-weight: 800;
@@ -462,7 +462,7 @@ svg {
 }
 .stat-value {
   display: block;
-  font-family: 'Manrope', sans-serif;
+  font-family: 'DM Sans', sans-serif;
   font-size: 28px;
   letter-spacing: -1px;
   line-height: 1.45;
@@ -1537,7 +1537,7 @@ tbody tr:last-child td {
   border-radius: 50%;
   background: white;
   font:
-    750 25px 'Manrope',
+    700 25px 'DM Sans',
     sans-serif;
   color: #5d7748;
 }
@@ -7056,7 +7056,7 @@ td .profile-note {
     min-width: 0;
   }
   .wm-day-name {
-    font-family: 'Manrope', 'DM Sans', Arial, sans-serif;
+    font-family: 'DM Sans', Arial, sans-serif;
     font-size: 13px;
     font-weight: 750;
     letter-spacing: 0.5px;
@@ -7557,5 +7557,637 @@ td .profile-note {
   }
   .resource-type-badge {
     margin-bottom: 5px;
+  }
+}
+
+/* Restrained LCPS visual system */
+:root {
+  --bg: #f4f6f5;
+  --ink: #202a26;
+  --muted: #68756f;
+  --line: #e1e7e3;
+  --green: #35584d;
+  --nav: #192622;
+  --lime: #e6ece8;
+  --white: #fff;
+  --font-sans: 'DM Sans', Arial, sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3,
+h4,
+.stat-value {
+  font-family: var(--font-sans);
+  letter-spacing: normal;
+}
+
+::selection {
+  background: #dce7e1;
+}
+
+button:focus-visible,
+a:focus-visible,
+.subject-card-open:focus-visible,
+.profile-photo-wrap:focus-visible {
+  outline-color: #66877a;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.app-shell .operations-panel input:not([type='checkbox']):not([type='radio']):focus {
+  border-color: #66877a !important;
+  box-shadow: 0 0 0 2px #66877a24 !important;
+}
+
+.sidebar {
+  background: var(--nav);
+  color: #b7c3be;
+}
+
+.brand-mark {
+  border-color: #3b4c45;
+  background: #24352e;
+  color: #d4dfd9;
+}
+
+.brand strong span,
+.college-caption span {
+  color: #a7b5ae;
+}
+
+.workspace-label,
+.college-caption {
+  color: #82938a;
+}
+
+.college-caption {
+  border-color: #30413a;
+}
+
+.nav-item {
+  color: #b7c3be;
+}
+
+.nav-item:hover {
+  background: #ffffff0c;
+  color: #fff;
+}
+
+.nav-item.active {
+  background: #2d4038;
+  color: #fff;
+}
+
+.sidebar .nav-item.active {
+  border-radius: 7px;
+  background: #2d4038;
+  color: #fff;
+  box-shadow: inset 2px 0 #91aa9c;
+}
+
+.sidebar .nav-item.active b {
+  background: #40544a;
+  color: #e1e8e4;
+}
+
+.nav-item b,
+.nav-item.active b {
+  background: #40544a;
+  color: #e1e8e4;
+}
+
+.topbar,
+.stat-card,
+.subject-card,
+.panel,
+.day-column,
+.announcement-full,
+.modal,
+.matrix-scroll,
+.community-banner,
+.login-card,
+.operations-panel,
+.profile-card,
+.profile-info,
+.timetable-upload,
+.timetable-file,
+.course-policy {
+  background-color: #fff;
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+.topbar {
+  border-bottom-color: var(--line);
+}
+
+.breadcrumb {
+  color: #7b8781;
+}
+
+.breadcrumb strong,
+.profile-button strong,
+.section-head h2,
+.subject-body h3,
+.assignment-card h3,
+.quiz-card h3,
+.modal-head h2,
+.profile-card h2,
+.announcement-full h2 {
+  color: var(--ink);
+}
+
+.profile-button small,
+.greeting p,
+.page-title p,
+.section-head p,
+.stat-card p,
+.subject-body > small,
+.subject-body p,
+.assignment-card small,
+.assignment-card p,
+.quiz-card p,
+.quiz-card > small,
+.quiz-dates,
+.announcement-full > p,
+.modal-head p,
+.muted,
+.field > small {
+  color: var(--muted);
+}
+
+.avatar,
+.tiny-avatar {
+  background: #e9eeeb;
+  color: #4a6156;
+}
+
+.demo-select select,
+.date-chip,
+.search-box,
+.filter-select,
+.field input:not([type='checkbox']):not([type='radio']),
+.field select,
+.field textarea,
+.auth-form .field input {
+  border-color: #d9e1dc;
+  background: #fff;
+  color: var(--ink);
+}
+
+.demo-strip,
+.help-card,
+.question-edit,
+.grade-form,
+.quiz-timer,
+.notice,
+.account-security,
+.account-path,
+.setup-storage-note {
+  background: #f3f6f4;
+  border-color: var(--line);
+  color: #52635b;
+}
+
+.stats-grid .mint,
+.stats-grid .purple,
+.stats-grid .peach,
+.stats-grid .blue,
+.stats-grid .pink,
+.stats-grid .yellow,
+.deadline-icon,
+.announcement-icon,
+.assignment-icon {
+  background: #edf2ef;
+  color: #49675b;
+}
+
+.badge,
+.badge.green,
+.badge.blue,
+.badge.purple,
+.badge.lime,
+.tag,
+.subject-type-badge,
+.resource-type-badge {
+  border-color: #dce5e0;
+  background: #eef3f0;
+  color: #405c50;
+}
+
+.badge.red {
+  background: #f8eeee;
+  color: #945b57;
+}
+
+.badge.amber {
+  background: #f6f2e9;
+  color: #806b43;
+}
+
+.badge.lime {
+  font-size: 8px;
+}
+
+.hero-banner {
+  background: #263c34;
+  color: #fff;
+}
+
+.hero-banner p {
+  color: #d0dad5;
+}
+
+.hero-banner .btn {
+  border-color: #d6e0db;
+}
+
+.banner-illustration {
+  display: none;
+}
+
+.subject-art,
+.subject-art.course-blue-1,
+.subject-art.course-blue-2,
+.full-grid .subject-art {
+  background: #edf2ef;
+  color: #48665a;
+}
+
+.subject-code {
+  background: #fff;
+  color: #405c50;
+}
+
+.subject-card,
+.shared-subject-card {
+  border-radius: 8px;
+}
+
+.stat-card,
+.panel,
+.day-column,
+.announcement-full,
+.quiz-card,
+.assignment-card,
+.matrix-scroll,
+.community-banner,
+.operations-panel,
+.profile-card,
+.profile-info,
+.timetable-upload,
+.timetable-file,
+.course-policy {
+  border-radius: 8px;
+}
+
+.eyebrow {
+  color: #68756f;
+}
+
+.subject-card:hover,
+.shared-subject-card:hover {
+  transform: none;
+  border-color: #cbd7d0;
+  box-shadow: none;
+}
+
+.subject-heading small,
+.subject-teacher,
+.subject-bottom .text-btn {
+  color: #50695d;
+}
+
+.subject-bottom,
+.shared-subject-card .subject-bottom {
+  border-color: var(--line);
+}
+
+.subject-type-badge,
+.resource-type-badge {
+  border-radius: 5px;
+  font-weight: 600;
+}
+
+.progress-track {
+  background: #e8eeea;
+}
+
+.progress-track span,
+.live-dot {
+  background: #66877a;
+}
+
+.progress-label strong,
+.text-btn,
+.text-btn:hover,
+.profile-details strong,
+.department-course-details h4,
+.department-course-details a,
+.selection-option,
+.selection-accordion > summary,
+.selection-field legend {
+  color: #405f52;
+}
+
+.mini-calendar .selected,
+.current-day .day-title {
+  background: #35584d;
+  color: #fff;
+}
+
+.mini-calendar .selected span {
+  color: #d4dfd9;
+}
+
+.mini-calendar .selected i {
+  background: #d4dfd9;
+}
+
+.btn {
+  border-color: #d7e0da;
+  background: #fff;
+  color: #40564c;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.btn:hover {
+  background: #f3f6f4;
+}
+
+.btn.primary,
+.btn.primary:hover,
+.auth-page .auth-submit {
+  border-color: #35584d !important;
+  background: #35584d !important;
+  color: #fff !important;
+}
+
+.btn.cream,
+.btn.soft-green {
+  border-color: #e8eeea;
+  background: #edf2ef;
+  color: #405c50;
+}
+
+.btn.destructive {
+  border-color: #955b56;
+  background: #955b56;
+  color: #fff;
+}
+
+.icon-btn {
+  color: #64746c;
+}
+
+.icon-btn:hover,
+.announcement-row:hover,
+.selection-option:hover,
+.social-links a:hover,
+tbody tr:hover {
+  background: #f4f7f5;
+}
+
+.announcement-row,
+.deadline,
+.material-row,
+td,
+.table-foot,
+.tabs,
+.tabs button,
+.matrix-table th,
+.matrix-table td,
+.weekly-schedule th,
+.weekly-schedule td,
+.course-policy th,
+.course-policy td,
+.operations-panel td,
+.operations-panel th {
+  border-color: var(--line);
+}
+
+th,
+.matrix-table th,
+.weekly-schedule thead th,
+.weekly-schedule tbody th {
+  background: #f3f6f4;
+  color: #53635b;
+}
+
+td,
+td strong {
+  color: #4d5b54;
+}
+
+.tabs button {
+  color: #68756f;
+}
+
+.tabs button.active {
+  border-color: #66877a;
+  color: #35584d;
+}
+
+.search-box input::placeholder,
+.field input::placeholder,
+.auth-form .field input::placeholder {
+  color: #89958e;
+}
+
+.form-error,
+.attendance-low td,
+.import-row-error {
+  border-color: #ead8d6;
+  background: #faf2f1;
+  color: #8e514d;
+}
+
+.attendance-ring {
+  background: conic-gradient(#66877a var(--percent), #e8eeea 0);
+}
+
+.attendance-ring > span {
+  color: #35584d;
+}
+
+.attendance-tabs button,
+.selection-accordion > summary,
+.selection-options {
+  border-color: #d9e1dc;
+}
+
+.selection-accordion[open] > summary {
+  border-color: #8da49a;
+}
+
+.selection-accordion > summary::after {
+  border-color: #66877a;
+}
+
+.selection-option input,
+.field input[type='checkbox'],
+.field input[type='radio'],
+.attendance-report-controls input {
+  accent-color: #557568;
+}
+
+.toast {
+  border-color: #40594e;
+  background: #263c34;
+  box-shadow: 0 4px 16px #17231e1a;
+}
+
+.toast > svg {
+  color: #d0dad5;
+}
+
+.modal-shade,
+.export-dialog::backdrop {
+  background: #18231f70;
+  backdrop-filter: none;
+}
+
+.modal {
+  border-radius: 9px;
+  box-shadow: 0 12px 32px #17231e1a;
+}
+
+.login-page.auth-page {
+  background: url('/lcps-campus.jpg') center/cover no-repeat !important;
+}
+
+.auth-page.login-page::before {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: #18231f66;
+  content: '';
+  pointer-events: none;
+}
+
+.auth-page .auth-card {
+  position: relative;
+  z-index: 1;
+}
+
+.auth-page .auth-form-side {
+  border: 1px solid #dfe6e2;
+  border-radius: 10px;
+  background: #fff !important;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.auth-page .auth-form h1,
+.auth-page .auth-signup h1 {
+  color: var(--ink) !important;
+}
+
+.auth-page .auth-description,
+.auth-page .auth-footnote,
+.auth-page .auth-footnote button,
+.auth-page .auth-form .field > span,
+.auth-page .auth-setup {
+  color: var(--muted) !important;
+}
+
+.auth-page .auth-form .field input {
+  border-radius: 6px !important;
+  background: #fff !important;
+  color: var(--ink) !important;
+}
+
+.auth-page .auth-form .field input:focus,
+.auth-form input:focus-visible {
+  outline: 2px solid #66877a;
+  outline-offset: 1px;
+}
+
+.auth-page .auth-submit {
+  border-radius: 6px !important;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.auth-page .auth-promo,
+.auth-page .auth-promo.campus-promo {
+  background: none !important;
+}
+
+.auth-page .campus-caption {
+  text-shadow: none;
+}
+
+.auth-page .campus-caption h2,
+.auth-page .campus-caption p,
+.auth-page .campus-caption span {
+  color: #fff;
+}
+
+.auth-page .password-toggle {
+  color: #64746c !important;
+}
+
+.glass-college-logo {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.auth-form-side,
+.auth-promo,
+.auth-switch,
+.selection-accordion > summary::after {
+  transition: none;
+}
+
+.auth-switch,
+.auth-switch:hover {
+  border-color: #35584d;
+  background: #35584d;
+  color: #fff;
+  transform: none;
+}
+
+.subject-card,
+.assignment-card,
+.btn,
+.nav-item,
+.icon-btn {
+  transition-duration: 0.12s;
+}
+
+.subject-card:hover,
+.subject-card:focus-within,
+.assignment-card:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.card,
+.profile-note,
+.export-dialog {
+  border-color: var(--line);
+  box-shadow: 0 4px 16px #17231e0d;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
   }
 }
