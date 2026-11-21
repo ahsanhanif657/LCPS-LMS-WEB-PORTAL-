@@ -39,6 +39,8 @@ import {
   Download,
   Menu,
   X,
+  PanelLeftClose,
+  PanelLeftOpen,
   Clock,
   MapPin,
   ArrowRight,
@@ -220,6 +222,7 @@ export default function Portal() {
     [busy, setBusy] = useState(false),
     [toast, setToast] = useState(''),
     [mobile, setMobile] = useState(false),
+    [sidebarCollapsed, setSidebarCollapsed] = useState(false),
     [search, setSearch] = useState(''),
     [filter, setFilter] = useState('all'),
     [academic, setAcademic] = useState('departments'),
@@ -236,6 +239,9 @@ export default function Portal() {
     [rolePrivileges, setRolePrivileges] = useState<RolePrivilegesConfig>(
       getDefaultRolePrivileges(),
     );
+  useEffect(() => {
+    setSidebarCollapsed(localStorage.getItem('lcps-sidebar-collapsed') === 'true');
+  }, []);
   useEffect(() => {
     if (p?.rolePrivileges) setRolePrivileges(p.rolePrivileges);
   }, [p?.rolePrivileges]);
@@ -2220,7 +2226,7 @@ export default function Portal() {
     return null;
   }
   return (
-    <div className="app-shell">
+    <div className={'app-shell' + (sidebarCollapsed ? ' sidebar-collapsed' : '')}>
       <LoginNotices
         visible={!!p.loginReminder}
         items={p.reminders || []}
@@ -2236,20 +2242,37 @@ export default function Portal() {
         >
           <X size={22} />
         </button>
-        <a
-          className="brand"
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('dashboard');
-          }}
-        >
-          <img
-            className="college-logo"
-            src="/api/branding/logo"
-            alt="Lahore College of Pharmaceutical Sciences"
-          />
-        </a>
+        <div className="sidebar-header">
+          <a
+            className="brand"
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('dashboard');
+            }}
+          >
+            <img
+              className="college-logo"
+              src="/api/branding/logo"
+              alt="Lahore College of Pharmaceutical Sciences"
+            />
+          </a>
+          <button
+            className="icon-btn sidebar-toggle"
+            type="button"
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-controls="portal-navigation"
+            aria-expanded={!sidebarCollapsed}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={() => {
+              const next = !sidebarCollapsed;
+              localStorage.setItem('lcps-sidebar-collapsed', String(next));
+              setSidebarCollapsed(next);
+            }}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
+        </div>
         <div className="workspace-label">
           {['TREASURER', 'EXAMINATION_CONTROLLER', 'REGISTRAR'].includes(u.role)
             ? 'MANAGEMENT · ' + u.role.replaceAll('_', ' ')
@@ -2267,28 +2290,32 @@ export default function Portal() {
         </div>
         <nav aria-label="Main navigation">
           {nav.map((n) => {
-            const NavIcon = icons[n] || FileText;
+            const NavIcon = icons[n] || FileText,
+              navLabel =
+                n === 'teacherTasks' &&
+                u.role !== 'TEACHER' &&
+                permitted(u, 'task_assign', rolePrivileges)
+                  ? 'Faculty tasks'
+                  : n === 'subjects' && u.role === 'HOD'
+                    ? 'My Subjects'
+                    : n === 'subjects' && !student
+                      ? 'Subjects'
+                      : n === 'users' && u.role === 'HOD'
+                        ? 'Department accounts'
+                        : names[n],
+              pendingCount = n === 'assignments' && student ? pending.length : 0;
             return (
               <button
                 key={n}
                 className={'nav-item ' + (page === n ? 'active' : '')}
                 aria-current={page === n ? 'page' : undefined}
+                aria-label={pendingCount ? `${navLabel}, ${pendingCount} pending` : navLabel}
+                title={pendingCount ? `${navLabel} (${pendingCount} pending)` : navLabel}
                 onClick={() => navigate(n)}
               >
-                <span>
-                  {n === 'teacherTasks' &&
-                  u.role !== 'TEACHER' &&
-                  permitted(u, 'task_assign', rolePrivileges)
-                    ? 'Faculty tasks'
-                    : n === 'subjects' && u.role === 'HOD'
-                      ? 'My Subjects'
-                      : n === 'subjects' && !student
-                        ? 'Subjects'
-                        : n === 'users' && u.role === 'HOD'
-                          ? 'Department accounts'
-                          : names[n]}
-                </span>
-                {n === 'assignments' && student && pending.length > 0 && <b>{pending.length}</b>}
+                <NavIcon size={18} aria-hidden="true" />
+                <span className="nav-label">{navLabel}</span>
+                {pendingCount > 0 && <b>{pendingCount}</b>}
               </button>
             );
           })}
@@ -2297,20 +2324,30 @@ export default function Portal() {
           <button
             className={'nav-item ' + (page === 'profile' ? 'active' : '')}
             onClick={() => navigate('profile')}
+            aria-label="My profile"
+            title="My profile"
           >
-            <span>My profile</span>
+            <UserRound size={18} aria-hidden="true" />
+            <span className="nav-label">My profile</span>
           </button>
-          <button className="nav-item" onClick={() => navigate('password')}>
-            <span>Change password</span>
+          <button
+            className="nav-item"
+            onClick={() => navigate('password')}
+            aria-label="Change password"
+            title="Change password"
+          >
+            <ShieldCheck size={18} aria-hidden="true" />
+            <span className="nav-label">Change password</span>
           </button>
-          <button className="nav-item" onClick={() => void signOut()}>
-            <span>Sign out</span>
+          <button
+            className="nav-item"
+            onClick={() => void signOut()}
+            aria-label="Sign out"
+            title="Sign out"
+          >
+            <LogOut size={18} aria-hidden="true" />
+            <span className="nav-label">Sign out</span>
           </button>
-          <div className="college-caption">
-            Lahore College of
-            <br />
-            Pharmaceutical Sciences<span>Knowledge with purpose.</span>
-          </div>
         </div>
       </aside>
       <div className="main-shell">
