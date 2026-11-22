@@ -39,8 +39,6 @@ import {
   Download,
   Menu,
   X,
-  PanelLeftClose,
-  PanelLeftOpen,
   Clock,
   MapPin,
   ArrowRight,
@@ -222,7 +220,7 @@ export default function Portal() {
     [busy, setBusy] = useState(false),
     [toast, setToast] = useState(''),
     [mobile, setMobile] = useState(false),
-    [sidebarCollapsed, setSidebarCollapsed] = useState(false),
+    [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true),
     [search, setSearch] = useState(''),
     [filter, setFilter] = useState('all'),
     [academic, setAcademic] = useState('departments'),
@@ -240,7 +238,7 @@ export default function Portal() {
       getDefaultRolePrivileges(),
     );
   useEffect(() => {
-    setSidebarCollapsed(localStorage.getItem('lcps-sidebar-collapsed') === 'true');
+    setIsSidebarOpen(localStorage.getItem('lcps-sidebar-collapsed') !== 'true');
   }, []);
   useEffect(() => {
     if (p?.rolePrivileges) setRolePrivileges(p.rolePrivileges);
@@ -1504,7 +1502,10 @@ export default function Portal() {
             }
             action={
               canEdit('assignments') ? (
-                <button className="btn primary" onClick={() => openForm('assignments')}>
+                <button
+                  className="btn primary assignment-create"
+                  onClick={() => openForm('assignments')}
+                >
                   Create assignment
                 </button>
               ) : undefined
@@ -2226,7 +2227,7 @@ export default function Portal() {
     return null;
   }
   return (
-    <div className={'app-shell' + (sidebarCollapsed ? ' sidebar-collapsed' : '')}>
+    <div className={'app-shell' + (!isSidebarOpen ? ' sidebar-collapsed' : '')}>
       <LoginNotices
         visible={!!p.loginReminder}
         items={p.reminders || []}
@@ -2260,17 +2261,17 @@ export default function Portal() {
           <button
             className="icon-btn sidebar-toggle"
             type="button"
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
             aria-controls="portal-navigation"
-            aria-expanded={!sidebarCollapsed}
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={isSidebarOpen}
+            title={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
             onClick={() => {
-              const next = !sidebarCollapsed;
-              localStorage.setItem('lcps-sidebar-collapsed', String(next));
-              setSidebarCollapsed(next);
+              const next = !isSidebarOpen;
+              localStorage.setItem('lcps-sidebar-collapsed', String(!next));
+              setIsSidebarOpen(next);
             }}
           >
-            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
           </button>
         </div>
         <div className="workspace-label">
@@ -2307,7 +2308,11 @@ export default function Portal() {
             return (
               <button
                 key={n}
-                className={'nav-item ' + (page === n ? 'active' : '')}
+                className={
+                  'nav-item ' +
+                  (page === n ? 'active' : '') +
+                  (n === 'assignments' && page === n ? ' assignment-active' : '')
+                }
                 aria-current={page === n ? 'page' : undefined}
                 aria-label={pendingCount ? `${navLabel}, ${pendingCount} pending` : navLabel}
                 title={pendingCount ? `${navLabel} (${pendingCount} pending)` : navLabel}
