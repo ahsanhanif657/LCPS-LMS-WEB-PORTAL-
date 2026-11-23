@@ -29,6 +29,22 @@ export function dataQueries(user: Row) {
           : user.role === 'STUDENT'
             ? [user.batchId, user.id]
             : [];
+  const discussionOfferingSql =
+    user.role === 'TEACHER'
+      ? 'SELECT id FROM offerings WHERE teacherId=? OR coTeacherId=?'
+      : user.role === 'STUDENT'
+        ? 'SELECT id FROM offerings WHERE batchId=? AND active=1 UNION SELECT offeringId FROM enrollments WHERE studentId=? AND active=1'
+        : user.role === 'HOD'
+          ? 'SELECT o.id FROM offerings o JOIN batches b ON b.id=o.batchId WHERE b.departmentId=?'
+          : offeringSql;
+  const discussionValues =
+    user.role === 'TEACHER'
+      ? [user.id, user.id]
+      : user.role === 'STUDENT'
+        ? [user.batchId, user.id]
+        : user.role === 'HOD'
+          ? [user.departmentId]
+          : values;
   return tables.map((table) => {
     if (table === 'offerings')
       return stmt(
@@ -66,6 +82,20 @@ export function dataQueries(user: Row) {
           ? 'SELECT * FROM (SELECT * FROM audit ORDER BY createdAt DESC LIMIT 150) ORDER BY createdAt'
           : 'SELECT * FROM audit WHERE 0',
       );
+    if (table === 'discussionThreads')
+      return permitted(user, 'view_discussions')
+        ? stmt(
+            `SELECT * FROM discussionThreads WHERE offeringId IN (${discussionOfferingSql}) ORDER BY pinned DESC,updatedAt DESC`,
+            discussionValues,
+          )
+        : stmt('SELECT * FROM discussionThreads WHERE 0');
+    if (table === 'discussionPosts')
+      return permitted(user, 'view_discussions')
+        ? stmt(
+            `SELECT * FROM discussionPosts WHERE threadId IN (SELECT id FROM discussionThreads WHERE offeringId IN (${discussionOfferingSql})) ORDER BY createdAt`,
+            discussionValues,
+          )
+        : stmt('SELECT * FROM discussionPosts WHERE 0');
     if (broad) return stmt(`SELECT * FROM "${table}"`);
     if (table === 'facultyTasks')
       return stmt('SELECT * FROM facultyTasks WHERE userId=? OR (departmentId=? AND ?=1)', [

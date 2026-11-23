@@ -284,6 +284,8 @@ export function seedData(): Data {
       createdAt: iso(-2),
     },
   ];
+  d.discussionThreads = [];
+  d.discussionPosts = [];
   d.materials = d.offerings.flatMap((o) => [
     {
       id: 'mat-' + o.id,

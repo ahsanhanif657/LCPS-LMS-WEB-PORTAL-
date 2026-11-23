@@ -1,5 +1,6 @@
 'use client';
 import { SubjectCard } from './subject-card';
+import { Discussions } from './discussions';
 import { BulkStudents } from './bulk-students';
 import { SocialAccountSettings } from './portal-additions';
 import { ProfilePhoto, ProfileDetails, ExtendedProfileForm, BrandSettings } from './profile-extras';
@@ -43,6 +44,7 @@ import {
   MapPin,
   ArrowRight,
   FileText,
+  MessageSquare,
   Check,
   Upload,
   Play,
@@ -131,6 +133,7 @@ const icons: Record<string, any> = {
   results: BarChart3,
   timetable: CalendarDays,
   announcements: Bell,
+  discussions: MessageSquare,
   users: Users,
   teachers: Users,
   academic: Building2,
@@ -158,6 +161,7 @@ const names: Record<string, string> = {
   results: 'Results',
   timetable: 'Timetable',
   announcements: 'Announcements',
+  discussions: 'Discussion boards',
   users: 'User management',
   teachers: 'Teachers',
   academic: 'Academic setup',
@@ -595,7 +599,9 @@ export default function Portal() {
           ];
   const nav = Array.from(
     new Set([
-      ...baseNav,
+      ...baseNav.slice(0, 1),
+      ...(pageAllowed(u, 'discussions', rolePrivileges) ? ['discussions'] : []),
+      ...baseNav.slice(1),
       'personal',
       'management',
       ...[
@@ -615,6 +621,7 @@ export default function Portal() {
         'results',
         'timetable',
         'announcements',
+        'discussions',
       ].filter((k) => pageAllowed(u, k, rolePrivileges)),
     ]),
   ).filter((k) => pageAllowed(u, k, rolePrivileges));
@@ -991,6 +998,419 @@ export default function Portal() {
     );
   }
   function renderDashboard() {
+    if (student || teacher) {
+      const todayKey = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Karachi',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+      const dashboardOfferings = d.offerings.filter(
+        (o) =>
+          o.active &&
+          (!teacher || o.teacherId === u.id || (!!o.coTeacherId && o.coTeacherId === u.id)),
+      );
+      const dashboardOfferingIds = new Set(dashboardOfferings.map((o) => o.id));
+      const todaysClasses = d.timetable
+        .filter((item) => item.day === weekday && dashboardOfferingIds.has(item.offeringId))
+        .sort((a, b) => a.startTime.localeCompare(b.startTime));
+      const studentAssignments = d.assignments
+        .filter((item) => dashboardOfferingIds.has(item.offeringId))
+        .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+        .slice(0, 4);
+      const studentQuizzes = d.quizzes
+        .filter(
+          (item) =>
+            dashboardOfferingIds.has(item.offeringId) &&
+            Date.parse(item.closesAt) > Date.now() &&
+            !d.attempts.some(
+              (attempt) => attempt.quizId === item.id && attempt.studentId === u.id && attempt.submittedAt,
+            ),
+        )
+        .sort((a, b) => a.closesAt.localeCompare(b.closesAt))
+        .slice(0, 4);
+      const teacherAssignmentsToday = d.assignments.filter(
+        (item) =>
+          dashboardOfferingIds.has(item.offeringId) && item.dueDate.slice(0, 10) === todayKey,
+      );
+      const teacherQuizzesToday = d.quizzes.filter(
+        (item) =>
+          dashboardOfferingIds.has(item.offeringId) && item.closesAt.slice(0, 10) === todayKey,
+      );
+      const todaysAttendance = d.attendance.filter(
+        (item) => dashboardOfferingIds.has(item.offeringId) && item.date === todayKey,
+      );
+      const studentStats: Array<{
+        label: string;
+        value: number;
+        note: string;
+        icon: any;
+        color: string;
+        target?: string;
+      }> = [
+        {
+          label: 'Enrolled subjects',
+          value: dashboardOfferings.length,
+          note: 'Your current semester',
+          icon: BookOpen,
+          color: 'purple',
+        },
+        {
+          label: 'Pending assignments',
+          value: pending.filter((item) => dashboardOfferingIds.has(item.offeringId)).length,
+          note: 'Work still to submit',
+          icon: ClipboardList,
+          color: 'peach',
+        },
+        {
+          label: 'Discussion board',
+          value: (d.discussionThreads || []).length,
+          note: 'Choose a subject to join or start',
+          icon: MessageSquare,
+          color: 'blue',
+          target: 'discussions',
+        },
+      ];
+      const teacherStats: typeof studentStats = [
+        {
+          label: 'Assigned subjects',
+          value: dashboardOfferings.length,
+          note: 'Teaching this semester',
+          icon: BookOpen,
+          color: 'purple',
+        },
+        {
+          label: 'Submissions to grade',
+          value: d.submissions.filter(
+            (item) =>
+              item.marks === null &&
+              d.assignments.some(
+                (assignment) =>
+                  assignment.id === item.assignmentId &&
+                  dashboardOfferingIds.has(assignment.offeringId),
+              ),
+          ).length,
+          note: 'Ready for your feedback',
+          icon: ClipboardList,
+          color: 'peach',
+        },
+        {
+          label: 'Discussion board',
+          value: (d.discussionThreads || []).length,
+          note: `${new Set((d.discussionThreads || []).map((thread) => thread.offeringId)).size} subjects with activity`,
+          icon: MessageSquare,
+          color: 'blue',
+          target: 'discussions',
+        },
+      ];
+      const schedulePanel = (
+        <section className="panel role-dashboard-panel">
+          <div className="role-dashboard-panel-head">
+            <div>
+              <h2>{teacher ? "Today's classes" : 'Upcoming classes'}</h2>
+              <p>{todayLabel}</p>
+            </div>
+            <button className="text-btn" onClick={() => navigate('timetable')}>
+              Full timetable <ArrowUpRight size={15} />
+            </button>
+          </div>
+          {todaysClasses.length ? (
+            <div className="role-class-list">
+              {todaysClasses.slice(0, 4).map((item, index) => {
+                const offering = d.offerings.find((o) => o.id === item.offeringId);
+                return (
+                  <div className="role-class-row" key={item.id}>
+                    <div className="role-class-time">
+                      <strong>{item.startTime}</strong>
+                      <span>{item.endTime}</span>
+                    </div>
+                    <div className={'role-class-info role-class-tone-' + (index % 3)}>
+                      <strong>{offering ? label('subjects', offering.subjectId) : 'Class'}</strong>
+                      <span>
+                        {item.room || 'Room to be confirmed'}
+                        {offering?.batchId ? ` · ${label('batches', offering.batchId)}` : ''}
+                      </span>
+                    </div>
+                    {teacher && (
+                      <button
+                        className="btn primary role-attendance-action"
+                        onClick={() => {
+                          setAttendanceMarkingOffering(item.offeringId);
+                          navigate('attendance');
+                        }}
+                      >
+                        Mark attendance
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="role-dashboard-empty">No classes are scheduled for today.</p>
+          )}
+        </section>
+      );
+      const subjectSection = (
+        <section className="role-subjects-section">
+          <Section
+            title={student ? 'My subjects' : 'Your teaching subjects'}
+            subtitle={
+              student
+                ? `${myProgram?.name || ''}${mySession?.name ? ` · ${mySession.name}` : ''}`
+                : 'Connected teaching and learning'
+            }
+            link="View all subjects"
+            onClick={() => navigate('subjects')}
+          />
+          <div className="subjects-grid">
+            {pageAllowed(u, 'subjects', rolePrivileges) &&
+              dashboardOfferings.slice(0, 3).map(subjectCard)}
+          </div>
+        </section>
+      );
+      return (
+        <div className="role-dashboard">
+          <div className="greeting">
+            <div>
+              <div className="eyebrow">{student ? 'STUDENT PORTAL' : 'TEACHING PORTAL'}</div>
+              <h1>
+                Welcome back, {u.name.split(' ')[0]} <span className="wave">✦</span>
+              </h1>
+              <p>
+                {student
+                  ? 'Here’s what’s happening with your learning today.'
+                  : 'Your classes and priorities for today, all in one place.'}
+              </p>
+            </div>
+            <span className="date-chip">{todayLabel}</span>
+          </div>
+          <div className="stats-grid role-stats-grid">
+            {(student ? studentStats : teacherStats).map((stat) => {
+              const StatIcon = stat.icon;
+              return (
+                <button
+                  className={'stat-card' + (stat.target ? ' role-stat-action' : '')}
+                  key={stat.label}
+                  onClick={stat.target ? () => navigate(stat.target!) : undefined}
+                  type="button"
+                >
+                  <span className="stat-top">
+                    <span>{stat.label}</span>
+                    <span className={'stat-icon ' + stat.color}>
+                      <StatIcon size={19} />
+                    </span>
+                  </span>
+                  <strong className="stat-value">{stat.value}</strong>
+                  <span className="role-stat-note">{stat.note}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="role-dashboard-grid">
+            <div className="role-dashboard-main">
+              {schedulePanel}
+              {student ? (
+                <div className="role-dashboard-two-up">
+                  <section className="panel role-dashboard-panel">
+                    <div className="role-dashboard-panel-head">
+                      <div>
+                        <h2>Recent assignments</h2>
+                        <p>Your next coursework deadlines</p>
+                      </div>
+                      <button className="text-btn" onClick={() => navigate('assignments')}>
+                        View all <ArrowUpRight size={15} />
+                      </button>
+                    </div>
+                    {studentAssignments.length ? (
+                      studentAssignments.map((item) => (
+                        <button
+                          className="role-task-row"
+                          key={item.id}
+                          onClick={() => setDetail({ entity: 'assignments', record: item })}
+                        >
+                          <span className="role-task-icon assignment"><ClipboardList size={17} /></span>
+                          <span className="role-task-copy">
+                            <strong>{item.title}</strong>
+                            <small>{label('subjects', d.offerings.find((o) => o.id === item.offeringId)?.subjectId)}</small>
+                          </span>
+                          <span className="role-task-date">Due {date(item.dueDate)}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="role-dashboard-empty">No assignments are available yet.</p>
+                    )}
+                  </section>
+                  <section className="panel role-dashboard-panel">
+                    <div className="role-dashboard-panel-head">
+                      <div>
+                        <h2>Upcoming quizzes</h2>
+                        <p>Quizzes available to complete</p>
+                      </div>
+                      <button className="text-btn" onClick={() => navigate('quizzes')}>
+                        View all <ArrowUpRight size={15} />
+                      </button>
+                    </div>
+                    {studentQuizzes.length ? (
+                      studentQuizzes.map((item) => (
+                        <button
+                          className="role-task-row"
+                          key={item.id}
+                          onClick={() => setDetail({ entity: 'quizzes', record: item })}
+                        >
+                          <span className="role-task-icon quiz"><FileText size={17} /></span>
+                          <span className="role-task-copy">
+                            <strong>{item.title}</strong>
+                            <small>{label('subjects', d.offerings.find((o) => o.id === item.offeringId)?.subjectId)}</small>
+                          </span>
+                          <span className="role-task-date">Closes {date(item.closesAt)}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="role-dashboard-empty">No upcoming quizzes.</p>
+                    )}
+                  </section>
+                </div>
+              ) : (
+                <div className="role-dashboard-two-up">
+                  <section className="panel role-dashboard-panel">
+                    <div className="role-dashboard-panel-head">
+                      <div>
+                        <h2>Assignment deadlines</h2>
+                        <p>Due today</p>
+                      </div>
+                      <button className="text-btn" onClick={() => navigate('assignments')}>
+                        Assignments <ArrowUpRight size={15} />
+                      </button>
+                    </div>
+                    {teacherAssignmentsToday.length ? (
+                      teacherAssignmentsToday.slice(0, 4).map((item) => (
+                        <button className="role-task-row" key={item.id} onClick={() => setDetail({ entity: 'assignments', record: item })}>
+                          <span className="role-task-icon assignment"><ClipboardList size={17} /></span>
+                          <span className="role-task-copy"><strong>{item.title}</strong><small>{label('subjects', d.offerings.find((o) => o.id === item.offeringId)?.subjectId)}</small></span>
+                          <span className="role-task-date">Due today</span>
+                        </button>
+                      ))
+                    ) : <p className="role-dashboard-empty">No assignment deadlines today.</p>}
+                  </section>
+                  <section className="panel role-dashboard-panel">
+                    <div className="role-dashboard-panel-head">
+                      <div>
+                        <h2>Quiz deadlines</h2>
+                        <p>Closing today</p>
+                      </div>
+                      <button className="text-btn" onClick={() => navigate('quizzes')}>
+                        Quizzes <ArrowUpRight size={15} />
+                      </button>
+                    </div>
+                    {teacherQuizzesToday.length ? (
+                      teacherQuizzesToday.slice(0, 4).map((item) => (
+                        <button className="role-task-row" key={item.id} onClick={() => setDetail({ entity: 'quizzes', record: item })}>
+                          <span className="role-task-icon quiz"><FileText size={17} /></span>
+                          <span className="role-task-copy"><strong>{item.title}</strong><small>{label('subjects', d.offerings.find((o) => o.id === item.offeringId)?.subjectId)}</small></span>
+                          <span className="role-task-date">Closes today</span>
+                        </button>
+                      ))
+                    ) : <p className="role-dashboard-empty">No quiz deadlines today.</p>}
+                  </section>
+                </div>
+              )}
+            </div>
+            <aside className="role-dashboard-side">
+              {student ? (
+                <section className="panel role-dashboard-panel">
+                  <div className="role-dashboard-panel-head">
+                    <div>
+                      <h2>Subject attendance</h2>
+                      <p>Recent attendance by subject</p>
+                    </div>
+                    <button className="text-btn" onClick={() => navigate('attendance')} aria-label="View attendance">
+                      <ArrowUpRight size={16} />
+                    </button>
+                  </div>
+                  {dashboardOfferings.slice(0, 4).map((offering) => {
+                    const records = d.attendance.filter(
+                      (item) => item.offeringId === offering.id && item.studentId === u.id,
+                    );
+                    const percent = attendancePercent(records);
+                    return (
+                      <div className="role-attendance-row" key={offering.id}>
+                        <div className="role-attendance-label">
+                          <strong>{label('subjects', offering.subjectId)}</strong>
+                          <span>{percent == null ? 'No records yet' : `${percent}% attendance`}</span>
+                        </div>
+                        <div className="role-attendance-track" aria-hidden="true">
+                          <span style={{ width: `${percent ?? 0}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button className="btn role-full-width" onClick={() => navigate('attendance')}>
+                    Open attendance portal <ArrowRight size={15} />
+                  </button>
+                </section>
+              ) : (
+                <section className="panel role-dashboard-panel">
+                  <div className="role-dashboard-panel-head">
+                    <div>
+                      <h2>Mark attendance</h2>
+                      <p>Today’s class registers</p>
+                    </div>
+                    <CheckCheck size={18} />
+                  </div>
+                  {todaysClasses.length ? todaysClasses.slice(0, 4).map((item) => {
+                    const total = d.enrollments.filter((enrollment) => enrollment.offeringId === item.offeringId).length;
+                    const marked = todaysAttendance.filter((record) => record.offeringId === item.offeringId).length;
+                    const complete = total > 0 && marked >= total;
+                    return (
+                      <div className="role-mark-row" key={item.id}>
+                        <div className="role-task-copy">
+                          <strong>{label('subjects', d.offerings.find((o) => o.id === item.offeringId)?.subjectId)}</strong>
+                          <small>{complete ? `${marked} students marked` : `${marked}/${total} marked`}</small>
+                        </div>
+                        <button
+                          className={complete ? 'role-status-complete' : 'btn primary role-mark-button'}
+                          disabled={complete}
+                          onClick={() => {
+                            setAttendanceMarkingOffering(item.offeringId);
+                            navigate('attendance');
+                          }}
+                        >
+                          {complete ? 'Complete' : 'Mark now'}
+                        </button>
+                      </div>
+                    );
+                  }) : <p className="role-dashboard-empty">No classes need attendance today.</p>}
+                </section>
+              )}
+              <section className="panel role-dashboard-panel role-announcements-panel">
+                <div className="role-dashboard-panel-head">
+                  <div>
+                    <h2>Notifications & updates</h2>
+                    <p>Latest campus announcements</p>
+                  </div>
+                  <button className="text-btn" onClick={() => navigate('announcements')}>
+                    View all <ArrowUpRight size={15} />
+                  </button>
+                </div>
+                {d.announcements
+                  .slice()
+                  .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+                  .slice(0, 3)
+                  .map((item) => (
+                    <button className="role-notice-row" key={item.id} onClick={() => setDetail({ entity: 'announcements', record: item })}>
+                      <span className="role-notice-dot" />
+                      <span className="role-task-copy"><strong>{item.title}</strong><small>{label('users', item.authorId)} · {date(item.createdAt)}</small></span>
+                    </button>
+                  ))}
+                {!d.announcements.length && <p className="role-dashboard-empty">No new announcements.</p>}
+              </section>
+            </aside>
+          </div>
+          {subjectSection}
+        </div>
+      );
+    }
     const stats = student
       ? [
           {
@@ -1255,6 +1675,7 @@ export default function Portal() {
         </>
       );
     if (page === 'dashboard') return renderDashboard();
+    if (page === 'discussions') return <Discussions data={d} user={u} run={run} />;
     if (page === 'myDepartment' && u.role === 'HOD')
       return <AcademicDirectory data={allData} user={u} mode="department" />;
     if (page === 'myCollege' && u.role === 'PRINCIPAL')

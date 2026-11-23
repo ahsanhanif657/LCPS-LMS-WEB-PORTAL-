@@ -20,6 +20,7 @@ const actionPrivileges: PrivilegeDefinition[] = [
   })),
   { key: 'task_assign', label: 'Assign teacher tasks', builtIn: true },
   { key: 'task_submit', label: 'Submit assigned tasks', builtIn: true },
+  { key: 'discussion_moderate', label: 'Moderate subject discussions', builtIn: true },
   { key: 'view_teacherTasks', label: 'View teacher tasks', builtIn: true },
   {
     key: 'delegate_responsibilities',
@@ -139,6 +140,7 @@ const actionRolePermissions: Record<string, string[]> = {
     'materials',
     'materials_delete',
     'announcements',
+    'discussion_moderate',
     'reports',
   ],
   SUPER_ADMIN: [],
@@ -153,6 +155,7 @@ const actionRolePermissions: Record<string, string[]> = {
     'results',
     'materials',
     'announcements',
+    'discussion_moderate',
     'reports',
   ],
   PRINCIPAL: ['academic', 'announcements', 'reports', 'college_setup'],
@@ -173,6 +176,7 @@ const actionRolePermissions: Record<string, string[]> = {
     'materials',
     'materials_delete',
     'announcements',
+    'discussion_moderate',
     'reports',
   ],
   TEACHER: [
@@ -186,6 +190,7 @@ const actionRolePermissions: Record<string, string[]> = {
     'materials',
     'materials_delete',
     'announcements',
+    'discussion_moderate',
   ],
   TREASURER: ['finance', 'announcements'],
   EXAMINATION_CONTROLLER: ['exams', 'results', 'announcements'],
@@ -206,6 +211,7 @@ const modules = [
   'materials',
   'timetable',
   'announcements',
+  'discussions',
 ];
 const views: Record<string, string[]> = {
   TREASURER: ['announcements', 'courseOutlines'],
@@ -225,6 +231,7 @@ const views: Record<string, string[]> = {
     'materials',
     'timetable',
     'announcements',
+    'discussions',
   ],
   HOD: modules,
   TEACHER: [
@@ -237,6 +244,7 @@ const views: Record<string, string[]> = {
     'materials',
     'timetable',
     'announcements',
+    'discussions',
   ],
 };
 const ownerOnlyPrivileges = new Set([

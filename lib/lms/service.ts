@@ -1362,9 +1362,145 @@ export async function remove(c: Context, t: string, id: string) {
   writes.push(auditStmt(u, 'delete', t, id));
   await db().batch(writes);
 }
+async function discussionAction(c: Context, body: Row) {
+  const u = c.user;
+  assert(permitted(u, 'view_discussions', c.rolePrivileges), 'Discussion access is disabled.');
+  const visibleThreads = scopedData(u, c.data, c.rolePrivileges).discussionThreads || [];
+  const allowedThread = (id: string) => visibleThreads.find((thread) => thread.id === id);
+  const allowedOffering = (id: string) => {
+    const offering = c.data.offerings.find((item) => item.id === id);
+    const inScope =
+      !!offering &&
+      (u.role === 'TEACHER'
+        ? offering.teacherId === u.id || offering.coTeacherId === u.id
+        : u.role === 'STUDENT'
+          ? offering.active !== 0 &&
+            (offering.batchId === u.batchId ||
+              c.data.enrollments.some(
+                (enrollment) =>
+                  enrollment.studentId === u.id &&
+                  enrollment.offeringId === offering.id &&
+                  enrollment.active !== 0,
+              ))
+          : u.role === 'HOD'
+            ? c.data.batches.some(
+                (batch) => batch.id === offering.batchId && batch.departmentId === u.departmentId,
+              )
+            : offeringAllowed(u, offering, c.data));
+    assert(inScope, 'Subject discussion not found.', 404);
+    return offering!;
+  };
+  const canModerate = (offering: Row) =>
+    permitted(u, 'discussion_moderate', c.rolePrivileges) &&
+    (u.role === 'TEACHER'
+      ? teachingAllowed(u, offering)
+      : u.role === 'HOD'
+        ? c.data.batches.some(
+            (batch) => batch.id === offering.batchId && batch.departmentId === u.departmentId,
+          )
+        : ['ADMIN', 'SUPER_ADMIN', 'PRINCIPAL', 'DIRECTOR'].includes(u.role) && broad(u));
+  const cleanText = (value: unknown, name: string, max: number) => {
+    assert(typeof value === 'string', `${name} is required.`, 400);
+    const text = String(value).trim();
+    assert(text.length > 0, `${name} is required.`, 400);
+    assert(text.length <= max, `${name} must be ${max} characters or fewer.`, 400);
+    return text;
+  };
+  if (body.action === 'discussionCreateThread') {
+    const offering = allowedOffering(String(body.offeringId || ''));
+    const title = cleanText(body.title, 'Discussion title', 120);
+    const message = cleanText(body.body, 'Discussion details', 10000);
+    const now = new Date().toISOString();
+    const thread = {
+      id: uid(),
+      offeringId: offering.id,
+      authorId: u.id,
+      title,
+      body: message,
+      pinned: 0,
+      locked: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await db().batch([
+      insert('discussionThreads', thread),
+      auditStmt(u, 'create', 'discussionThreads', thread.id, offering.id),
+    ]);
+    return { id: thread.id };
+  }
+  if (body.action === 'discussionReply') {
+    const thread = allowedThread(String(body.threadId || ''));
+    assert(thread, 'Discussion not found.', 404);
+    assert(!thread!.locked, 'This discussion is closed to new replies.', 409);
+    const message = cleanText(body.body, 'Reply', 5000);
+    const now = new Date().toISOString();
+    const post = { id: uid(), threadId: thread!.id, authorId: u.id, body: message, createdAt: now };
+    await db().batch([
+      insert('discussionPosts', post),
+      stmt('UPDATE discussionThreads SET updatedAt=? WHERE id=?', [now, thread!.id]),
+      auditStmt(u, 'reply', 'discussionThreads', thread!.id),
+    ]);
+    return { id: post.id };
+  }
+  if (body.action === 'discussionModerate') {
+    const thread = allowedThread(String(body.threadId || ''));
+    assert(thread, 'Discussion not found.', 404);
+    const offering = allowedOffering(thread!.offeringId);
+    assert(canModerate(offering), 'Only the subject teacher can moderate this discussion.');
+    assert(typeof body.pinned === 'boolean' && typeof body.locked === 'boolean', 'Invalid moderation settings.', 400);
+    await db().batch([
+      stmt('UPDATE discussionThreads SET pinned=?,locked=?,updatedAt=? WHERE id=?', [
+        body.pinned ? 1 : 0,
+        body.locked ? 1 : 0,
+        new Date().toISOString(),
+        thread!.id,
+      ]),
+      auditStmt(u, 'moderate', 'discussionThreads', thread!.id),
+    ]);
+    return { id: thread!.id };
+  }
+  if (body.action === 'discussionDeleteThread') {
+    const thread = allowedThread(String(body.threadId || ''));
+    assert(thread, 'Discussion not found.', 404);
+    const offering = allowedOffering(thread!.offeringId);
+    assert(thread!.authorId === u.id || canModerate(offering), 'You cannot remove this discussion.');
+    await db().batch([
+      stmt('DELETE FROM discussionThreads WHERE id=?', [thread!.id]),
+      auditStmt(u, 'delete', 'discussionThreads', thread!.id),
+    ]);
+    return { id: thread!.id };
+  }
+  if (body.action === 'discussionDeletePost') {
+    const thread = allowedThread(String(body.threadId || ''));
+    assert(thread, 'Discussion not found.', 404);
+    const post = (c.data.discussionPosts || []).find(
+      (item) => item.id === body.postId && item.threadId === thread!.id,
+    );
+    assert(post, 'Reply not found.', 404);
+    const offering = allowedOffering(thread!.offeringId);
+    assert(post!.authorId === u.id || canModerate(offering), 'You cannot remove this reply.');
+    await db().batch([
+      stmt('DELETE FROM discussionPosts WHERE id=?', [post!.id]),
+      stmt('UPDATE discussionThreads SET updatedAt=? WHERE id=?', [new Date().toISOString(), thread!.id]),
+      auditStmt(u, 'delete-reply', 'discussionThreads', thread!.id),
+    ]);
+    return { id: post!.id };
+  }
+  return undefined;
+}
 export async function action(c: Context, body: Row) {
   const u = c.user,
     d = c.data;
+  if (
+    [
+      'discussionCreateThread',
+      'discussionReply',
+      'discussionModerate',
+      'discussionDeleteThread',
+      'discussionDeletePost',
+    ].includes(body.action)
+  )
+    return discussionAction(c, body);
   const enhancement = await portalEnhancementAction(c, body);
   if (enhancement !== undefined) return enhancement;
   if (

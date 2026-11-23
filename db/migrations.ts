@@ -189,3 +189,13 @@ supplementalMigrations.push({
     `ALTER TABLE "materials" ADD COLUMN "resourceType" TEXT NOT NULL DEFAULT 'Document'`,
   ],
 });
+
+supplementalMigrations.push({
+  name: '0015_discussion_board.sql',
+  statements: [
+    'CREATE TABLE "discussionThreads" ("id" TEXT PRIMARY KEY NOT NULL,"offeringId" TEXT NOT NULL REFERENCES offerings(id) ON DELETE CASCADE,"authorId" TEXT NOT NULL REFERENCES users(id),"title" TEXT NOT NULL,"body" TEXT NOT NULL,"pinned" INTEGER NOT NULL DEFAULT 0,"locked" INTEGER NOT NULL DEFAULT 0,"createdAt" TEXT NOT NULL,"updatedAt" TEXT NOT NULL)',
+    'CREATE TABLE "discussionPosts" ("id" TEXT PRIMARY KEY NOT NULL,"threadId" TEXT NOT NULL REFERENCES discussionThreads(id) ON DELETE CASCADE,"authorId" TEXT NOT NULL REFERENCES users(id),"body" TEXT NOT NULL,"createdAt" TEXT NOT NULL)',
+    'CREATE INDEX "discussion_threads_offering_recent" ON "discussionThreads" ("offeringId","updatedAt")',
+    'CREATE INDEX "discussion_posts_thread_recent" ON "discussionPosts" ("threadId","createdAt")',
+  ],
+});

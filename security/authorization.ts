@@ -79,6 +79,27 @@ export function scopedData(u: Row, d: Data, config?: RolePrivilegesConfig): Data
   out.managementRecords = (d.managementRecords || []).filter((r) => permitted(u, r.kind, config));
   const os = d.offerings.filter((o) => offeringAllowed(u, o, d));
   const ids = new Set(os.map((o) => o.id));
+  const discussionOfferings = d.offerings.filter((offering) => {
+    if (u.role === 'TEACHER')
+      return offering.teacherId === u.id || offering.coTeacherId === u.id;
+    if (u.role === 'STUDENT')
+      return (
+        offering.active !== 0 &&
+        (offering.batchId === u.batchId ||
+          d.enrollments.some(
+            (enrollment) =>
+              enrollment.studentId === u.id &&
+              enrollment.offeringId === offering.id &&
+              enrollment.active !== 0,
+          ))
+      );
+    if (u.role === 'HOD')
+      return d.batches.some(
+        (batch) => batch.id === offering.batchId && batch.departmentId === u.departmentId,
+      );
+    return ids.has(offering.id);
+  });
+  const discussionOfferingIds = new Set(discussionOfferings.map((offering) => offering.id));
   const enrollments = d.enrollments.filter(
     (e) => ids.has(e.offeringId) && (u.role !== 'STUDENT' || e.studentId === u.id),
   );
@@ -161,6 +182,11 @@ export function scopedData(u: Row, d: Data, config?: RolePrivilegesConfig): Data
     (r) => ids.has(r.offeringId) && permitted(u, 'view_courseOutlines', config),
   );
   out.offerings = os;
+  out.discussionThreads = permitted(u, 'view_discussions', config)
+    ? (d.discussionThreads || []).filter((thread) => discussionOfferingIds.has(thread.offeringId))
+    : [];
+  const visibleThreadIds = new Set(out.discussionThreads.map((thread) => thread.id));
+  out.discussionPosts = (d.discussionPosts || []).filter((post) => visibleThreadIds.has(post.threadId));
   out.enrollments = enrollments;
   out.departments = d.departments.filter(
     (x) =>

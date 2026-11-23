@@ -36,6 +36,8 @@ export const tables = [
   'attempts',
   'results',
   'announcements',
+  'discussionThreads',
+  'discussionPosts',
   'materials',
   'progress',
   'tasks',

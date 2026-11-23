@@ -226,6 +226,24 @@ export const announcements = pgTable('announcements', {
   authorId: text('authorId').notNull(),
   createdAt: text('createdAt').notNull(),
 });
+export const discussionThreads = pgTable('discussionThreads', {
+  id: text('id').primaryKey(),
+  offeringId: text('offeringId').notNull().references(() => offerings.id, { onDelete: 'cascade' }),
+  authorId: text('authorId').notNull().references(() => users.id),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  pinned: integer('pinned').notNull().default(0),
+  locked: integer('locked').notNull().default(0),
+  createdAt: text('createdAt').notNull(),
+  updatedAt: text('updatedAt').notNull(),
+});
+export const discussionPosts = pgTable('discussionPosts', {
+  id: text('id').primaryKey(),
+  threadId: text('threadId').notNull().references(() => discussionThreads.id, { onDelete: 'cascade' }),
+  authorId: text('authorId').notNull().references(() => users.id),
+  body: text('body').notNull(),
+  createdAt: text('createdAt').notNull(),
+});
 export const materials = pgTable('materials', {
   updatedBy: text('updatedBy'),
   resourceType: text('resourceType').notNull().default('Document'),

@@ -96,7 +96,14 @@ export async function restoreBackup(
   }
   if (parsed.version !== 1 || !parsed.data) throw new AppError('Unsupported backup format.');
   const data = parsed.data as Record<string, Row[]>;
-  for (const t of ['personalEntries', 'coursePolicies', 'managementRecords', 'scheduleEvents'])
+  for (const t of [
+    'personalEntries',
+    'coursePolicies',
+    'managementRecords',
+    'scheduleEvents',
+    'discussionThreads',
+    'discussionPosts',
+  ])
     if (!Array.isArray(data[t])) data[t] = [];
   if (Array.isArray(data.users))
     for (const u of data.users) {
