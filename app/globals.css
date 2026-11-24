@@ -2368,6 +2368,217 @@ tbody tr:last-child td {
   }
 }
 @media (max-width: 760px) {
+  /* Keep the role dashboards useful without turning every panel into a full screen. */
+  .role-dashboard .greeting {
+    margin-bottom: 12px;
+  }
+
+  .role-dashboard .greeting p {
+    margin-top: 4px;
+  }
+
+  .role-dashboard .role-stats-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .role-dashboard .role-stats-grid .stat-card:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+
+  .role-dashboard .role-stats-grid .stat-card {
+    min-height: 0;
+    padding: 12px 10px;
+    text-align: left;
+  }
+
+  .role-dashboard .role-stats-grid .stat-top {
+    align-items: flex-start;
+    gap: 5px;
+    font-size: 10px;
+  }
+
+  .role-dashboard .role-stats-grid .stat-icon {
+    display: none;
+  }
+
+  .role-dashboard .role-stats-grid .stat-value {
+    margin-top: 5px;
+    font-size: 24px;
+  }
+
+  .role-dashboard .role-stats-grid .role-stat-note {
+    display: none;
+  }
+
+  .role-dashboard-grid,
+  .role-dashboard-main,
+  .role-dashboard-side,
+  .role-dashboard-two-up {
+    gap: 10px;
+  }
+
+  .role-dashboard-panel {
+    padding: 13px;
+  }
+
+  .role-dashboard-panel-head {
+    margin-bottom: 8px;
+  }
+
+  .role-class-row {
+    flex-wrap: nowrap;
+    gap: 9px;
+    padding: 9px 0;
+  }
+
+  .role-class-time {
+    flex-basis: 52px;
+    font-size: 12px;
+  }
+
+  .role-class-info {
+    padding-left: 8px;
+  }
+
+  .role-attendance-action {
+    width: auto;
+    min-height: 36px;
+    margin-left: 0;
+    padding: 0 10px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .role-dashboard-empty {
+    padding: 5px 0 2px;
+  }
+
+  .role-task-row,
+  .role-notice-row {
+    min-height: 44px;
+    padding: 8px 0;
+  }
+
+  .role-mark-row {
+    flex-wrap: nowrap;
+    padding: 9px 0;
+  }
+
+  .role-mark-row > .role-mark-button,
+  .role-mark-row > .btn {
+    flex: 0 0 auto;
+    min-height: 38px;
+    padding-inline: 12px;
+  }
+
+  .role-attendance-row {
+    gap: 5px;
+    padding: 8px 0;
+  }
+
+  .role-full-width {
+    min-height: 38px;
+    margin-top: 6px;
+  }
+
+  .role-subjects-section .subjects-grid:not(.full-grid) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .role-subjects-section .subjects-grid:not(.full-grid) .subject-card {
+    display: block;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .role-subjects-section .subjects-grid:not(.full-grid) .subject-card-open {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    min-height: 0;
+    padding: 0;
+  }
+
+  .role-subjects-section .subjects-grid:not(.full-grid) .subject-art {
+    display: grid;
+    min-height: 64px;
+    height: 100%;
+    place-items: center;
+  }
+
+  .role-subjects-section .subjects-grid:not(.full-grid) .subject-art > :not(.subject-code) {
+    display: none;
+  }
+
+  .role-subjects-section .subjects-grid:not(.full-grid) .subject-code {
+    top: 7px;
+    left: 5px;
+    max-width: calc(100% - 10px);
+    padding: 3px 4px;
+    font-size: 8px;
+  }
+
+  .role-subjects-section .subjects-grid:not(.full-grid) .subject-body {
+    display: none;
+  }
+
+  .role-subjects-section .subjects-grid:not(.full-grid) .subject-heading {
+    align-content: center;
+    gap: 3px;
+    padding: 8px 10px;
+  }
+
+  .role-subjects-section .subjects-grid:not(.full-grid) .subject-heading h3 {
+    margin: 3px 0;
+    font-size: 13px;
+  }
+
+  .role-subjects-section .subjects-grid:not(.full-grid) .subject-heading > small {
+    font-size: 9px;
+  }
+
+  .role-subjects-section .subjects-grid:not(.full-grid) .subject-type-badge {
+    min-height: 0;
+    padding: 3px 6px;
+    font-size: 9px;
+  }
+
+  .role-subjects-section .subjects-grid:not(.full-grid) .subject-body p,
+  .role-subjects-section .subjects-grid:not(.full-grid) .subject-body .compact-schedule,
+  .role-subjects-section .subjects-grid:not(.full-grid) .subject-bottom {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .role-dashboard .role-class-row {
+    flex-wrap: wrap;
+  }
+
+  .role-dashboard .role-attendance-action {
+    flex: 1 0 100%;
+    margin-left: 61px;
+  }
+
+  .role-dashboard .role-mark-row {
+    flex-wrap: wrap;
+  }
+
+  .role-dashboard .role-mark-row > .role-mark-button,
+  .role-dashboard .role-mark-row > .btn {
+    flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 350px) {
+  .role-dashboard .role-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Existing mobile declarations below remain the baseline for other portal pages. */
+@media (max-width: 760px) {
   .sidebar {
     transform: translateX(-100%);
     transition: transform 0.2s;
