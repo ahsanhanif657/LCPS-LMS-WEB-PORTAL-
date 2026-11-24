@@ -9942,3 +9942,43 @@ td strong {
     flex: 1 1 100%;
   }
 }
+
+/* Keep the desktop sidebar handle visible and anchored to the rail edge. */
+@media (min-width: 901px) {
+  .sidebar .sidebar-toggle {
+    position: fixed !important;
+    top: 84px !important;
+    left: calc(16px + 204px - 12px) !important;
+    right: auto !important;
+    z-index: 45 !important;
+    transform: none !important;
+    width: 22px !important;
+    height: 22px !important;
+    min-height: 22px !important;
+    border: 1px solid #d5e0e8 !important;
+    border-radius: 50% !important;
+    background: #f8fbfd !important;
+    color: #526779 !important;
+    box-shadow: 0 2px 7px rgba(15, 30, 42, 0.2) !important;
+    transition:
+      background 150ms ease,
+      color 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .sidebar .sidebar-toggle svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .sidebar .sidebar-toggle:hover {
+    background: #e4f4ef;
+    color: #17765d;
+    box-shadow: 0 3px 10px rgba(15, 30, 42, 0.25);
+  }
+
+  .app-shell.sidebar-collapsed .sidebar .sidebar-toggle {
+    top: 84px !important;
+    left: calc(16px + 68px - 11px) !important;
+  }
+}
