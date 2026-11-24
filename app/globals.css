@@ -7289,12 +7289,41 @@ td .profile-note {
   letter-spacing: 2px;
 }
 .auth-page.login-page.login-screen .campus-caption h2 {
-  margin: 18px 0;
-  font-size: 42px;
+  max-width: 570px;
+  margin: 14px 0;
+  font-size: 40px;
+  line-height: 1.12;
 }
 .auth-page.login-page.login-screen .campus-caption p {
   color: #fff;
   font-size: 14px;
+  line-height: 1.6;
+}
+.auth-page.login-page.login-screen .campus-values {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+.auth-page.login-page.login-screen .campus-values span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  border-radius: 999px;
+  background: rgba(13, 36, 47, 0.24);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.35px;
+}
+.auth-page.login-page.login-screen .campus-caption .campus-kicker {
+  display: block;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 2.2px;
 }
 .auth-page.login-page.login-screen .auth-form-side {
   order: 2 !important;
@@ -9981,4 +10010,13 @@ td strong {
     top: 84px !important;
     left: calc(16px + 68px - 11px) !important;
   }
+}
+
+/* Keep the login logo artwork clean over the campus image. */
+.auth-page .glass-college-logo {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }

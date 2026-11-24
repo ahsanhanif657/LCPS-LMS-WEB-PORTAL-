@@ -50,7 +50,7 @@ export function LoginForm({ error, onLogin }: { error: string; onLogin: () => Pr
   return (
     <main className="login-page auth-page login-screen">
       <a className="glass-college-logo" href="/" aria-label="LCPS home">
-        <img src="/api/branding/logo" alt="Lahore College of Pharmaceutical Sciences" />
+        <img src="/lcps-logo-login.png" alt="Lahore College of Pharmaceutical Sciences" />
       </a>
       <section
         className={'auth-card ' + (mode === 'signup' ? 'is-signup' : '')}
@@ -177,9 +177,14 @@ export function LoginForm({ error, onLogin }: { error: string; onLogin: () => Pr
         </div>
         <aside className="auth-promo campus-promo" aria-label="LCPS campus">
           <div className="campus-caption">
-            <span>LAHORE COLLEGE OF PHARMACEUTICAL SCIENCES</span>
-            <h2>Learning starts here.</h2>
-            <p>Your classes, coursework and academic progress. Connected.</p>
+            <span className="campus-kicker">YOUR ACADEMIC JOURNEY, CONNECTED</span>
+            <h2>Lahore College of Pharmaceutical Sciences</h2>
+            <p>Explore pharmaceutical sciences, computing and technology—all in one place.</p>
+            <div className="campus-values" aria-label="Learn, create, lead">
+              <span>Learn</span>
+              <span>Create</span>
+              <span>Lead</span>
+            </div>
           </div>
         </aside>
       </section>
