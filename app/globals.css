@@ -10657,6 +10657,132 @@ td strong {
     gap: 11px;
   }
 
+  .content > .tabs:not(.attendance-tabs) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .content > .tabs:not(.attendance-tabs) > button {
+    min-width: 0;
+    white-space: normal;
+    line-height: 1.25;
+  }
+
+  .table-panel .table-tools {
+    display: grid;
+    gap: 9px;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .table-panel .table-tools .search-box,
+  .table-panel .table-tools > .row,
+  .table-panel .table-tools .filter-select {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .table-panel .table-tools > .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .table-panel .table-tools .btn {
+    justify-content: center;
+  }
+
+  .table-panel .table-wrap,
+  .hierarchy-report-table {
+    overflow: visible;
+    border-radius: 0;
+  }
+
+  .table-panel .table-wrap table,
+  .table-panel .table-wrap tbody,
+  .hierarchy-report-table table,
+  .hierarchy-report-table tbody {
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  .table-panel .table-wrap thead,
+  .hierarchy-report-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .table-panel .table-wrap tbody,
+  .hierarchy-report-table tbody {
+    display: grid;
+    gap: 9px;
+  }
+
+  .table-panel .table-wrap tbody tr,
+  .hierarchy-report-table tbody tr {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid #dfe9e3;
+    border-radius: 15px;
+    background: #fff;
+    box-shadow: 0 2px 8px #20372a0a;
+  }
+
+  .table-panel .table-wrap tbody td,
+  .hierarchy-report-table tbody td {
+    display: grid;
+    grid-template-columns: minmax(96px, 0.8fr) minmax(0, 1.2fr);
+    gap: 10px;
+    align-items: start;
+    min-width: 0;
+    padding: 10px 12px;
+    border-bottom: 1px solid #edf1ee;
+    font-size: 11px;
+    line-height: 1.4;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .table-panel .table-wrap tbody td::before,
+  .hierarchy-report-table tbody td::before {
+    content: attr(data-label);
+    color: #6b7c71;
+    font-size: 10px;
+    font-weight: 650;
+  }
+
+  .table-panel .table-wrap tbody td:last-child,
+  .hierarchy-report-table tbody td:last-child {
+    border-bottom: 0;
+  }
+
+  .table-panel .table-wrap .table-actions,
+  .hierarchy-report-table .table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+
+  .table-panel .table-wrap .table-actions > *,
+  .hierarchy-report-table .table-actions > * {
+    min-height: 36px;
+  }
+
+  .table-panel .table-foot {
+    flex-wrap: wrap;
+    gap: 9px;
+    border-radius: 0 0 16px 16px;
+  }
+
   .attendance-register {
     width: 100%;
     max-width: 100%;

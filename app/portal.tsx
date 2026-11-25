@@ -893,14 +893,14 @@ export default function Portal() {
                 <tr key={r.id}>
                   {entity === 'users' && (
                     <>
-                      <td>{current * 10 + index + 1}</td>
-                      <td>
+                      <td data-label="S.No.">{current * 10 + index + 1}</td>
+                      <td data-label="Photo">
                         <UserPhoto user={r} />
                       </td>
                     </>
                   )}
                   {cols.map((k, i) => (
-                    <td key={k}>
+                    <td key={k} data-label={head(k)}>
                       {['active', 'published', 'status', 'role'].includes(k) ? (
                         <Badge
                           tone={
@@ -921,7 +921,7 @@ export default function Portal() {
                     </td>
                   ))}
                   {!readonly && (
-                    <td>
+                    <td data-label="Actions">
                       <div className="table-actions">
                         {['assignments', 'quizzes'].includes(entity) && (
                           <button

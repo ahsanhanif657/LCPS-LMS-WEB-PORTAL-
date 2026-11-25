@@ -428,7 +428,7 @@ export function AcademicHierarchy({
           )}
           <div
             id={mode === 'attendance' ? 'hod-attendance-report' : undefined}
-            className="table-wrap"
+            className="table-wrap hierarchy-report-table"
           >
             <table>
               <thead>
@@ -447,14 +447,14 @@ export function AcademicHierarchy({
                   .sort(rollOrder)
                   .map((s, index) => (
                     <tr key={s.id}>
-                      <td>{index + 1}</td>
-                      <td>
+                      <td data-label="S.No.">{index + 1}</td>
+                      <td data-label="Photo">
                         <UserPhoto user={s} />
                       </td>
-                      <td>{s.name}</td>
-                      <td>{s.identifier || '—'}</td>
+                      <td data-label="Student">{s.name}</td>
+                      <td data-label="Roll / registration ID">{s.identifier || '—'}</td>
                       {mode === 'attendance' && (
-                        <td>
+                        <td data-label="Attendance %">
                           {attendancePercent(
                             data.attendance.filter(
                               (a) => a.offeringId === offering.id && a.studentId === s.id,
@@ -468,7 +468,7 @@ export function AcademicHierarchy({
                               ) + '%'}
                         </td>
                       )}
-                      <td>
+                      <td data-label="Action">
                         <button
                           className="btn"
                           aria-label={'View ' + title[mode] + ' for ' + s.name}
@@ -533,7 +533,7 @@ export function AcademicHierarchy({
           {mode === 'offerings' && (
             <p>Assigned teacher: {name(data, 'users', offering.teacherId)}</p>
           )}
-          <div className="table-wrap">
+          <div className="table-wrap hierarchy-report-table">
             <table>
               <thead>
                 <tr>
@@ -546,9 +546,9 @@ export function AcademicHierarchy({
               <tbody>
                 {rows.map((row, i) => (
                   <tr key={records[i].id}>
-                    <td>{i + 1}</td>
+                    <td data-label="S.No.">{i + 1}</td>
                     {row.map((cell, j) => (
-                      <td key={j}>{cell}</td>
+                      <td key={j} data-label={headers[j]}>{cell}</td>
                     ))}
                   </tr>
                 ))}
