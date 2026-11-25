@@ -5,6 +5,20 @@ import { scopedData } from '@/lib/lms/policy';
 import { Row } from '@/lib/lms/types';
 import { inlineFileAllowed } from '@/lib/lms/file-types';
 export const dynamic = 'force-dynamic';
+function contentDisposition(name: unknown, inline: boolean) {
+  const value = typeof name === 'string' ? name.normalize('NFC') : '';
+  const safe = value.replace(/[\r\n\\/"\x00-\x1f\x7f]/g, '_').trim().slice(0, 180);
+  const fallback = safe
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7e]/g, '_')
+    .replace(/[%']/g, '_') || 'download';
+  let encoded = '';
+  for (const byte of new TextEncoder().encode(safe || 'download'))
+    encoded += /[A-Za-z0-9!#$&+.^_`|~-]/.test(String.fromCharCode(byte))
+      ? String.fromCharCode(byte)
+      : `%${byte.toString(16).toUpperCase().padStart(2, '0')}`;
+  return `${inline ? 'inline' : 'attachment'}; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+}
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params,
@@ -48,7 +62,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return new Response(obj.body, {
       headers: {
         'Content-Type': f.mime,
-        'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename="${f.name}"`,
+        // Quote and neutralize user-controlled filenames to prevent header injection.
+        'Content-Disposition': contentDisposition(f.name, inline),
         'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
         'Content-Security-Policy': "default-src 'none'; sandbox",

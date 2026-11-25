@@ -1388,6 +1388,27 @@ await test('Office, spreadsheet, CSV and ZIP attachments upload with safe previe
     params: Promise.resolve({ id: ids[0] }),
   });
   assert.match(download.headers.get('Content-Disposition') || '', /^attachment/);
+  // Stored names are user-controlled database data; verify response serialization
+  // cannot inject another header while preserving a safe display name.
+  const unsafeNames = [
+    ['line\rbreak\nX-Evil: yes.docx', 'line_break_X-Evil: yes.docx'],
+    ['double"quote.docx', 'double_quote.docx'],
+    ["single'quote.docx", "single'quote.docx"],
+    ['..\\folder/name.docx', '.._folder/name.docx'],
+    ['資料📘.docx', '__.docx'],
+    ['x'.repeat(10000) + '.docx', 'x'.repeat(10000) + '.docx'],
+    ['', '.docx'],
+  ];
+  for (const [name, expected] of unsafeNames) {
+    await stmt('UPDATE files SET name=? WHERE id=?', [name, ids[0]]).run();
+    const response = await getFile(new Request(`https://portal.test/api/files/${ids[0]}`), {
+      params: Promise.resolve({ id: ids[0] }),
+    });
+    const disposition = response.headers.get('Content-Disposition') || '';
+    assert.equal(disposition, `attachment; filename="${expected}"`);
+    assert.equal(response.headers.get('X-Evil'), null);
+  }
+  await stmt('UPDATE files SET name=? WHERE id=?', ['reference.docx', ids[0]]).run();
   const preview = await getFile(new Request(`https://portal.test/api/files/${ids[3]}?view=1`), {
     params: Promise.resolve({ id: ids[3] }),
   });
