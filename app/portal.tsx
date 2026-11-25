@@ -1408,6 +1408,20 @@ export default function Portal() {
             </aside>
           </div>
           {subjectSection}
+          <nav className="role-mobile-nav" aria-label="Dashboard shortcuts">
+            <button className="active" type="button" onClick={() => navigate('dashboard')}>
+              <LayoutDashboard size={18} />
+              <span>Overview</span>
+            </button>
+            <button type="button" onClick={() => navigate('timetable')}>
+              <CalendarDays size={18} />
+              <span>Classes</span>
+            </button>
+            <button type="button" onClick={() => navigate('subjects')}>
+              <BookOpen size={18} />
+              <span>Subjects</span>
+            </button>
+          </nav>
         </div>
       );
     }
