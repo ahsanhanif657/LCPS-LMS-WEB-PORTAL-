@@ -2869,45 +2869,40 @@ export default function Portal() {
           </footer>
         </main>
       </div>
-      <nav
-        className={'role-mobile-nav' + (mobile ? ' role-mobile-nav-hidden' : '')}
-        aria-label="Quick navigation"
-      >
-        {(student
-          ? ['dashboard', 'assignments', 'attendance', 'subjects']
-          : teacher
-            ? ['dashboard', 'timetable', 'attendance', 'subjects']
-            : ['dashboard', 'attendance', 'subjects', 'timetable']
-        )
-          .filter((item) => nav.includes(item) && pageAllowed(u, item, rolePrivileges))
-          .slice(0, 4)
-          .map((item) => {
-            const MobileIcon = icons[item] || FileText;
-            const mobileLabel: Record<string, string> = {
-              dashboard: 'Overview',
-              timetable: 'Classes',
-              attendance: 'Attendance',
-              assignments: 'Tasks',
-              subjects: 'Subjects',
-            };
-            return (
-              <button
-                className={page === item ? 'active' : ''}
-                key={item}
-                type="button"
-                aria-current={page === item ? 'page' : undefined}
-                onClick={() => navigate(item)}
-              >
-                <MobileIcon size={18} />
-                <span>{mobileLabel[item] || names[item]}</span>
-              </button>
-            );
-          })}
-        <button type="button" onClick={() => setMobile(true)}>
-          <Menu size={18} />
-          <span>Menu</span>
-        </button>
-      </nav>
+      {page === 'dashboard' && (
+        <nav
+          className={'role-mobile-nav' + (mobile ? ' role-mobile-nav-hidden' : '')}
+          aria-label="Dashboard shortcuts"
+        >
+          {['dashboard', 'timetable', 'attendance', 'subjects']
+            .filter((item) => nav.includes(item) && pageAllowed(u, item, rolePrivileges))
+            .map((item) => {
+              const MobileIcon = icons[item] || FileText;
+              const mobileLabel: Record<string, string> = {
+                dashboard: 'Overview',
+                timetable: 'Classes',
+                attendance: 'Attendance',
+                subjects: 'Subjects',
+              };
+              return (
+                <button
+                  className={page === item ? 'active' : ''}
+                  key={item}
+                  type="button"
+                  aria-current={page === item ? 'page' : undefined}
+                  onClick={() => navigate(item)}
+                >
+                  <MobileIcon size={18} />
+                  <span>{mobileLabel[item] || names[item]}</span>
+                </button>
+              );
+            })}
+          <button type="button" onClick={() => setMobile(true)}>
+            <Menu size={18} />
+            <span>Menu</span>
+          </button>
+        </nav>
+      )}
       {toast && (
         <div className="toast" role="status">
           {toast}
