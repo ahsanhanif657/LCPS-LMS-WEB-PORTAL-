@@ -10276,3 +10276,399 @@ td strong {
     padding-inline: 7px;
   }
 }
+
+@media (max-width: 760px) {
+  .content:not(:has(.role-dashboard)) {
+    min-height: calc(100dvh - 62px);
+    padding: 15px 14px calc(94px + env(safe-area-inset-bottom));
+    background: #f2f7f4;
+  }
+
+  .breadcrumb {
+    min-width: 0;
+    font-size: 11px;
+  }
+
+  .breadcrumb > strong {
+    display: inline;
+    overflow: hidden;
+    max-width: min(48vw, 190px);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .page-title {
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 14px;
+    padding: 15px;
+    border: 1px solid #e3ebe6;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 3px 12px #20372a0a;
+  }
+
+  .page-title > div {
+    min-width: 0;
+  }
+
+  .page-title h1 {
+    margin: 0;
+    font-size: clamp(20px, 5.8vw, 25px);
+    line-height: 1.2;
+  }
+
+  .page-title p {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  .page-title > .btn,
+  .page-title > .text-btn {
+    flex: 0 0 auto;
+    min-height: 40px;
+    max-width: 48%;
+    padding: 8px 10px;
+    border-radius: 12px;
+    font-size: 10px;
+  }
+
+  .content > .panel,
+  .content .operations-panel,
+  .content .attendance-course-picker {
+    border: 1px solid #e3ebe6;
+    border-radius: 17px;
+    background: #fff;
+    box-shadow: 0 3px 12px #20372a0a;
+  }
+
+  .content > .tabs,
+  .content .attendance-tabs {
+    display: flex;
+    gap: 7px;
+    margin: 0 0 13px;
+    padding: 5px;
+    overflow-x: auto;
+    border: 1px solid #e3ebe6;
+    border-radius: 14px;
+    background: #eaf1ed;
+    scrollbar-width: none;
+  }
+
+  .content > .tabs::-webkit-scrollbar,
+  .content .attendance-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .content > .tabs > button,
+  .content .attendance-tabs > button {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #52645a;
+    font-size: 11px;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+
+  .content > .tabs > button.active,
+  .content .attendance-tabs > button.active {
+    background: #335444;
+    color: #fff;
+  }
+
+  .subject-toolbar {
+    gap: 9px;
+    margin: 0 0 13px;
+    padding: 11px;
+    border: 1px solid #e3ebe6;
+    border-radius: 15px;
+    background: #fff;
+  }
+
+  .subject-toolbar .search-box {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .subjects-grid.full-grid,
+  .quiz-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .full-grid .subject-card,
+  .quiz-card {
+    overflow: hidden;
+    border: 1px solid #e3ebe6;
+    border-radius: 17px;
+    background: #fff;
+    box-shadow: 0 3px 12px #20372a0a;
+  }
+
+  .full-grid .subject-art {
+    height: 92px;
+  }
+
+  .full-grid .subject-body {
+    padding: 14px;
+  }
+
+  .full-grid .subject-body h3,
+  .quiz-card h3 {
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  .assignment-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .assignment-entry {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .assignment-card {
+    width: 100%;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 11px;
+    padding: 14px;
+    border: 1px solid #e3ebe6;
+    border-radius: 17px;
+    background: #fff;
+    box-shadow: 0 3px 12px #20372a0a;
+    text-align: left;
+  }
+
+  .assignment-icon {
+    display: block;
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+  }
+
+  .assignment-card .grow {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .assignment-card h3 {
+    margin: 4px 0;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .assignment-card p {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  .assignment-card .grow > .row {
+    gap: 5px 10px;
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  .assignment-state {
+    flex: 0 0 auto;
+    min-width: 0;
+    gap: 5px;
+    font-size: 9px;
+    text-align: right;
+  }
+
+  .assignment-state > span:not(.badge) {
+    max-width: 90px;
+    font-size: 9px;
+    line-height: 1.35;
+  }
+
+  .assignment-delete {
+    min-height: 38px;
+    margin: 5px 0 0 45px;
+  }
+
+  .quiz-card {
+    display: grid;
+    gap: 9px;
+    padding: 14px;
+  }
+
+  .quiz-card > .row {
+    gap: 8px;
+  }
+
+  .quiz-card .btn {
+    min-height: 42px;
+  }
+
+  .attendance-course-picker {
+    gap: 8px;
+    margin-bottom: 11px;
+    padding: 14px;
+  }
+
+  .attendance-navigation {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 10px 0;
+    padding: 13px;
+    border: 1px solid #e3ebe6;
+    border-radius: 16px;
+    background: #fff;
+  }
+
+  .attendance-navigation > div {
+    flex: 1 1 100%;
+    min-width: 0;
+    order: -1;
+  }
+
+  .attendance-navigation > .btn {
+    min-height: 40px;
+  }
+
+  .attendance-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 10px 0;
+  }
+
+  .attendance-actions .btn {
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px;
+    font-size: 10px;
+  }
+
+  .attendance-register {
+    margin-top: 10px;
+    padding: 8px;
+    border: 1px solid #e3ebe6;
+    border-radius: 16px;
+    background: #fff;
+  }
+
+  .attendance-report-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 10px 0;
+  }
+
+  .attendance-report-controls label,
+  .attendance-report-controls select,
+  .attendance-report-controls input {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .table-tools {
+    gap: 9px;
+    padding: 12px;
+    border: 1px solid #e3ebe6;
+    border-radius: 16px 16px 0 0;
+    background: #fff;
+  }
+
+  .table-wrap,
+  .table-scroll {
+    border-radius: 0 0 16px 16px;
+    background: #fff;
+  }
+
+  .table-wrap table,
+  .table-scroll table {
+    min-width: 640px;
+  }
+
+  .table-scroll input,
+  .table-scroll select,
+  .field input,
+  .field select,
+  .field textarea,
+  .search-box input {
+    min-height: 42px;
+    font-size: 13px;
+  }
+
+  .btn,
+  .icon-btn,
+  .text-btn {
+    touch-action: manipulation;
+  }
+
+  .content .btn:not(.icon-btn) {
+    min-height: 42px;
+  }
+
+  .role-mobile-nav-hidden {
+    display: none;
+  }
+
+  .role-mobile-nav {
+    z-index: 35;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .role-mobile-nav button {
+    min-width: 0;
+    min-height: 48px;
+    flex-direction: column;
+    gap: 3px;
+    padding: 4px 2px;
+    font-size: 9px;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 420px) {
+  .content:not(:has(.role-dashboard)) {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .page-title {
+    padding: 13px;
+  }
+
+  .page-title > .btn,
+  .page-title > .text-btn {
+    max-width: 44%;
+    padding-inline: 8px;
+  }
+
+  .assignment-card {
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .assignment-state > span:not(.badge) {
+    max-width: 68px;
+  }
+}
+
+@media (max-width: 360px) {
+  .attendance-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .role-mobile-nav button {
+    font-size: 8px;
+  }
+}
