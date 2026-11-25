@@ -8,6 +8,7 @@ import { seedData } from '../lib/lms/seed';
 import { tables } from '../lib/lms/types';
 import { POST as setup } from '../app/api/setup/route';
 import { ensureDatabase } from '../lib/database';
+import { rateLimit } from '../security/rate-limit';
 await ensureDatabase();
 const setupRequest = (body: any) =>
   setup(
@@ -1391,6 +1392,18 @@ await test('Office, spreadsheet, CSV and ZIP attachments upload with safe previe
   // Stored names are user-controlled database data; verify response serialization
   // cannot inject another header while preserving a safe display name.
   const unsafeNames = [
+    ['simple-file.docx', 'simple-file.docx', 'simple-file.docx'],
+    ['\u8cc7\u6599\ud83d\udcd8.docx', '____.docx', '%E8%B3%87%E6%96%99%F0%9F%93%98.docx'],
+    ['', 'download', 'download'],
+    ['line\rbreak\nX-Evil: yes.docx', 'line_break_X-Evil: yes.docx', 'line_break_X-Evil%3A%20yes.docx'],
+    ['double"quote.docx', 'double_quote.docx', 'double_quote.docx'],
+    ["single'quote.docx", 'single_quote.docx', 'single_quote.docx'],
+    ['..\\folder/name.docx', '.._folder_name.docx', '.._folder_name.docx'],
+    ['control\u0001name.docx', 'control_name.docx', 'control_name.docx'],
+    ['x'.repeat(10000) + '.docx', 'x'.repeat(180), 'x'.repeat(180)],
+    ['\ud800bad.docx', '_bad.docx', '%EF%BF%BDbad.docx'],
+  ];
+  const legacyNames = [
     ['line\rbreak\nX-Evil: yes.docx', 'line_break_X-Evil: yes.docx'],
     ['double"quote.docx', 'double_quote.docx'],
     ["single'quote.docx", "single'quote.docx"],
@@ -1399,13 +1412,13 @@ await test('Office, spreadsheet, CSV and ZIP attachments upload with safe previe
     ['x'.repeat(10000) + '.docx', 'x'.repeat(10000) + '.docx'],
     ['', '.docx'],
   ];
-  for (const [name, expected] of unsafeNames) {
+  for (const [name, expected] of [...unsafeNames, ...legacyNames]) {
     await stmt('UPDATE files SET name=? WHERE id=?', [name, ids[0]]).run();
     const response = await getFile(new Request(`https://portal.test/api/files/${ids[0]}`), {
       params: Promise.resolve({ id: ids[0] }),
     });
     const disposition = response.headers.get('Content-Disposition') || '';
-    assert.equal(disposition, `attachment; filename="${expected}"`);
+    assert.equal(disposition, `attachment; filename="${expected}"; filename*=UTF-8''${encodeURIComponent(name === '' ? 'download' : name.replace(/[\r\n\\/"\x00-\x1f\x7f]/g, '_').trim().slice(0, 180)).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`);
     assert.equal(response.headers.get('X-Evil'), null);
   }
   await stmt('UPDATE files SET name=? WHERE id=?', ['reference.docx', ids[0]]).run();

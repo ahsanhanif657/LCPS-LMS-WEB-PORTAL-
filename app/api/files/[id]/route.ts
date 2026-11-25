@@ -6,17 +6,17 @@ import { Row } from '@/lib/lms/types';
 import { inlineFileAllowed } from '@/lib/lms/file-types';
 export const dynamic = 'force-dynamic';
 function contentDisposition(name: unknown, inline: boolean) {
-  const value = typeof name === 'string' ? name.normalize('NFC') : '';
-  const safe = value.replace(/[\r\n\\/"\x00-\x1f\x7f]/g, '_').trim().slice(0, 180);
-  const fallback = safe
-    .normalize('NFKD')
-    .replace(/[^\x20-\x7e]/g, '_')
-    .replace(/[%']/g, '_') || 'download';
-  let encoded = '';
-  for (const byte of new TextEncoder().encode(safe || 'download'))
-    encoded += /[A-Za-z0-9!#$&+.^_`|~-]/.test(String.fromCharCode(byte))
-      ? String.fromCharCode(byte)
-      : `%${byte.toString(16).toUpperCase().padStart(2, '0')}`;
+  const source = typeof name === 'string' ? name : '';
+  // Replace malformed UTF-16 before normalization/UTF-8 conversion.
+  const value = source
+  .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '\uFFFD')
+  .normalize('NFC');
+  const safe = value.replace(/[\r\n\\/"\x00-\x1f\x7f]/g, '_').trim().slice(0, 180) || 'download';
+  const fallback = safe.normalize('NFKD').replace(/[^\x20-\x7e]/g, '_').replace(/[%']/g, '_') || 'download';
+  const encoded = Array.from(new TextEncoder().encode(safe), (byte) => {
+    const char = String.fromCharCode(byte);
+    return /[A-Za-z0-9!#$&+.^_`|~-]/.test(char) ? char : `%${byte.toString(16).toUpperCase().padStart(2, '0')}`;
+  }).join('');
   return `${inline ? 'inline' : 'attachment'}; filename="${fallback}"; filename*=UTF-8''${encoded}`;
 }
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
