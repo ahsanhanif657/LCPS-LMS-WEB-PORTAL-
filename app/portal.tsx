@@ -80,6 +80,7 @@ import { GradingSettings, AcademicSummary, BackupSettings } from './operations';
 import { GradingPolicy } from '@/lib/lms/grading';
 import { LoginForm, PasswordForm, PasswordInput, authRequest } from './security';
 import { forms, titles, columns, Field } from '@/lib/lms/forms';
+import { suggestUserIdentifier } from '@/lib/lms/identifiers';
 import {
   documentAccept,
   maxBookUploadBytes,
@@ -3775,6 +3776,57 @@ function EntityForm({
     [error, setError] = useState(''),
     [saving, setSaving] = useState(false),
     [fileName, setFileName] = useState('');
+  const [manualIdentifier, setManualIdentifier] = useState(() => Boolean(record.id || record.identifier));
+  const [serverSuggestedIdentifier, setServerSuggestedIdentifier] = useState('');
+  const localIdentifier = entity === 'users' ? suggestUserIdentifier(v, d) : '';
+  const automaticIdentifier = serverSuggestedIdentifier || localIdentifier;
+  useEffect(() => {
+    if (entity !== 'users' || record.id || manualIdentifier || !v.role) {
+      setServerSuggestedIdentifier('');
+      return;
+    }
+    let current = true;
+    fetch('/api/lms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'suggestUserIdentifier',
+        record: {
+          role: v.role,
+          departmentId: v.departmentId,
+          programId: v.programId,
+          sessionId: v.sessionId,
+          batchId: v.batchId,
+        },
+      }),
+    })
+      .then(async (response) => {
+        const json = await response.json();
+        if (response.ok && current && typeof json.result === 'string')
+          setServerSuggestedIdentifier(json.result);
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [
+    entity,
+    record.id,
+    manualIdentifier,
+    v.role,
+    v.departmentId,
+    v.programId,
+    v.sessionId,
+    v.batchId,
+  ]);
+  useEffect(() => {
+    if (entity !== 'users' || record.id || manualIdentifier) return;
+    setV((previous) =>
+      previous.identifier === automaticIdentifier
+        ? previous
+        : { ...previous, identifier: automaticIdentifier },
+    );
+  }, [entity, record.id, manualIdentifier, automaticIdentifier]);
   const set = (key: string, value: any) => setV((prev) => ({ ...prev, [key]: value }));
   const options = (f: Field): Row[] => {
     let rows = d[f.ref!] || [];
@@ -3885,6 +3937,8 @@ function EntityForm({
         if (f.type === 'number' && out[f.key] !== '' && out[f.key] != null)
           out[f.key] = Number(out[f.key]);
       }
+      if (entity === 'users' && !record.id)
+        out.autoIdentifier = !manualIdentifier && !!automaticIdentifier;
       await onSave(out);
     } catch (e) {
       setError((e as Error).message);
@@ -4182,10 +4236,25 @@ function EntityForm({
                     value={v[f.key] ?? ''}
                     min={f.type === 'number' ? 0 : undefined}
                     step={f.type === 'number' ? 'any' : undefined}
-                    onChange={(e) => set(f.key, e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (entity === 'users' && f.key === 'identifier' && !record.id)
+                        setManualIdentifier(
+                          !!value.trim() && value.trim() !== automaticIdentifier,
+                        );
+                      set(f.key, value);
+                    }}
                   />
                 )}{' '}
-                {f.type !== 'file' && f.help && <small>{f.help}</small>}
+                {f.type !== 'file' &&
+                  (f.help || (entity === 'users' && f.key === 'identifier' && !record.id)) && (
+                    <small>
+                      {f.help ||
+                        (v.role === 'STUDENT'
+                          ? 'Generated from program and session; it stays with the student across semesters. You can change it if needed.'
+                          : 'Generated sequentially for this role. You can change it if needed.')}
+                    </small>
+                  )}
               </label>
             );
           })}

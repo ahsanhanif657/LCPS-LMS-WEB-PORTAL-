@@ -12,6 +12,7 @@ import { AppError } from '@/security/errors';
 export { AppError } from '@/security/errors';
 import { Data, Row, tables, roles, uid } from './types';
 import { maxBookUploadBytes, maxUploadBytes, resourceMimeAllowed } from './file-types';
+import { suggestUserIdentifier } from './identifiers';
 
 import { cookies } from 'next/headers';
 import { digest, hashPassword } from './password';
@@ -726,6 +727,18 @@ function subjectAssignments(c: Context, record: Row, input: Row, previous?: Row)
   );
   return { programIds: uniquePrograms, sessionAssignments: uniqueAssignments };
 }
+async function nextPersistedUserIdentifier(c: Context, record: Row) {
+  const currentUsers = await stmt(
+    'SELECT role,identifier,programId,sessionId,batchId FROM users',
+  ).all<Row>();
+  return suggestUserIdentifier(record, { ...c.data, users: currentUsers.results });
+}
+
+function isIdentifierCollision(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /users\.identifier|users_identifier_unique|identifier_unique/i.test(message);
+}
+
 export async function save(c: Context, t: string, input: Row) {
   assert(t !== 'tasks', 'Office tasks have been retired.');
   assert(permitted(c.user, entityPrivilege(t), c.rolePrivileges));
@@ -776,6 +789,11 @@ export async function save(c: Context, t: string, input: Row) {
     r.questions = '[]';
   }
   validate(c, t, r, previous);
+  const autoIdentifier =
+    t === 'users' &&
+    !previous &&
+    (input.autoIdentifier === true || !String(r.identifier || '').trim());
+  if (autoIdentifier) r.identifier = await nextPersistedUserIdentifier(c, r);
   const assignments = t === 'subjects' ? subjectAssignments(c, r, input, previous) : undefined;
   if (['assignments', 'quizzes', 'materials', 'results', 'timetable'].includes(t))
     r.updatedBy = c.user.id;
@@ -901,7 +919,7 @@ export async function save(c: Context, t: string, input: Row) {
     );
   }
   const keys = Object.keys(r).filter((k) => k !== 'id');
-  const write = previous
+  let write = previous
     ? stmt(`UPDATE "${t}" SET ${keys.map((k) => '"' + k + '"=?').join(',')} WHERE id=?`, [
         ...keys.map((k) => r[k] ?? null),
         r.id,
@@ -915,7 +933,7 @@ export async function save(c: Context, t: string, input: Row) {
     for (const assignment of assignments.sessionAssignments)
       extra.push(insert('subjectSessions', { id: uid(), subjectId: r.id, ...assignment }));
   }
-  await db().batch([
+  const writes = () => [
     write,
     ...extra,
     auditStmt(
@@ -939,7 +957,17 @@ export async function save(c: Context, t: string, input: Row) {
             })
           : '',
     ),
-  ]);
+  ];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await db().batch(writes());
+      break;
+    } catch (error) {
+      if (!autoIdentifier || attempt >= 4 || !isIdentifierCollision(error)) throw error;
+      r.identifier = await nextPersistedUserIdentifier(c, r);
+      write = insert(t, r);
+    }
+  }
   return r.id;
 }
 
@@ -1491,6 +1519,44 @@ async function discussionAction(c: Context, body: Row) {
 export async function action(c: Context, body: Row) {
   const u = c.user,
     d = c.data;
+  if (body.action === 'suggestUserIdentifier') {
+    assert(permitted(u, 'users', c.rolePrivileges), 'User management access is disabled.');
+    const record = {
+      role: String(body.record?.role || '').toUpperCase(),
+      departmentId: body.record?.departmentId || null,
+      programId: body.record?.programId || null,
+      sessionId: body.record?.sessionId || null,
+      batchId: body.record?.batchId || null,
+    };
+    assert(roles.includes(record.role), 'Select a valid role.', 400);
+    if (!permitted(u, 'senior_accounts', c.rolePrivileges))
+      assert(['STUDENT', 'TEACHER'].includes(record.role), 'Only an administrator can assign this role.', 403);
+    assert(accountManageAllowed(u, record), 'You cannot manage accounts for this department.', 403);
+    if (['STUDENT', 'TEACHER', 'HOD'].includes(record.role) && !record.departmentId) return '';
+    if (record.role === 'STUDENT') {
+      const batch = d.batches.find((item) => item.id === record.batchId);
+      const programId = record.programId || batch?.programId;
+      const sessionId = record.sessionId || batch?.sessionId;
+      if (!programId || !sessionId) return '';
+      const program = d.programs.find((item) => item.id === programId);
+      const session = d.sessions.find((item) => item.id === sessionId);
+      assert(
+        program && session && program.departmentId === record.departmentId &&
+          d.batches.some((item) => item.programId === programId && item.sessionId === sessionId),
+        'Choose a program and session available for this department.',
+        400,
+      );
+      if (batch)
+        assert(
+          batch.programId === programId && batch.sessionId === sessionId &&
+            batch.departmentId === record.departmentId,
+          'Student program, session and batch do not match.',
+          400,
+        );
+      return nextPersistedUserIdentifier(c, { ...record, programId, sessionId });
+    }
+    return nextPersistedUserIdentifier(c, record);
+  }
   if (
     [
       'discussionCreateThread',
