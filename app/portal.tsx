@@ -3290,6 +3290,8 @@ export function AttendanceWorkflow({
     [marks, setMarks] = useState<Record<string, string>>({}),
     [remarks, setRemarks] = useState<Record<string, string>>({}),
     [reason, setReason] = useState(''),
+    [rosterSearch, setRosterSearch] = useState(''),
+    [rosterStatusFilter, setRosterStatusFilter] = useState('all'),
     [preview, setPreview] = useState(false),
     [submitted, setSubmitted] = useState(false),
     [error, setError] = useState(''),
@@ -3322,6 +3324,13 @@ export function AttendanceWorkflow({
       roster.filter((s) => marks[s.id] === status).length,
     ]),
   );
+  const visibleRoster = roster.filter((student) => {
+    const search = rosterSearch.trim().toLowerCase();
+    return (
+      (!search || `${student.name} ${student.identifier || ''}`.toLowerCase().includes(search)) &&
+      (rosterStatusFilter === 'all' || (marks[student.id] || 'Present') === rosterStatusFilter)
+    );
+  });
   useEffect(() => {
     const current = offering
       ? data.attendance.filter((a) => a.offeringId === offering.id && a.date === date)
@@ -3358,7 +3367,7 @@ export function AttendanceWorkflow({
             ? 'Correct submitted attendance'
             : 'Record attendance'}
       </h2>
-      <p>
+      <p className="attendance-workflow-hint">
         Select a subject and class date, mark every enrolled student, then review and submit the
         report. Choose Present, Absent or Late. Remarks are enabled for Late. Historical excused
         records remain unchanged until explicitly corrected.
@@ -3410,6 +3419,73 @@ export function AttendanceWorkflow({
           This attendance register has already been submitted and is read-only for your account.
         </p>
       )}
+      {!preview && (
+        <>
+          <div
+            className="attendance-live-summary"
+            aria-live="polite"
+            aria-label="Attendance totals"
+          >
+            <div>
+              <span>Enrolled</span>
+              <strong>{roster.length}</strong>
+            </div>
+            <div>
+              <span>Present</span>
+              <strong className="present-count">{counts.Present || 0}</strong>
+            </div>
+            <div>
+              <span>Absent</span>
+              <strong className="absent-count">{counts.Absent || 0}</strong>
+            </div>
+            <div>
+              <span>Late</span>
+              <strong className="late-count">{counts.Late || 0}</strong>
+            </div>
+          </div>
+          <div className="attendance-roster-tools">
+            <label className="search-box">
+              <Search size={16} />
+              <input
+                aria-label="Search enrolled students"
+                placeholder="Search name or roll number"
+                value={rosterSearch}
+                onChange={(event) => setRosterSearch(event.target.value)}
+              />
+            </label>
+            <label className="attendance-status-filter">
+              <span className="sr-only">Filter students by attendance</span>
+              <select
+                value={rosterStatusFilter}
+                onChange={(event) => setRosterStatusFilter(event.target.value)}
+                aria-label="Filter students by attendance"
+              >
+                <option value="all">All students</option>
+                <option value="Present">Present</option>
+                <option value="Absent">Absent</option>
+                <option value="Late">Late</option>
+                <option value="Excused">Excused</option>
+              </select>
+            </label>
+            <button
+              className="btn attendance-mark-all"
+              type="button"
+              disabled={!canSubmit || submitted || !roster.length}
+              onClick={() => {
+                setMarks(Object.fromEntries(roster.map((student) => [student.id, 'Present'])));
+                setRemarks({});
+                setPreview(false);
+                setSubmitted(false);
+              }}
+            >
+              <CheckCheck size={16} /> Mark all present
+            </button>
+          </div>
+          <p className="attendance-mark-legend" aria-label="Status key">
+            <span>P</span> Present <span>A</span> Absent <span>L</span> Late
+          </p>
+        </>
+      )}
       <div className="table-scroll attendance-register">
         <table>
           <thead>
@@ -3423,7 +3499,7 @@ export function AttendanceWorkflow({
             </tr>
           </thead>
           <tbody>
-            {roster.map((s, index) => (
+            {visibleRoster.map((s, index) => (
               <tr key={s.id}>
                 <td className="register-number">{index + 1}</td>
                 <td className="register-photo">
@@ -3435,12 +3511,13 @@ export function AttendanceWorkflow({
                   <select
                     disabled={!canSubmit || submitted}
                     className={
-                      'attendance-status status-' + (marks[s.id] || 'Present').toLowerCase()
+                      'attendance-status desktop-attendance-status status-' +
+                      (marks[s.id] || 'Present').toLowerCase()
                     }
                     aria-label={'Attendance for ' + s.name}
                     value={marks[s.id] || 'Present'}
-                    onChange={(e) => {
-                      setMarks((previous) => ({ ...previous, [s.id]: e.target.value }));
+                    onChange={(event) => {
+                      setMarks((previous) => ({ ...previous, [s.id]: event.target.value }));
                       setPreview(false);
                       setSubmitted(false);
                     }}
@@ -3454,23 +3531,53 @@ export function AttendanceWorkflow({
                       </option>
                     )}
                   </select>
+                  <div
+                    className="attendance-mark-choices mobile-attendance-choices"
+                    role="group"
+                    aria-label={'Attendance for ' + s.name}
+                  >
+                    {(['Present', 'Absent', 'Late'] as const).map((status) => (
+                      <button
+                        className={
+                          'attendance-mark-choice ' +
+                          status.toLowerCase() +
+                          (marks[s.id] === status ? ' selected' : '')
+                        }
+                        key={status}
+                        type="button"
+                        disabled={!canSubmit || submitted}
+                        aria-pressed={marks[s.id] === status}
+                        aria-label={`Mark ${s.name} ${status.toLowerCase()}`}
+                        title={status}
+                        onClick={() => {
+                          setMarks((previous) => ({ ...previous, [s.id]: status }));
+                          setPreview(false);
+                          setSubmitted(false);
+                        }}
+                      >
+                        <span className="status-short">{status[0]}</span>
+                        <span className="status-full">{status}</span>
+                      </button>
+                    ))}
+                    {marks[s.id] === 'Excused' && <span className="badge">Excused · historical</span>}
+                  </div>
                 </td>
-                <td className="register-remarks" data-label="Remarks (Late)">
-                  <input
-                    aria-label={'Late remarks for ' + s.name}
-                    disabled={!canSubmit || submitted || marks[s.id] !== 'Late'}
-                    maxLength={1000}
-                    value={marks[s.id] === 'Late' ? remarks[s.id] || '' : ''}
-                    onChange={(e) => {
-                      setRemarks((prev) => ({ ...prev, [s.id]: e.target.value }));
-                      setPreview(false);
-                      setSubmitted(false);
-                    }}
-                    placeholder={
-                      marks[s.id] === 'Late' ? 'Reason for arriving late' : 'Available for Late'
-                    }
-                  />
-                </td>
+                {marks[s.id] === 'Late' && (
+                  <td className="register-remarks" data-label="Remarks (Late)">
+                    <input
+                      aria-label={'Late remarks for ' + s.name}
+                      disabled={!canSubmit || submitted || marks[s.id] !== 'Late'}
+                      maxLength={1000}
+                      value={marks[s.id] === 'Late' ? remarks[s.id] || '' : ''}
+                      onChange={(e) => {
+                        setRemarks((prev) => ({ ...prev, [s.id]: e.target.value }));
+                        setPreview(false);
+                        setSubmitted(false);
+                      }}
+                      placeholder="Reason for arriving late"
+                    />
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -3480,6 +3587,9 @@ export function AttendanceWorkflow({
             title="No enrolled students"
             text="Enroll students in this subject before marking attendance."
           />
+        )}
+        {!!roster.length && !visibleRoster.length && (
+          <p className="muted">No students match these filters.</p>
         )}
       </div>
       {corrections.length > 0 && (
@@ -3500,17 +3610,19 @@ export function AttendanceWorkflow({
         </p>
       )}
       {!preview ? (
-        <button
-          className="btn primary"
-          disabled={!roster.length || !canSubmit || submitted}
-          onClick={() => {
-            setError('');
-            setPreview(true);
-          }}
-        >
-          <CheckCheck size={16} />
-          Review attendance
-        </button>
+        <div className="attendance-primary-action">
+          <button
+            className="btn primary"
+            disabled={!roster.length || !canSubmit || submitted}
+            onClick={() => {
+              setError('');
+              setPreview(true);
+            }}
+          >
+            <CheckCheck size={16} />
+            Review attendance
+          </button>
+        </div>
       ) : (
         <div className="restore-box">
           <div className="row between">
@@ -3534,7 +3646,7 @@ export function AttendanceWorkflow({
             absent · {counts.Late} late
           </p>
           <div className="table-scroll">
-            <table>
+            <table className="attendance-review-register">
               <thead>
                 <tr>
                   <th>S.No.</th>
@@ -3548,20 +3660,21 @@ export function AttendanceWorkflow({
               <tbody>
                 {roster.map((s, index) => (
                   <tr key={s.id}>
-                    <td>{index + 1}</td>
-                    <td>
+                    <td data-label="S.No.">{index + 1}</td>
+                    <td data-label="Photo">
                       <UserPhoto user={s} />
                     </td>
-                    <td>{s.identifier || '—'}</td>
-                    <td>{s.name}</td>
-                    <td>{marks[s.id] || 'Present'}</td>
-                    <td>{marks[s.id] === 'Late' ? remarks[s.id] || '—' : '—'}</td>
+                    <td data-label="Roll number">{s.identifier || '—'}</td>
+                    <td data-label="Student">{s.name}</td>
+                    <td data-label="Attendance">{marks[s.id] || 'Present'}</td>
+                    <td data-label="Remarks">{marks[s.id] === 'Late' ? remarks[s.id] || '—' : '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           {!submitted && (
+            <div className="attendance-primary-action">
             <button
               className="btn primary"
               disabled={saving || (corrections.length > 0 && reason.trim().length < 5)}
@@ -3598,6 +3711,7 @@ export function AttendanceWorkflow({
                   ? 'Save attendance correction'
                   : 'Submit attendance'}
             </button>
+            </div>
           )}
           {submitted && (
             <p role="status">

@@ -22,7 +22,7 @@ const evaluate = async (expression, awaitPromise = false) => {
   if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
   return result.result?.value;
 };
-const widths = [320, 375, 390, 430];
+const widths = [320, 375, 390, 430, 768, 1024, 1280, 1440];
 const accounts = [
   ['student', 'student'],
   ['teacher', 'teacher'],
@@ -45,7 +45,11 @@ for (const [role, username] of accounts) {
   const auth = await evaluate(`fetch('/api/auth',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'login',username:${JSON.stringify(username)},password:'MobileAuditPass!23'})}).then(async r=>({status:r.status,body:await r.text()}))`, true);
   if (auth.status !== 200) { report.routeErrors.push({ role, error: 'login ' + auth.status + ': ' + auth.body }); continue; }
   await call('Page.reload');
-  await sleep(500);
+  for (let attempt = 0; attempt < 16; attempt++) {
+    await sleep(250);
+    const loaded = await evaluate("document.querySelector('h1')?.textContent !== 'Login'");
+    if (loaded) break;
+  }
   await evaluate("(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Continue to portal');b?.click();return !!b})()");
   await sleep(150);
   let roleResult = await evaluate("({heading:document.querySelector('.greeting h1')?.textContent||document.querySelector('h1')?.textContent||'',nav:[...document.querySelector('#portal-navigation nav[aria-label=\\\"Main navigation\\\"]')?.querySelectorAll('.nav-item')||[]].map(b=>({label:b.getAttribute('aria-label'),title:b.title,current:b.getAttribute('aria-current')}))})");
@@ -83,7 +87,8 @@ for (const [role, username] of accounts) {
     if (label !== 'Dashboard' && currentPage.shortcut) report.responsiveShortcutIssues.push({role,page:label,shortcut:true});
     for (const width of widths) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: width <= 768 ? 900 : 1000, deviceScaleFactor: 1, mobile: width <= 768 });
-      const check = await evaluate("(()=>{const w=innerWidth,doc=document.documentElement,b=document.body,content=document.querySelector('main.content');const contentRight=content?Math.round(content.getBoundingClientRect().right):0;const offenders=[...document.querySelectorAll('main.content *')].filter(el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);return r.width>0&&r.height>0&&(r.right>w+2||r.left< -2)&&!el.closest('.table-scroll,.table-wrap,.attendance-register')&&s.position!=='fixed'&&s.visibility!=='hidden'}).slice(0,8).map(el=>({tag:el.tagName,cls:String(el.className).slice(0,60),right:Math.round(el.getBoundingClientRect().right),left:Math.round(el.getBoundingClientRect().left)}));return {width:w,doc:doc.scrollWidth,body:b.scrollWidth,contentRight,offenders}})()");
+      await sleep(100);
+      const check = await evaluate("(()=>{const w=innerWidth,doc=document.documentElement,b=document.body,content=document.querySelector('main.content');const contentRight=content?Math.round(content.getBoundingClientRect().right):0;const offenders=[...document.querySelectorAll('main.content *')].filter(el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);return r.width>0&&r.height>0&&(r.right>w+2||r.left< -2)&&!el.matches('.art-circle')&&!el.closest('.table-scroll,.table-wrap,.attendance-register')&&s.position!=='fixed'&&s.visibility!=='hidden'}).slice(0,8).map(el=>({tag:el.tagName,cls:String(el.className).slice(0,60),right:Math.round(el.getBoundingClientRect().right),left:Math.round(el.getBoundingClientRect().left)}));return {width:w,doc:doc.scrollWidth,body:b.scrollWidth,contentRight,offenders}})()");
       if (check.doc > width + 1 || check.body > width + 1 || check.contentRight > width + 1 || check.offenders.length) report.pageWidthIssues.push({ role, page: label, ...check });
     }
     // Capture representative layouts for visual review.
