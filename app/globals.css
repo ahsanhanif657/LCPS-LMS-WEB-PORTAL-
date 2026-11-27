@@ -700,12 +700,12 @@ svg {
 .subjects-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 15px;
 }
 .subject-card {
   background: white;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 9px;
   overflow: hidden;
   text-align: left;
   padding: 0;
@@ -749,13 +749,12 @@ svg {
 .shared-subject-card .compact-schedule {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
 }
 
 .shared-subject-card .compact-schedule th,
 .shared-subject-card .compact-schedule td {
-  padding: 5px 7px;
-  font-size: 11px;
+  padding: 6px 8px;
+  font-size: 12px;
 }
 
 .shared-subject-card .subject-bottom {
@@ -778,8 +777,8 @@ svg {
 
   .shared-subject-card .compact-schedule th,
   .shared-subject-card .compact-schedule td {
-    padding: 4px 6px;
-    font-size: 10px;
+    padding: 5px 6px;
+    font-size: 11px;
   }
 
   .shared-subject-card .subject-bottom {
@@ -787,7 +786,7 @@ svg {
   }
 }
 .subject-art {
-  height: 85px;
+  height: 111px;
   position: relative;
   overflow: hidden;
   display: flex;
@@ -2320,7 +2319,7 @@ tbody tr:last-child td {
     font-size: 8px;
   }
   .full-grid .subject-art {
-    height: 100px;
+    height: 130px;
   }
 }
 @media (max-width: 1000px) {
@@ -2339,7 +2338,7 @@ tbody tr:last-child td {
     display: none;
   }
   .subjects-grid {
-    gap: 12px;
+    gap: 15px;
   }
   .subject-body {
     padding: 15px;
@@ -5715,18 +5714,18 @@ p,
   .subjects-grid,
   .subjects-grid.full-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    gap: 14px;
   }
   .subject-card {
     min-width: 0;
   }
   .subject-art,
   .full-grid .subject-art {
-    height: 100px;
+    height: 130px;
   }
   .subject-body,
   .full-grid .subject-body {
-    padding: 14px;
+    padding: 16px;
   }
   .subject-body h3,
   .full-grid .subject-body h3 {
@@ -7062,49 +7061,48 @@ textarea::placeholder {
   outline-offset: -3px;
 }
 .subject-heading {
-  padding: 12px 12px 0;
+  padding: 18px 16px 0;
 }
 .subject-heading small {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.3px;
   color: #3e6684;
 }
 .subject-heading h3 {
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.5;
-  margin: 6px 0 8px;
+  margin: 8px 0 12px;
   overflow-wrap: anywhere;
 }
 .shared-subject-card .subject-body {
-  padding: 0 12px 12px;
+  padding: 0 16px 16px;
   display: flex;
   flex: 1;
   flex-direction: column;
 }
 .subject-teachers {
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 .subject-teacher {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   color: #335b78;
-  font-size: 11px;
+  font-size: 12px;
 }
 .subject-teacher .avatar {
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
 }
 .subject-teacher span {
   overflow-wrap: anywhere;
 }
 .shared-subject-card .subject-bottom {
-  margin-top: 12px;
-  padding-top: 8px;
+  margin-top: auto;
+  padding-top: 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -7112,7 +7110,7 @@ textarea::placeholder {
   border-top: 1px solid #deebf4;
 }
 .shared-subject-card .table-wrap {
-  margin-bottom: 8px;
+  margin-bottom: 14px;
 }
 .subject-card-open .subject-art {
   width: 100%;
