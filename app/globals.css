@@ -700,12 +700,12 @@ svg {
 .subjects-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 15px;
+  gap: 12px;
 }
 .subject-card {
   background: white;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 8px;
   overflow: hidden;
   text-align: left;
   padding: 0;
@@ -721,8 +721,73 @@ svg {
   transform: translateY(-3px);
   box-shadow: 0 8px 20px #26374610;
 }
+/* Compact shared subject cards */
+.shared-subject-card {
+  min-height: 0;
+  height: auto;
+  border-radius: 12px;
+}
+
+.shared-subject-card .subject-body {
+  padding: 12px 14px;
+  gap: 9px;
+}
+
+.shared-subject-card .subject-teachers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.shared-subject-card .subject-teacher {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.shared-subject-card .compact-schedule {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.shared-subject-card .compact-schedule th,
+.shared-subject-card .compact-schedule td {
+  padding: 5px 7px;
+  font-size: 11px;
+}
+
+.shared-subject-card .subject-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+  .shared-subject-card {
+    border-radius: 10px;
+  }
+
+  .shared-subject-card .subject-body {
+    padding: 10px 12px;
+    gap: 7px;
+  }
+
+  .shared-subject-card .compact-schedule th,
+  .shared-subject-card .compact-schedule td {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+
+  .shared-subject-card .subject-bottom {
+    font-size: 12px;
+  }
+}
 .subject-art {
-  height: 111px;
+  height: 85px;
   position: relative;
   overflow: hidden;
   display: flex;
@@ -2255,7 +2320,7 @@ tbody tr:last-child td {
     font-size: 8px;
   }
   .full-grid .subject-art {
-    height: 130px;
+    height: 100px;
   }
 }
 @media (max-width: 1000px) {
@@ -2274,7 +2339,7 @@ tbody tr:last-child td {
     display: none;
   }
   .subjects-grid {
-    gap: 15px;
+    gap: 12px;
   }
   .subject-body {
     padding: 15px;
@@ -5650,18 +5715,18 @@ p,
   .subjects-grid,
   .subjects-grid.full-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
+    gap: 12px;
   }
   .subject-card {
     min-width: 0;
   }
   .subject-art,
   .full-grid .subject-art {
-    height: 130px;
+    height: 100px;
   }
   .subject-body,
   .full-grid .subject-body {
-    padding: 16px;
+    padding: 14px;
   }
   .subject-body h3,
   .full-grid .subject-body h3 {
@@ -6055,11 +6120,11 @@ p,
   }
   .subject-art,
   .full-grid .subject-art {
-    height: 140px;
+    height: 110px;
   }
   .subject-body,
   .full-grid .subject-body {
-    padding: 18px;
+    padding: 15px;
   }
   .subject-body h3,
   .full-grid .subject-body h3 {
@@ -6997,48 +7062,49 @@ textarea::placeholder {
   outline-offset: -3px;
 }
 .subject-heading {
-  padding: 18px 16px 0;
+  padding: 12px 12px 0;
 }
 .subject-heading small {
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.3px;
   color: #3e6684;
 }
 .subject-heading h3 {
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.5;
-  margin: 8px 0 12px;
+  margin: 6px 0 8px;
   overflow-wrap: anywhere;
 }
 .shared-subject-card .subject-body {
-  padding: 0 16px 16px;
+  padding: 0 12px 12px;
   display: flex;
   flex: 1;
   flex-direction: column;
 }
 .subject-teachers {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 12px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 .subject-teacher {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   color: #335b78;
-  font-size: 12px;
+  font-size: 11px;
 }
 .subject-teacher .avatar {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
 }
 .subject-teacher span {
   overflow-wrap: anywhere;
 }
 .shared-subject-card .subject-bottom {
-  margin-top: auto;
-  padding-top: 12px;
+  margin-top: 12px;
+  padding-top: 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -7046,7 +7112,7 @@ textarea::placeholder {
   border-top: 1px solid #deebf4;
 }
 .shared-subject-card .table-wrap {
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 .subject-card-open .subject-art {
   width: 100%;
